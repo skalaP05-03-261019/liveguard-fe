@@ -1,0 +1,85 @@
+erDiagram
+    USERS ||--o{ CHANNEL_MEMBERS : joins
+    CHANNELS ||--o{ CHANNEL_MEMBERS : has
+    CHANNELS ||--o{ MESSAGES : contains
+    USERS ||--o{ MESSAGES : writes
+    CASES ||--o{ MESSAGES : groups
+    CASES }o--o| KICK_REVIEWS : "counted in"
+    KICK_REVIEWS ||--o| KICKS : executes
+
+    USERS {
+        uuid id PK
+        text username UK
+        text password_hash
+        text nickname
+        text role "VIEWER MODERATOR PLATFORM_ADMIN"
+    }
+    CHANNELS {
+        uuid id PK
+        text name
+        jsonb official_hosts "normalized hosts"
+        jsonb official_events
+    }
+    CHANNEL_MEMBERS {
+        uuid channel_id PK, FK
+        uuid user_id PK, FK
+        text member_role "VIEWER STREAMER OFFICIAL_STAFF MODERATOR"
+    }
+    MESSAGES {
+        uuid id PK
+        uuid channel_id FK
+        uuid author_id FK
+        uuid client_message_id
+        text text "1..500"
+        text normalized_text
+        text filter_result "PASS REVIEW HOLD FLOOD"
+        text visibility "PUBLIC HELD HIDDEN"
+        uuid case_id FK
+        int version
+        timestamptz sent_at
+    }
+    CASES {
+        uuid id PK
+        uuid channel_id FK
+        uuid user_id FK
+        text filter_result "REVIEW HOLD FLOOD"
+        text status "ANALYZING NO_ACTION HIDDEN NEEDS_REVIEW KICK_REVIEW_PENDING CLOSED FAILED"
+        text verdict "VIOLATION NO_VIOLATION NEEDS_REVIEW"
+        text category "PROFANITY HARASSMENT FLOOD PHISHING"
+        text reason
+        jsonb evidence_message_ids
+        jsonb policy_snapshots
+        bool counted "counts toward kick"
+        uuid kick_review_id FK
+        timestamptz released_at
+        uuid released_by
+        text thread_id
+        uuid trace_id
+        int version
+        timestamptz created_at
+        timestamptz judged_at
+    }
+    KICK_REVIEWS {
+        uuid id PK
+        uuid channel_id FK
+        uuid user_id FK
+        uuid trigger_case_id FK
+        text summary "agent summary for moderator"
+        text status "PENDING APPROVED REJECTED EXECUTED FAILED"
+        uuid decided_by
+        text decision_reason
+        uuid client_request_id
+        int version
+        timestamptz created_at
+        timestamptz decided_at
+    }
+    KICKS {
+        uuid id PK
+        uuid review_id UK
+        uuid channel_id FK
+        uuid user_id FK
+        text idempotency_key UK
+        timestamptz starts_at
+        timestamptz expires_at
+        timestamptz revoked_at
+    }

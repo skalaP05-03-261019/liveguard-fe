@@ -1,0 +1,33 @@
+# LIVE:GUARD Frontend — 의존성 목록
+#
+# Python 3.13 가상환경(.venv) 안에 Node.js를 설치해 프론트엔드를 실행한다.
+# pip가 설치하는 것은 아래 "Python 의존성"뿐이고, 웹 의존성은 npm이 package-lock.json 기준으로 설치한다.
+#
+# 설치 순서 (macOS·Linux)
+#   python3.13 -m venv .venv
+#   .venv/bin/pip install -r requirements.txt
+#   .venv/bin/nodeenv -p --prebuilt --node="$(cat .nvmrc)"
+#   source .venv/bin/activate
+#   npm ci
+#   npm run dev
+#
+# Windows: .venv\Scripts\pip install -r requirements.txt
+#          .venv\Scripts\nodeenv -p --prebuilt --node=20.20.2
+#          .venv\Scripts\activate  →  npm ci  →  npm run dev
+
+# ── Python 의존성 (Python 3.13) ─────────────────────────────
+nodeenv==1.11.0          # venv 안에 Node.js·npm 설치
+
+# ── 런타임 (nodeenv가 설치, 버전은 .nvmrc) ───────────────────
+# Node.js 20.20.2 / npm 10.8.2
+
+# ── 웹 의존성 (npm ci가 설치, package.json → package-lock.json) ──
+# dependencies
+#   vue                  ^3.5.13  → 3.5.44
+#   pinia                ^2.3.1   → 2.3.1
+#   lucide-vue-next      ^0.468.0 → 0.468.0
+# devDependencies
+#   vite                 ^6.0.5   → 6.4.4
+#   @vitejs/plugin-vue   ^5.2.1   → 5.2.4
+#   typescript           ~5.7.3   → 5.7.3
+#   vue-tsc              ^2.2.0   → 2.2.12
