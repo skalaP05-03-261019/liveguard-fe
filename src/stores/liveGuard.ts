@@ -164,15 +164,23 @@ export const useLiveGuard = defineStore('liveGuard', () => {
           me.value = null; loginRequired.value = true;
           return;
         }
-        await enter(user);
+        await enter(user);notifyAuthChange();
       }
     } catch (e) { report(e); me.value = null; loginRequired.value = true; }
     finally { busy.value = false; }
   }
   // 세션 복원(init)과 로그인 성공 후 공통 처리. 시스템 운영자는 소속 채널이 없어도 들어갈 수 있다.
   // 로그인이 끝난 뒤의 데이터 로딩 실패는 화면 안 오류로만 보여준다. 로그인 화면으로 보내는 건 401(report)뿐이다.
+  async function syncIdentity(user: Me) {
+    disconnectSse();messages.value=[];cases.value=[];details.value={};selectedCaseId.value=null;
+    me.value=user;channelId.value=user.channelIds[0]??'';loginRequired.value=false;error.value='';
+  }
+  function notifyAuthChange(){
+    if(typeof BroadcastChannel!=='undefined'){const channel=new BroadcastChannel('liveguard-auth');channel.postMessage('changed');channel.close();}
+  }
   async function enter(user: Me) {
     me.value = user; loginRequired.value = false; error.value = ''; channelId.value = user.channelIds[0] ?? '';
+    if(import.meta.env.VITE_USE_LIVE_V1 === 'true') return;
     if (!channelId.value) {
       if (user.role !== 'PLATFORM_ADMIN') report(new ApiError('FORBIDDEN', '접근 가능한 채널이 없습니다.'));
       return;
@@ -182,10 +190,13 @@ export const useLiveGuard = defineStore('liveGuard', () => {
     if (failed) report(failed.reason);
     if (!loginRequired.value) connectSse();
   }
+  function clearIdentity() {
+    stopFeed();disconnectSse();me.value=null;loginRequired.value=true;messages.value=[];cases.value=[];details.value={};channelId.value='';
+  }
   async function logout() {
     stopFeed(); disconnectSse();
     if (!demo) { try { await api.logout(); } catch (e) { report(e); } }
-    me.value = null; loginRequired.value = true;
+    me.value = null; loginRequired.value = true;notifyAuthChange();
     if (!demo) { messages.value = []; cases.value = []; details.value = {}; }
   }
   function selectMessage(id: string) {
@@ -375,5 +386,5 @@ export const useLiveGuard = defineStore('liveGuard', () => {
   function dispose() { stopFeed(); disconnectSse(); if (clockTimer) clearInterval(clockTimer); if (notificationTimeout) clearTimeout(notificationTimeout); }
   return { mode, me, channelId, viewerId, messages, cases, details, selectedCaseId, selectedMessageId, kicks, owners, audit, online, busy, error, notice, lastTraceId, loginRequired,
     selectedCase, allCases, selectedMessage, kickReviews, pendingReviews, viewerAlias, viewerMessages, viewerCases, viewerKickUntil, kicked, decidedAt, viewerTimeoutUntil, timedOut, restrictedAliases, timeouts, clock, priorViolations, isOperator,
-    init, login, logout, feedOn, toggleFeed, refreshMessages, refreshCases, loadCase, selectCase, selectMessage, resetMock, sendMessage, mockScenario, release, decide, dispose, toast, log };
+    init, login, logout, syncIdentity, clearIdentity, feedOn, toggleFeed, refreshMessages, refreshCases, loadCase, selectCase, selectMessage, resetMock, sendMessage, mockScenario, release, decide, dispose, toast, log };
 });

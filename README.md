@@ -1,3 +1,5 @@
+> 2026-10-21 통합 시험: `VITE_USE_API=true`와 `VITE_USE_LIVE_V1=true`를 빌드 시 함께 설정하면 기존 화면 대신 실제 liveId 채팅·검토 콘솔을 사용합니다. 기본값은 false입니다. BE #29 통합 브랜치와 Agent #48 Gateway가 필요합니다. 상세·제한은 [통합 시험](docs/live-v1-integration.md)을 참조하세요.
+
 # LIVE:GUARD — Frontend
 
 **LIVE:GUARD**는 AI Agent가 라이브 방송 채팅을 관제하고, 운영자가 주요 제재를 최종 승인하는 서비스입니다. 이 저장소는 시청자·스트리머·시스템 운영자용 웹 프론트엔드를 제공합니다.

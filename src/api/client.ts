@@ -27,6 +27,16 @@ async function ensureCsrfToken(): Promise<void> {
   await fetch(`${base}/api/auth/me`, { credentials: 'include', headers: { Accept: 'application/json' } }).catch(() => undefined);
 }
 export const api = {
+  currentLive: (channelId:UUID) => request<Live>(`/api/channels/${channelId}/lives/current`),
+  startLive: (channelId:UUID) => request<Live>(`/api/channels/${channelId}/lives`, 'POST'),
+  endLive: (liveId:UUID) => request<Live>(`/api/lives/${liveId}/end`, 'POST'),
+  liveMessages: (liveId:UUID) => request<MessagePage>(`/api/lives/${liveId}/messages`),
+  sendLive: (liveId:UUID,text:string,clientMessageId:UUID) => request<Message>(`/api/lives/${liveId}/messages`, 'POST',{text,clientMessageId}),
+  liveReviews: async (liveId:UUID) => (await Promise.all(['CONTEXT','KICK'].map(kind=>request<LiveReview[]>(`/api/reviews?liveId=${encodeURIComponent(liveId)}&kind=${kind}`)))).flat(),
+  liveCases: (liveId:UUID) => request<LiveCase[]>(`/api/cases?liveId=${encodeURIComponent(liveId)}`),
+  revokeFinding: (findingId:UUID,body:object) => request<object>(`/api/findings/${findingId}/revoke`,'POST',body),
+  decideLive: (review:LiveReview,body:object) => request<Decision>(`/api/${review.kind==='CONTEXT'?'context':'kick'}-reviews/${review.reviewId}/decision`,'POST',body),
+  liveEvents: (liveId:UUID,guard=false) => new EventSource(`${base}${guard?`/api/guard/events?liveId=${encodeURIComponent(liveId)}`:`/api/lives/${liveId}/events`}`,{withCredentials:true}),
   login: async (username: string, password: string) => { await ensureCsrfToken(); return request<Me>('/api/auth/login', 'POST', { username, password }); },
   me: () => request<Me>('/api/auth/me'),
   logout: () => request<void>('/api/auth/logout', 'POST'),
@@ -39,3 +49,11 @@ export const api = {
   channelEvents: (channelId: UUID) => new EventSource(`${base}/api/channels/${channelId}/events`, { withCredentials: true }),
   guardEvents: (channelId: UUID) => new EventSource(`${base}/api/guard/events?channelId=${encodeURIComponent(channelId)}`, { withCredentials: true })
 };
+export interface Live {liveId:UUID;channelId:UUID;startedAt:string;endedAt:string|null}
+export interface Finding {messageId:UUID;verdict:string;categories:string[];policyIds:string[];reason:string;missingFacts:string[]}
+export interface LiveReview {reviewId:UUID;kind:'CONTEXT'|'KICK';liveId:UUID;caseId:UUID;status:'PENDING'|'DECIDED';version:number;createdAt:string;aiVerdict:string;messages:MaskedContextMessage[];targetMessageIds:UUID[];findings:Finding[];basisCaseIds:UUID[];summary:string}
+export interface Decision {decisionId:UUID;reviewId:UUID;kind:'CONTEXT'|'KICK';value:string;operatorId:UUID;decidedAt:string}
+
+export interface MaskedContextMessage {messageId:UUID;authorAlias:string;text:string;visibility:string;sentAt:string;version?:number}
+export interface ConfirmedFinding {findingId:UUID;category:string;status:string;confirmedAt:string;revokedAt:string|null}
+export interface LiveCase {caseId:UUID;liveId:UUID;version:number;confirmationStatus:string;messages:MaskedContextMessage[];targetMessageIds:UUID[];confirmedFindings:ConfirmedFinding[]}
