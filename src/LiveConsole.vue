@@ -1,26 +1,43 @@
 <script setup lang="ts">
 import {ref,computed,onMounted,onBeforeUnmount} from 'vue';
-import {api,type Live,type LiveReview} from './api/client';
+import {api,type Live,type LiveReview,type LiveCase} from './api/client';
 import {ApiError,type Message,categoryLabels,type Category,visibilityLabels} from './contracts';
 import {useLiveGuard} from './stores/liveGuard';
 import {ShieldCheck,RefreshCcw,LogOut,Radio,ClipboardCheck,Send} from 'lucide-vue-next';
 import YtPlayer from './YtPlayer.vue';
 const store=useLiveGuard();
 const live=ref<Live|null>(null), messages=ref<Message[]>([]), reviews=ref<LiveReview[]>([]);
+const caseHistory=ref<LiveCase[]>([]),revokeReasons=ref<Record<string,string>>({});
 const error=ref(''),notice=ref(''),text=ref(''),busy=ref(false),online=ref(false),ended=ref(false),blocked=ref(false),loading=ref(true);
 const reasons=ref<Record<string,string>>({}),categories=ref<Record<string,string[]>>({});
 const logs=ref<{id:string;time:string;event:string;detail:string}[]>([]);
 const operator=computed(()=>store.me?.role==='MODERATOR');
 const admin=computed(()=>store.me?.role==='PLATFORM_ADMIN');
 const pending=computed(()=>reviews.value.filter(r=>r.status==='PENDING'));
+let generation=0;let refreshSequence=0;
 const seen=new Set<string>();let streams:EventSource[]=[];let timer:ReturnType<typeof setInterval>|undefined;
 const time=(s:string)=>new Date(s).toLocaleTimeString('ko-KR');
-function fail(e:unknown){error.value=e instanceof ApiError?`${e.code}: ${e.message}`:'요청을 처리하지 못했습니다.';if(e instanceof ApiError&&e.code==='UNAUTHENTICATED')store.logout();}
+function fail(e:unknown){error.value=e instanceof ApiError?`${e.code}: ${e.message}`:'요청을 처리하지 못했습니다.';if(e instanceof ApiError&&e.code==='UNAUTHENTICATED'){generation++;disconnect();messages.value=[];reviews.value=[];caseHistory.value=[];store.clearIdentity();}}
+async function sessionValid(){
+ const previous=store.me?.userId;
+ const current=await api.me();
+ if(current.userId!==previous){
+  generation++;disconnect();messages.value=[];reviews.value=[];caseHistory.value=[];logs.value=[];live.value=null;
+  await store.syncIdentity(current);
+  notice.value='다른 창에서 로그인 계정이 변경되어 화면을 갱신했습니다. 역할별 데모는 서로 다른 호스트나 브라우저 프로필을 사용하세요.';
+  await load();return false;
+ }
+ return true;
+}
 async function refresh(){
  if(!live.value||ended.value)return;
- try{messages.value=[...(await api.liveMessages(live.value.liveId)).items].reverse();
- if(operator.value) reviews.value=await api.liveReviews(live.value.liveId);
- }catch(e){fail(e);}
+ const expected=generation;const sequence=++refreshSequence;const id=live.value.liveId;
+ try{
+  if(!await sessionValid())return;
+  const [page,cards,history]=await Promise.all([api.liveMessages(id),operator.value?api.liveReviews(id):Promise.resolve([]),operator.value?api.liveCases(id):Promise.resolve([])]);
+  if(expected!==generation||sequence!==refreshSequence||live.value?.liveId!==id)return;
+  messages.value=[...page.items].reverse();reviews.value=cards;caseHistory.value=history;
+ }catch(e){if(expected===generation)fail(e);}
 }
 function disconnect(){streams.forEach(s=>s.close());streams=[];online.value=false;}
 function connect(){
@@ -53,6 +70,7 @@ async function start(){busy.value=true;try{live.value=await api.startLive(store.
 async function end(){if(!live.value)return;busy.value=true;try{await api.endLive(live.value.liveId);ended.value=true;disconnect();notice.value='방송이 종료되었습니다.';}catch(e){fail(e);}finally{busy.value=false;}}
 let outgoing:{text:string;id:string}|null=null;
 async function send(){
+ if(!await sessionValid())return;
  if(!live.value||!text.value.trim())return;busy.value=true;error.value='';
  const value=text.value.trim();if(!outgoing||outgoing.text!==value)outgoing={text:value,id:crypto.randomUUID()};
  try{await api.sendLive(live.value.liveId,value,outgoing.id);text.value='';outgoing=null;await refresh();}
@@ -60,6 +78,7 @@ async function send(){
 }
 const requests=new Map<string,{serialized:string;id:string}>();
 async function decide(r:LiveReview,value:string){
+ if(!await sessionValid())return;
  const reason=(reasons.value[r.reviewId]??'').trim();if(!reason){error.value='결정 이유를 입력해 주세요.';return;}
  const body:Record<string,unknown>={expectedReviewVersion:r.version,decision:value,reason};
  if(value==='CONFIRM_VIOLATION'){
@@ -74,8 +93,19 @@ async function decide(r:LiveReview,value:string){
  catch(e){fail(e);if(e instanceof ApiError&&e.code==='STALE_VERSION')await refresh();}
  finally{busy.value=false;}
 }
-onMounted(()=>{load();timer=setInterval(()=>{if(!live.value&&!ended.value)load();},5000);});
-onBeforeUnmount(()=>{disconnect();if(timer)clearInterval(timer);});
+async function revoke(c:LiveCase,findingId:string){
+ if(!await sessionValid())return;
+ const reason=(revokeReasons.value[findingId]??'').trim();if(!reason){error.value='오판 취소 사유를 입력해 주세요.';return;}
+ busy.value=true;
+ const body={expectedCaseVersion:c.version,reason};const serialized=JSON.stringify(body);const key='revoke:'+findingId;let req=requests.get(key);
+ if(!req||req.serialized!==serialized){req={serialized,id:crypto.randomUUID()};requests.set(key,req);}
+ try{await api.revokeFinding(findingId,{...body,clientRequestId:req.id});notice.value='확정 근거를 취소하고 남은 가림 원인·제한을 재계산했습니다.';await refresh();}
+ catch(e){fail(e);}finally{busy.value=false;}
+}
+const authChannel=typeof BroadcastChannel==='undefined'?null:new BroadcastChannel('liveguard-auth');
+const checkSession=()=>sessionValid().catch(fail);
+onMounted(()=>{load();window.addEventListener('focus',checkSession);if(authChannel)authChannel.onmessage=checkSession;timer=setInterval(()=>{checkSession();if(!live.value&&!ended.value)load();},5000);});
+onBeforeUnmount(()=>{generation++;disconnect();window.removeEventListener('focus',checkSession);authChannel?.close();if(timer)clearInterval(timer);});
 </script>
 <template>
  <div class="v1-shell">
@@ -104,6 +134,7 @@ onBeforeUnmount(()=>{disconnect();if(timer)clearInterval(timer);});
        <label :for="'reason-'+r.reviewId">결정 이유</label><textarea :id="'reason-'+r.reviewId" v-model="reasons[r.reviewId]" maxlength="500" placeholder="확인한 근거와 결정 이유를 입력하세요" :disabled="busy||ended"/>
        <div class="v1-decision-actions"><template v-if="r.kind==='CONTEXT'"><button :disabled="busy||ended" @click="decide(r,'CONFIRM_NORMAL')">정상 확정</button><button class="v1-primary" :disabled="busy||ended" @click="decide(r,'CONFIRM_VIOLATION')">위반 확정</button><button :disabled="busy||ended" @click="decide(r,'DEFER')">보류</button></template><template v-else><button class="v1-primary" :disabled="busy||ended" @click="decide(r,'APPROVE')">강퇴 승인</button><button :disabled="busy||ended" @click="decide(r,'REJECT')">강퇴 거절</button></template></div><small>결정 접수와 실제 조치 적용은 별도입니다.</small>
       </article>
+      <section class="v1-card"><h2>조치 이력 · 오판 취소</h2><details v-for="c in caseHistory.filter(c=>c.confirmedFindings.length)" :key="c.caseId" class="v1-recovery" :data-case-id="c.caseId"><summary>{{c.confirmationStatus}} · {{c.caseId.slice(0,8)}}</summary><p v-for="m in c.messages.filter(m=>c.targetMessageIds.includes(m.messageId))" :key="m.messageId">{{m.text}}</p><div v-for="f in c.confirmedFindings" :key="f.findingId"><b>{{categoryLabels[f.category as Category]}} · {{f.status}}</b><template v-if="f.status==='CONFIRMED'"><label :for="'revoke-'+f.findingId">취소 사유</label><textarea :id="'revoke-'+f.findingId" v-model="revokeReasons[f.findingId]" maxlength="500"/><button :disabled="busy" @click="revoke(c,f.findingId)">확정 근거 취소</button></template></div></details><p v-if="!caseHistory.some(c=>c.confirmedFindings.length)">아직 확정된 위반이 없습니다.</p></section>
       <section class="v1-card"><h2>진행 기록</h2><ol class="v1-log"><li v-for="l in logs" :key="l.id"><time>{{time(l.time)}}</time> <b>{{l.event}}</b></li></ol><p v-if="!logs.length">새 이벤트를 기다립니다.</p></section>
      </section>
     </div>

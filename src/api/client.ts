@@ -32,7 +32,9 @@ export const api = {
   endLive: (liveId:UUID) => request<Live>(`/api/lives/${liveId}/end`, 'POST'),
   liveMessages: (liveId:UUID) => request<MessagePage>(`/api/lives/${liveId}/messages`),
   sendLive: (liveId:UUID,text:string,clientMessageId:UUID) => request<Message>(`/api/lives/${liveId}/messages`, 'POST',{text,clientMessageId}),
-  liveReviews: (liveId:UUID) => request<LiveReview[]>(`/api/reviews?liveId=${encodeURIComponent(liveId)}`),
+  liveReviews: async (liveId:UUID) => (await Promise.all(['CONTEXT','KICK'].map(kind=>request<LiveReview[]>(`/api/reviews?liveId=${encodeURIComponent(liveId)}&kind=${kind}`)))).flat(),
+  liveCases: (liveId:UUID) => request<LiveCase[]>(`/api/cases?liveId=${encodeURIComponent(liveId)}`),
+  revokeFinding: (findingId:UUID,body:object) => request<object>(`/api/findings/${findingId}/revoke`,'POST',body),
   decideLive: (review:LiveReview,body:object) => request<Decision>(`/api/${review.kind==='CONTEXT'?'context':'kick'}-reviews/${review.reviewId}/decision`,'POST',body),
   liveEvents: (liveId:UUID,guard=false) => new EventSource(`${base}${guard?`/api/guard/events?liveId=${encodeURIComponent(liveId)}`:`/api/lives/${liveId}/events`}`,{withCredentials:true}),
   login: async (username: string, password: string) => { await ensureCsrfToken(); return request<Me>('/api/auth/login', 'POST', { username, password }); },
@@ -49,5 +51,9 @@ export const api = {
 };
 export interface Live {liveId:UUID;channelId:UUID;startedAt:string;endedAt:string|null}
 export interface Finding {messageId:UUID;verdict:string;categories:string[];policyIds:string[];reason:string;missingFacts:string[]}
-export interface LiveReview {reviewId:UUID;kind:'CONTEXT'|'KICK';liveId:UUID;caseId:UUID;status:'PENDING'|'DECIDED';version:number;createdAt:string;aiVerdict:string;messages:Message[];targetMessageIds:UUID[];findings:Finding[];basisCaseIds:UUID[];summary:string}
+export interface LiveReview {reviewId:UUID;kind:'CONTEXT'|'KICK';liveId:UUID;caseId:UUID;status:'PENDING'|'DECIDED';version:number;createdAt:string;aiVerdict:string;messages:MaskedContextMessage[];targetMessageIds:UUID[];findings:Finding[];basisCaseIds:UUID[];summary:string}
 export interface Decision {decisionId:UUID;reviewId:UUID;kind:'CONTEXT'|'KICK';value:string;operatorId:UUID;decidedAt:string}
+
+export interface MaskedContextMessage {messageId:UUID;authorAlias:string;text:string;visibility:string;sentAt:string;version?:number}
+export interface ConfirmedFinding {findingId:UUID;category:string;status:string;confirmedAt:string;revokedAt:string|null}
+export interface LiveCase {caseId:UUID;liveId:UUID;version:number;confirmationStatus:string;messages:MaskedContextMessage[];targetMessageIds:UUID[];confirmedFindings:ConfirmedFinding[]}
