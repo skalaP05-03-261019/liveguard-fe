@@ -147,7 +147,7 @@ export const useLiveGuard = defineStore('liveGuard', () => {
     try {
       if (demo) {
         const account = username.trim().toLowerCase();
-        if (password !== 'demo1234' || !['moderator', 'viewer', 'admin'].includes(account)) throw new ApiError('UNAUTHENTICATED', '데모 계정 또는 비밀번호가 올바르지 않습니다.');
+        if (password !== 'liveguard-local' || !['moderator', 'viewer', 'admin'].includes(account)) throw new ApiError('UNAUTHENTICATED', '데모 계정 또는 비밀번호가 올바르지 않습니다.');
         const role = account === 'viewer' ? 'VIEWER' : account === 'admin' ? 'PLATFORM_ADMIN' : 'MODERATOR';
         me.value = role === 'VIEWER' ? { userId: DEMO_USERS[0].id, nickname: DEMO_USERS[0].alias, role, channelIds: [CHANNEL_ID] }
           : { ...structuredClone(demoMe), role, nickname: role === 'PLATFORM_ADMIN' ? '시스템 운영자' : '운영자' };
