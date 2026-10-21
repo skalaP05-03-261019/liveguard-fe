@@ -1,0 +1,10 @@
+node_modules
+dist
+.venv
+.git
+.env
+.env.*
+!.env.example
+docs
+*.md
+.DS_Store
