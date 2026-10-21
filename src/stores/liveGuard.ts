@@ -173,6 +173,7 @@ export const useLiveGuard = defineStore('liveGuard', () => {
   // 로그인이 끝난 뒤의 데이터 로딩 실패는 화면 안 오류로만 보여준다. 로그인 화면으로 보내는 건 401(report)뿐이다.
   async function enter(user: Me) {
     me.value = user; loginRequired.value = false; error.value = ''; channelId.value = user.channelIds[0] ?? '';
+    if(import.meta.env.VITE_USE_LIVE_V1 === 'true') return;
     if (!channelId.value) {
       if (user.role !== 'PLATFORM_ADMIN') report(new ApiError('FORBIDDEN', '접근 가능한 채널이 없습니다.'));
       return;

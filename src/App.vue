@@ -5,11 +5,13 @@ import { avatarColor } from './avatar';
 import LoginPage from './LoginPage.vue';
 import ViewerPage from './ViewerPage.vue';
 import SystemPage from './SystemPage.vue';
+import LiveConsole from './LiveConsole.vue';
 import { useLiveGuard } from './stores/liveGuard';
 import { categoryLabels, reviewLabels, statusLabels, visibilityLabels, type KickReview, type CaseDetail } from './contracts';
 import { demoScenarios } from './mock';
 import { hideLabels, needsApproval, priorColumn, priorColumns, sanctionFor, sanctionLabel, sanctionTable, timeoutText } from './sanction';
 const store = useLiveGuard();
+const liveV1 = import.meta.env.VITE_USE_LIVE_V1 === 'true';
 const page = ref<'monitor' | 'policy' | 'audit' | 'cases'>('monitor');
 const filter = ref<'all' | 'flagged'>('all');
 const reasons = reactive<Record<string, string>>({});
@@ -94,6 +96,7 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', onKey); store.disp
 
 <template>
   <LoginPage v-if="store.loginRequired || !store.me"/>
+  <LiveConsole v-else-if="liveV1 && store.mode==='api'"/>
   <ViewerPage v-else-if="viewing"/>
   <SystemPage v-else-if="systemView"/>
   <div v-else class="app-shell">

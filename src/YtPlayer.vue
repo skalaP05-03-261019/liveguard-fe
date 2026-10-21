@@ -4,7 +4,7 @@ import { streamPoster, streamSrc } from './media';
 import { Captions, Maximize, Minimize, Pause, Play, RectangleHorizontal, Settings, Volume2, VolumeX } from 'lucide-vue-next';
 
 // 유튜브 라이브 플레이어 형태의 목업. 실제 스트림 대신 짧은 루프 영상을 재생한다.
-withDefaults(defineProps<{ viewers?: string; title?: string; theaterButton?: boolean }>(), { viewers: '2,341', title: '', theaterButton: false });
+withDefaults(defineProps<{ demo?: boolean; viewers?: string; title?: string; theaterButton?: boolean }>(), { demo: false, viewers: '2,341', title: '', theaterButton: false });
 const emit = defineEmits<{ theater: [] }>();
 const root = ref<HTMLElement | null>(null);
 const video = ref<HTMLVideoElement | null>(null);
@@ -49,9 +49,9 @@ onBeforeUnmount(() => { document.removeEventListener('fullscreenchange', onFulls
       <div class="yt-controls">
         <button :title="playing ? '일시중지 (k)' : '재생 (k)'" @click="togglePlay"><Pause v-if="playing" :size="22" fill="currentColor"/><Play v-else :size="22" fill="currentColor"/></button>
         <button :title="muted ? '음소거 해제 (m)' : '음소거 (m)'" @click="toggleMute"><VolumeX v-if="muted" :size="22"/><Volume2 v-else :size="22"/></button>
-        <span class="yt-live-dot">실시간</span>
-        <span class="yt-time">{{ elapsed }}</span>
-        <span class="yt-watching">{{ viewers }}명 시청 중</span>
+        <span class="yt-live-dot">{{ demo ? '데모 영상' : '실시간' }}</span>
+        <span v-if="!demo" class="yt-time">{{ elapsed }}</span>
+        <span v-if="!demo" class="yt-watching">{{ viewers }}명 시청 중</span>
         <span class="yt-controls-spacer"/>
         <button :class="{ on: captions }" title="자막" @click="captions = !captions"><Captions :size="22"/></button>
         <button title="설정"><Settings :size="21"/></button>
