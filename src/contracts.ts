@@ -9,7 +9,7 @@ export type Verdict = 'VIOLATION' | 'NO_VIOLATION' | 'NEEDS_REVIEW';
 export type Category = 'PROFANITY' | 'HARASSMENT' | 'FLOOD' | 'PHISHING' | 'PII_EXPOSURE';
 export type KickReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXECUTED' | 'FAILED';
 // KICKED는 방송 종료까지(until 없음), TIMED_OUT은 until = 제한 만료 시각 (openapi.yaml ErrorCode)
-export type ErrorCode = 'VALIDATION_FAILED' | 'UNAUTHENTICATED' | 'FORBIDDEN' | 'KICKED' | 'TIMED_OUT' | 'NOT_FOUND' | 'STALE_VERSION' | 'IDEMPOTENCY_CONFLICT' | 'REVIEW_NOT_APPROVED' | 'TEMPORARY_UNAVAILABLE';
+export type ErrorCode = 'VALIDATION_FAILED' | 'UNAUTHENTICATED' | 'FORBIDDEN' | 'KICKED' | 'TIMED_OUT' | 'LIVE_ENDED' | 'NOT_FOUND' | 'STALE_VERSION' | 'IDEMPOTENCY_CONFLICT' | 'REVIEW_NOT_APPROVED' | 'TEMPORARY_UNAVAILABLE';
 export type ModerationReasonCode = 'PROFANITY_INCLUDED' | 'LINK_NOT_ALLOWED' | 'FLOOD_REPEATED' | 'CONTEXT_PENDING' | 'PII_PENDING';
 export interface Envelope<T> { data: T; traceId: string }
 export interface Me { userId: UUID; nickname: string; role: Role; channelIds: UUID[] }
@@ -18,7 +18,7 @@ export interface Message {
   messageId: UUID; channelId: UUID; authorAlias: string; text: string; visibility: Visibility; version: number; sentAt: string; isMine: boolean;
   liveId?: UUID | null; moderationReasonCode?: ModerationReasonCode | null; moderationNotice?: string | null; timeoutUntil?: string | null; reviewStatus?: 'PENDING' | null;
 }
-export interface MessagePage { items: Message[]; nextCursor: string | null }
+export interface MessagePage { items: Message[]; nextCursor: string | null; timeoutUntil?: string | null }
 export interface PolicySnapshot { policyId: string; version: string; title: string; text: string; resourceUri: string }
 export interface CaseSummary { caseId: UUID; channelId: UUID; userAlias: string; filterResult: FilterResult; status: CaseStatus; verdict?: Verdict | null; category?: Category | null; version: number; createdAt: string }
 export interface KickReview { reviewId: UUID; channelId: UUID; userAlias: string; status: KickReviewStatus; summary: string; caseIds: UUID[]; decisionReason?: string | null; kickExpiresAt?: string | null; version: number; createdAt: string }
