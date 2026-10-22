@@ -11,6 +11,7 @@ import {
   type Category, type ContextDecision, type KickDecision, type Live, type LiveCase, type LiveReview, type Message, type Verdict
 } from './contracts';
 import { KICK_THRESHOLD, priorColumns, routeRows, sanctionFor, sanctionLabel, sanctionTable, type Sanction } from './sanction';
+import { filterDictionary } from './mock';
 
 export interface StudioLog { id: string; time: string; event: string; detail: string }
 type Page = 'monitor' | 'viewers' | 'cases' | 'policy' | 'logs';
@@ -122,6 +123,14 @@ function onViewerRevoke(item: ViewerCase, f: ViewerFinding, reason: string) { em
 
 const casesByTime = computed(() => [...props.cases].sort((a, b) => Date.parse(iso(b.createdAt)) - Date.parse(iso(a.createdAt))));
 const sanctionRows = Object.entries(sanctionTable) as [Category, (typeof sanctionTable)[Category]][];
+// Backend 필터 사전(dict-v2) 사본. 단어는 정규화(NFKC·소문자·공백 정리) 뒤 부분 일치로 비교한다.
+const dictRows: { name: string; words: string[]; result: string }[] = [
+  { name: '확정 욕설', words: filterDictionary.certainProfanity, result: '바로 숨김·욕설 위반 확정' },
+  { name: '욕설 예외', words: filterDictionary.profanityExceptions, result: '비교 전에 지움 (확정 욕설로 보지 않음)' },
+  { name: '공격 표현', words: filterDictionary.attack, result: 'AI 문맥 검토 → 운영자 결정 (결정 전까지 임시 비노출)' },
+  { name: '공식 자칭', words: filterDictionary.officialClaim, result: '로그인 요구와 함께 있으면 AI 문맥 검토' },
+  { name: '로그인 요구', words: filterDictionary.credential, result: '공식 자칭과 함께 있으면 AI 문맥 검토' }
+];
 </script>
 
 <template>
@@ -210,6 +219,8 @@ const sanctionRows = Object.entries(sanctionTable) as [Category, (typeof sanctio
             <section v-else-if="page==='policy'" class="secondary-page card"><div class="secondary-heading"><div><h2><BookOpen :size="24"/> 정책 근거</h2><p>운영정책 v3.1 기준의 처리 경로와 제재 기준입니다. 읽기 전용이며 제재 기간은 운영자가 정하지 않습니다.</p></div></div>
               <h3 class="studio-subhead">처리 경로</h3>
               <div class="table-scroll"><table class="data-table"><thead><tr><th>경로</th><th>조건</th><th>결정</th><th>결과</th></tr></thead><tbody><tr v-for="row in routeRows" :key="row.route"><td><b>{{routeLabels[row.route]}}</b></td><td>{{row.trigger}}</td><td>{{row.decider}}</td><td>{{row.result}}</td></tr></tbody></table></div>
+              <h3 class="studio-subhead">필터 사전</h3><p class="studio-help">Backend 필터 사전(dict-v2, 팀 확정 전 초기 목록)과 같은 단어입니다. 애매한 표현(존나·지랄·'개-' 접두어·시바 등)은 일부러 넣지 않아 그대로 공개됩니다. 링크와 전화번호·이메일은 사전이 아니라 코드 규칙으로 찾습니다.</p>
+              <div class="table-scroll"><table class="data-table studio-dict"><thead><tr><th>사전</th><th>단어</th><th>처리</th></tr></thead><tbody><tr v-for="row in dictRows" :key="row.name"><td><b>{{row.name}}</b></td><td><code v-for="w in row.words" :key="w">{{w}}</code></td><td>{{row.result}}</td></tr></tbody></table></div>
               <h3 class="studio-subhead">제재 기준표 (MP-2.1)</h3><p class="studio-help">같은 방송·같은 유형의 이전 확정 사건 수로 정합니다. 모든 채팅 제한은 자동 적용되며, 24시간 제한도 강퇴가 아닙니다.</p>
               <div class="table-scroll"><table class="data-table sanction-table"><thead><tr><th>유형</th><th v-for="col in priorColumns" :key="col">{{col}}</th></tr></thead><tbody><tr v-for="[cat, row] in sanctionRows" :key="cat"><td><b>{{categoryName(cat)}}</b><small>{{cat}}</small></td><td v-for="(cell, i) in row" :key="i">{{sanctionLabel(cell)}}</td></tr></tbody></table></div>
               <h3 class="studio-subhead">강퇴 심사 (MP-4.1~4.3)</h3>

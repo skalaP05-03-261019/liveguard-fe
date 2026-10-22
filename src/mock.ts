@@ -25,6 +25,26 @@ export const filterDictionary = {
   officialClaim: ['공식', '운영자', '관리자', '스태프', 'official', 'admin'],
   credential: ['로그인', '인증', '계정', '비밀번호', '본인확인', 'login', 'verify', 'password']
 };
+// 시연용 예시 문장. 사전 단어에서 만들어 사전이 바뀌면 함께 바뀐다. 누르면 입력창에 채워지고, 고친 뒤 보낼 수 있다.
+export interface FilterExample { label: string; text: string }
+export const filterExamples: { key: 'hide' | 'held' | 'pass'; title: string; note: string; items: FilterExample[] }[] = [
+  { key: 'hide', title: '바로 숨김', note: '확정 욕설·링크·도배는 Backend 규칙으로 즉시 숨깁니다.', items: [
+    ...filterDictionary.certainProfanity.map(w => ({ label: w, text: `오늘 판 ${w}` })),
+    { label: '링크', text: '이벤트 free-skin.example 에서 받아가세요' },
+    { label: '도배 (같은 문장 3번)', text: '가즈아가즈아' }
+  ] },
+  { key: 'held', title: '검토 대기', note: 'AI 문맥 검토를 거쳐 운영자가 결정할 때까지 임시 비노출입니다.', items: [
+    ...filterDictionary.attack.map(w => ({ label: w, text: `너 진짜 ${w}` })),
+    { label: '공식 자칭 + 로그인 요구', text: '공식 운영자입니다. 계정 인증하려면 비밀번호를 보내 주세요' },
+    { label: '전화번호', text: '제 번호 010-1234-5678로 연락 주세요' },
+    { label: '이메일', text: 'game1234@mail.example 로 연락 주세요' }
+  ] },
+  { key: 'pass', title: '통과', note: '욕설 사전의 예외 단어와, 사전에 일부러 넣지 않은 애매한 표현입니다.', items: [
+    ...filterDictionary.profanityExceptions.map(w => ({ label: w, text: w })),
+    { label: '개못하네', text: '아 개못하네' },
+    { label: '시바', text: '시바견 귀엽다' }
+  ] }
+];
 
 // 초기 화면: 지난 채팅을 목업 판정에 시간 순서대로 다시 넣는다. decide는 그 메시지의 문맥 검토에 운영자가 내린 결정이다.
 export interface FixtureLine { alias: string; text: string; minutesAgo: number; repeat?: number; decide?: { value: 'CONFIRM_NORMAL' | 'CONFIRM_VIOLATION'; categories?: Category[]; reason: string; minutesAgo: number } }

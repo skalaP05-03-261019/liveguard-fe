@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import ViewerScreen from './ViewerScreen.vue';
 import { useLiveGuard } from './stores/liveGuard';
+import { filterExamples } from './mock';
 
 const store = useLiveGuard();
 const input = ref('');
@@ -30,6 +31,13 @@ function previewTimeout(seconds: 0 | 10 | 86400) {
           <button type="button" :disabled="store.kicked" @click="previewTimeout(86400)">24시간 표시 보기</button>
           <button type="button" :disabled="store.kicked || !store.timedOut" @click="previewTimeout(0)">제한 해제 시연</button>
           <small>효과 보기는 시연을 위해 10초 후 해제됩니다. 실제 정책 시간과는 다릅니다.</small>
+        </div>
+        <div class="viewer-demo-filters" aria-label="필터 사전 예시">
+          <p>필터 사전 예시 · Backend 사전(dict-v2)과 같은 단어입니다. 누르면 입력창에 채워집니다.</p>
+          <div v-for="group in filterExamples" :key="group.key" class="filter-group" :class="group.key">
+            <b>{{group.title}}</b><small>{{group.note}}</small>
+            <div><button v-for="item in group.items" :key="item.label" type="button" :disabled="store.kicked" :title="item.text" @click="input = item.text">{{item.label}}</button></div>
+          </div>
         </div>
       </div>
     </template>

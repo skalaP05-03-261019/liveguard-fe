@@ -749,3 +749,18 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .studio-help{font-size:13px;color:var(--text-2);margin-bottom:10px}
 .studio-rules{margin:0;padding-left:20px;display:grid;gap:6px;font-size:14px;line-height:1.6}
 @media(max-width:590px){.auto-log th:nth-child(4),.auto-log td:nth-child(4){display:none}.studio-review>header small{margin-left:0;flex-basis:100%}}
+
+/* 목업 시청자: 필터 사전 예시 */
+.viewer-demo-filters{width:100%;display:grid;gap:10px;border-top:1px dashed var(--line);padding-top:10px}
+.viewer-demo-filters>p{font-size:12px;color:var(--text-2)}
+.filter-group{display:grid;gap:4px}
+.filter-group b{font-size:13px}
+.filter-group small{font-size:12px;color:var(--text-2)}
+.filter-group>div{display:flex;flex-wrap:wrap;gap:6px}
+.filter-group button{padding:6px 10px;border:1px solid var(--line);border-radius:14px;background:#fff;font-size:12px}
+.filter-group.hide button{border-color:#e5b4b0;background:#fdf1f0}
+.filter-group.held button{border-color:#e8d39a;background:#fff8e1}
+.filter-group.pass button{border-color:#b9dcc2;background:#f0f8f2}
+.filter-group button:not(:disabled):hover{filter:brightness(.96)}
+.studio-dict td:nth-child(2){line-height:1.9}
+.studio-dict code{display:inline-block;margin:0 4px 2px 0;padding:1px 6px;border-radius:4px;background:var(--chip);font-size:12px}
