@@ -454,6 +454,27 @@ test('API kick rejection is accepted without blocking the viewer and keeps exist
  assert.match(await viewer.locator('[data-message-id="old-1"]').innerText(),/숨김/);
 });
 
+test('mock filter examples follow the Backend dictionary routes and fill the composer',async()=>{
+ const page=await openMock();
+ const routes=await page.evaluate(async()=>{
+  const {filterExamples}=await import('/src/mock.ts');const {classify}=await import('/src/mockLive.ts');
+  return filterExamples.map(g=>({key:g.key,items:g.items.map(i=>({label:i.label,route:classify(i.text,i.label.startsWith('도배')?3:1).route}))}));
+ });
+ const byKey=Object.fromEntries(routes.map(g=>[g.key,g.items]));
+ for(const item of byKey.hide)assert.equal(item.route,item.label.startsWith('도배')?'FLOOD_REVIEW':'RULE_CONFIRMED',item.label);
+ for(const item of byKey.held)assert.match(item.route,/^(CONTEXT_REVIEW|PII_INVESTIGATION)$/,item.label);
+ for(const item of byKey.pass)assert.equal(item.route,'PASS',item.label);
+ const examples=page.getByLabel('필터 사전 예시');
+ await examples.getByRole('button',{name:'접어라',exact:true}).click();
+ assert.equal(await page.getByLabel('채팅 메시지',{exact:true}).inputValue(),'너 진짜 접어라');
+ await page.getByRole('button',{name:'채팅 전송',exact:true}).click();
+ const row=page.locator('.yt-chat-row').filter({hasText:'너 진짜 접어라'});await row.waitFor();
+ assert.match(await row.innerText(),/검토 중/);
+ await examples.getByRole('button',{name:'개못하네',exact:true}).click();await page.getByRole('button',{name:'채팅 전송',exact:true}).click();
+ const pass=page.locator('.yt-chat-row').filter({hasText:'아 개못하네'});await pass.waitFor();
+ assert.equal(await pass.evaluate(el=>el.classList.contains('myHidden')),false);
+});
+
 test('mock context review stays held on defer, then applies normal and violation decisions',async()=>{
  async function decide(label,reason){
   const page=await openMockModerator();await page.getByRole('button',{name:'공격 표현',exact:true}).click();
