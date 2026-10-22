@@ -291,12 +291,61 @@ export const useLiveGuard = defineStore('liveGuard', () => {
     try {
       if (demo) {
         const alias = DEMO_USERS.find(u => u.id === viewerId.value)?.alias ?? '시청자';
-        const id = newId(); const data: Message = { messageId: id, channelId: channelId.value, authorAlias: alias, text: trimmed, visibility: 'PUBLIC', version: 1, sentAt: now(), isMine: true };
-        owners.value[id] = viewerId.value; addOrUpdateMessage(data); log('CHAT', `${alias} 채팅 작성`);
+        // 목업 직접 입력은 금지어 한 개만 검사한다. 정책의 예외 단어와 띄어쓴 표현은 매칭하지 않는다.
+        const matched = trimmed.normalize('NFKC').replace(/시발점|시발역/g, '').includes('시발');
+        if (matched) recordMockProfanity(viewerId.value, alias, trimmed);
+        else {
+          const id = newId(); const data: Message = { messageId: id, channelId: channelId.value, authorAlias: alias, text: trimmed, visibility: 'PUBLIC', version: 1, sentAt: now(), isMine: true };
+          owners.value[id] = viewerId.value; addOrUpdateMessage(data); log('CHAT', `${alias} 채팅 작성`);
+        }
       } else { const sent = await api.send(channelId.value, trimmed, newId()); addOrUpdateMessage(sent); applyTimeout(sent.timeoutUntil); }
       return true;
     } catch (e) { report(e); return false; }
     finally { busy.value = false; }
+  }
+  // 한 목업 방송의 확정 사건을 사용한다. TIMEOUT 이력은 같은 유형만 세고 소진된 사건도 포함한다.
+  // 기존 빠른 시연의 이전 버전 판정 로직과 분리해 직접 입력한 금지어에만 적용한다.
+  function recordMockProfanity(userId: string, alias: string, text: string) {
+    const ownCases = Object.values(details.value).filter(c => c.channelId === channelId.value && c.messages.some(m => owners.value[m.messageId] === userId));
+    const confirmed = ownCases.filter(c => c.verdict === 'VIOLATION' && !revokedCases.value[c.caseId]);
+    const priorCount = confirmed.filter(c => c.category === 'PROFANITY').length;
+    const sanction = sanctionFor('PROFANITY', priorCount);
+    const messageId = newId(), caseId = newId(), createdAt = now();
+    const message: Message = {
+      messageId, channelId: channelId.value, authorAlias: alias, text, visibility: 'HIDDEN', version: 1,
+      sentAt: createdAt, isMine: true, moderationReasonCode: 'PROFANITY_INCLUDED', moderationNotice: reasonLabels.PROFANITY_INCLUDED
+    };
+    clock.value = Date.now();
+    if (sanction.timeoutSec) {
+      const until = Math.max(Date.parse(timeouts.value[userId] ?? '') || 0, Date.now() + sanction.timeoutSec * 1000);
+      timeouts.value[userId] = new Date(until).toISOString();
+      message.timeoutUntil = timeouts.value[userId];
+    }
+    const detail: CaseDetail = {
+      caseId, channelId: channelId.value, userAlias: alias, filterResult: 'HOLD', status: 'HIDDEN', verdict: 'VIOLATION',
+      category: 'PROFANITY', version: 1, createdAt, messages: [structuredClone(message)],
+      reason: '목업 금지어 규칙에 일치해 욕설 위반으로 확정했습니다.', evidenceMessageIds: [messageId],
+      policySnapshots: [], violationCount: 0, kickReview: null, traceUrl: null
+    };
+    // 강퇴 검토는 24시간 TIMEOUT과 별개다. 검토에 쓰인 사건을 재사용하거나 자동 강퇴하지 않는다.
+    const reserved = new Set(kickReviews.value.flatMap(r => r.caseIds));
+    const eligible = [...confirmed, detail].filter(c => Date.parse(c.createdAt) > Date.now() - 86400000 && !reserved.has(c.caseId))
+      .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt) || a.caseId.localeCompare(b.caseId));
+    detail.violationCount = eligible.length;
+    if (eligible.length >= 3 && !ownCases.some(c => c.kickReview?.status === 'PENDING')) {
+      detail.status = 'KICK_REVIEW_PENDING';
+      detail.kickReview = {
+        reviewId: newId(), channelId: channelId.value, userAlias: alias, status: 'PENDING',
+        summary: '같은 목업 방송에서 최근 24시간의 확정 위반 3건이 누적되었습니다. 강퇴 여부를 검토해 주세요.',
+        caseIds: eligible.slice(0, 3).map(c => c.caseId), version: 1, createdAt, decisionReason: null, kickExpiresAt: null
+      };
+    }
+    owners.value[messageId] = userId;
+    addOrUpdateMessage(message);
+    details.value[caseId] = detail; upsertCase(caseSummary(detail));
+    log('MOCK_RULE', `${alias} · 욕설 ${priorCount + 1}건 · ${sanctionLabel(sanction)}`, '목업 적용');
+    if (sanction.timeoutSec) log('TIMEOUT', `${alias} · 채팅 ${timeoutText(sanction.timeoutSec)} 제한`, '목업 적용');
+    toast(sanction.timeoutSec ? `메시지 숨김 · 채팅 ${timeoutText(sanction.timeoutSec)} 제한 (MOCK)` : '금지된 욕설이 포함되어 메시지를 숨겼습니다. (MOCK)');
   }
   function groupCategories(list: (Category | null | undefined)[]) {
     const counts = new Map<string, number>();
