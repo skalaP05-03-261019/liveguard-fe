@@ -1,27 +1,25 @@
 <script setup lang="ts">
+// 실제 API(liveId) 연결. 시청자는 ViewerScreen, 운영자는 목업과 같은 StudioScreen에 데이터를 넘긴다.
 import {ref,computed,onMounted,onBeforeUnmount} from 'vue';
-import {api,type Live,type LiveReview,type LiveCase} from './api/client';
-import {ApiError,type Message,type MessagePage,categoryLabels,type Category,visibilityLabels,reasonLabels} from './contracts';
+import {api} from './api/client';
+import {ApiError,type Category,type Live,type LiveCase,type LiveReview,type Message,type MessagePage,reasonLabels} from './contracts';
 import {useLiveGuard} from './stores/liveGuard';
-import {ShieldCheck,RefreshCcw,LogOut,Radio,ClipboardCheck,Send,Users} from 'lucide-vue-next';
-import ViewerManage from './ViewerManage.vue';
-import {groupByViewer,type ViewerCase,type ViewerFinding,type ViewerReview} from './viewerManage';
+import {LogOut,ShieldCheck} from 'lucide-vue-next';
 import ViewerScreen from './ViewerScreen.vue';
-import ChatTimeoutNotice from './ChatTimeoutNotice.vue';
+import StudioScreen,{type StudioLog} from './StudioScreen.vue';
 const store=useLiveGuard();
 const live=ref<Live|null>(null), messages=ref<Message[]>([]), reviews=ref<LiveReview[]>([]);
-const caseHistory=ref<LiveCase[]>([]),revokeReasons=ref<Record<string,string>>({});
+const caseHistory=ref<LiveCase[]>([]);
 const error=ref(''),notice=ref(''),text=ref(''),busy=ref(false),online=ref(false),ended=ref(false),blocked=ref(false),loading=ref(true);
-const reasons=ref<Record<string,string>>({}),categories=ref<Record<string,string[]>>({});
-const logs=ref<{id:string;time:string;event:string;detail:string}[]>([]);
+const logs=ref<StudioLog[]>([]);
+// 강퇴 검토별 처리 상태: 결정 접수 → 적용 완료·실패·확인 중
+const kickProgress=ref<Record<string,string>>({});
 const operator=computed(()=>store.me?.role==='MODERATOR');
 const admin=computed(()=>store.me?.role==='PLATFORM_ADMIN');
-const pending=computed(()=>reviews.value.filter(r=>r.status==='PENDING'));
 const accessReady=ref(false),clock=ref(Date.now()),timeoutUntil=ref<string|null>(null),timeoutUnknown=ref(false),restrictionReason=ref('');
 const timedOut=computed(()=>!blocked.value&&!ended.value&&(timeoutUnknown.value||!!timeoutUntil.value&&new Date(timeoutUntil.value).getTime()>clock.value));
 const chatDisabled=computed(()=>busy.value||!accessReady.value||ended.value||blocked.value||timedOut.value);
 const visibleMessages=computed(()=>blocked.value?[]:messages.value.filter(m=>operator.value||m.visibility==='PUBLIC'||m.isMine));
-const reviewing=(m:Message)=>m.visibility==='HELD'||m.reviewStatus==='PENDING';
 const reasonOf=(m:Message)=>m.isMine?(m.moderationNotice??(m.moderationReasonCode?reasonLabels[m.moderationReasonCode]:null)??(m.visibility==='HELD'?'운영자 검토 중인 메시지입니다.':null)):null;
 const timeoutReason=computed(()=>{
  const own=[...messages.value].reverse().find(m=>m.isMine&&m.timeoutUntil===timeoutUntil.value&&reasonOf(m));
@@ -39,32 +37,26 @@ function blockAccess(){
  messages.value=[];text.value='';outgoing=null;notice.value='강퇴되어 이번 방송이 끝날 때까지 채팅과 시청이 제한됩니다.';disconnect();
 }
 function markEnded(){generation++;refreshSequence++;ended.value=true;accessReady.value=false;timeoutUntil.value=null;timeoutUnknown.value=false;notice.value='방송이 종료되었습니다.';disconnect();}
-// Studio 메뉴(#5): 실시간 관제 / 시청자 관리
-const studioPage=ref<'monitor'|'viewers'>('monitor');
 // 사건·검토 응답의 userAlias는 사건마다 'U1'로 가려져 시청자를 구분하지 못한다.
 // 운영자 채팅 이력은 작성자 닉네임을 주므로, 사건의 대상 메시지 ID로 작성자를 찾는다(같은 liveId 범위).
 const names=ref<Record<string,string>>({});
 const nameOf=(id?:string)=>id?(names.value[id]??messages.value.find(m=>m.messageId===id)?.authorAlias):undefined;
-const iso=(v:unknown)=>typeof v==='number'?new Date(v).toISOString():String(v??'');
+// 최근 채팅에 없는 작성자는 이전 페이지(최대 5쪽)까지 찾는다. 한 번 찾지 못한 메시지는 다시 찾지 않는다.
+const tried=new Set<string>();
 async function resolveNames(){
  if(!live.value)return;const id=live.value.liveId;
- const missing=()=>caseHistory.value.some(c=>c.targetMessageIds[0]&&!nameOf(c.targetMessageIds[0]));
+ const missing=()=>caseHistory.value.map(c=>c.targetMessageIds[0]).filter(t=>t&&!nameOf(t)&&!tried.has(t));
  let cursor:string|undefined;
- for(let n=0;n<5&&missing();n++){
+ for(let n=0;n<5&&missing().length;n++){
   const chunk=await api.liveMessagesPage(id,cursor);
   for(const m of chunk.items)names.value[m.messageId]=m.authorAlias;
   if(!chunk.nextCursor)break;cursor=chunk.nextCursor;
  }
+ for(const t of missing())tried.add(t);
 }
-const viewerRows=computed(()=>groupByViewer(
- caseHistory.value.map((c):ViewerCase=>{const target=c.targetMessageIds[0];return{caseId:c.caseId,name:nameOf(target)??`작성자 미확인 · 사건 ${c.caseId.slice(0,8)}`,createdAt:iso(c.createdAt),text:c.messages.find(m=>m.messageId===target)?.text??null,confirmationStatus:c.confirmationStatus,findings:c.confirmedFindings.map(f=>({findingId:f.findingId,category:f.category,status:f.status})),violationCount:c.violationCount??null,version:c.version};}),
- reviews.value.map((r):ViewerReview=>({reviewId:r.reviewId,kind:r.kind,status:r.status,createdAt:iso(r.createdAt),summary:r.summary,caseIds:r.kind==='CONTEXT'?[r.caseId]:r.basisCaseIds}))));
-function onViewerDecide(r:ViewerReview,value:string,reason:string){const review=reviews.value.find(x=>x.reviewId===r.reviewId);if(!review)return;reasons.value[review.reviewId]=reason;decide(review,value);}
-function onViewerRevoke(item:ViewerCase,f:ViewerFinding,reason:string){const c=caseHistory.value.find(x=>x.caseId===item.caseId);if(!c)return;revokeReasons.value[f.findingId]=reason;revoke(c,f.findingId);}
-function openViewers(){studioPage.value='viewers';resolveNames().catch(fail);}
+const caseNames=computed(()=>Object.fromEntries(caseHistory.value.flatMap(c=>{const n=nameOf(c.targetMessageIds[0]);return n?[[c.caseId,n]]:[];})));
 let generation=0;let refreshSequence=0;
 const seen=new Set<string>();let streams:EventSource[]=[];let timer:ReturnType<typeof setInterval>|undefined;let clockTimer:ReturnType<typeof setInterval>|undefined;let loadingLive=false;
-const time=(s:string)=>new Date(s).toLocaleTimeString('ko-KR');
 function fail(e:unknown){
  if(e instanceof ApiError){
   if(e.code==='KICKED'){blockAccess();error.value='';return;}
@@ -78,7 +70,7 @@ async function sessionValid(){
  const previous=store.me?.userId;
  const current=await api.me();
  if(current.userId!==previous){
-  generation++;disconnect();resetAccess();messages.value=[];reviews.value=[];caseHistory.value=[];logs.value=[];live.value=null;names.value={};seen.clear();outgoing=null;text.value='';
+  generation++;disconnect();resetAccess();messages.value=[];reviews.value=[];caseHistory.value=[];logs.value=[];live.value=null;names.value={};kickProgress.value={};tried.clear();seen.clear();outgoing=null;text.value='';
   await store.syncIdentity(current);
   notice.value='다른 창에서 로그인 계정이 변경되어 화면을 갱신했습니다. 역할별 데모는 서로 다른 호스트나 브라우저 프로필을 사용하세요.';
   await load();return false;
@@ -94,9 +86,15 @@ async function refresh(){
   if(expected!==generation||sequence!==refreshSequence||live.value?.liveId!==id)return false;
   if(blocked.value)notice.value='';
   messages.value=[...page.items].reverse();reviews.value=cards;caseHistory.value=history;syncTimeout(page);blocked.value=false;accessReady.value=true;
-  if(operator.value&&studioPage.value==='viewers')resolveNames().catch(()=>{});
+  if(operator.value)resolveNames().catch(()=>{});
   return true;
  }catch(e){if(expected===generation&&sequence===refreshSequence)fail(e);return false;}
+}
+// 조치 결과에는 검토 ID가 없다. 조치 사건(caseId)의 강퇴 검토, 없으면 결과를 기다리는 강퇴 검토에 붙인다.
+function setKick(payload:{caseId?:string},state:string){
+ const waiting=Object.keys(kickProgress.value).filter(id=>kickProgress.value[id]==='결정 접수 · 실행 결과 대기');
+ const id=reviews.value.find(r=>r.kind==='KICK'&&r.caseId===payload.caseId)?.reviewId??waiting.at(-1);
+ if(id)kickProgress.value[id]=state;
 }
 function disconnect(){streams.forEach(s=>s.close());streams=[];online.value=false;}
 function connect(){
@@ -117,11 +115,28 @@ function connect(){
     // 재조회가 지연·실패해도 이미 공개되어 있던 타인 원문을 즉시 제거한다.
     refreshSequence++;messages.value=messages.value.filter(m=>m.messageId!==v.payload.messageId||m.isMine);
    }
-   if(e.type==='ACTION_APPLIED')notice.value=v.payload.type==='KICK'?'강퇴 적용이 확인되었습니다.':'조치 적용이 확인되었습니다.';
+   // 명세는 reviewKind, 현재 BE는 kind로 보낸다.
+   // 명세는 reviewKind, 현재 BE는 kind로 보낸다.
+   if(e.type==='REVIEW_DECIDED'&&(v.payload.reviewKind??v.payload.kind)==='KICK')kickProgress.value[v.payload.reviewId]=v.payload.value==='APPROVE'?'결정 접수 · 실행 결과 대기':'강퇴 기각 · 기존 제재 유지';
+   const actionName=({KICK:'강퇴',HIDE:'메시지 숨김',TIMEOUT:'채팅 제한',RELEASE_HELD:'메시지 복원'} as Record<string,string>)[v.payload.type]??'조치';
+   if(e.type==='ACTION_APPLIED'){
+    notice.value=`${actionName} 적용이 확인되었습니다.`;
+    if(v.payload.type==='KICK')setKick(v.payload,'강퇴 적용 완료');
+   }
+   if(e.type==='ACTION_FAILED'){
+    if(v.payload.observation==='UNKNOWN'||v.payload.status==='PENDING'||v.payload.status==='RUNNING'){
+     notice.value=`${actionName} 실행 결과를 확인하고 있습니다. 아직 실패로 확정되지 않았습니다.`;
+     if(v.payload.type==='KICK')setKick(v.payload,'실행 결과 확인 중 · 실패로 단정하지 않음');
+    }else if(v.payload.observation==='CONFIRMED'&&v.payload.status==='FAILED'){
+     notice.value=`${actionName} 실행 실패가 확인되었습니다. 기존 제재 상태는 유지됩니다.`;
+     if(v.payload.type==='KICK')setKick(v.payload,'강퇴 실행 실패 · 기존 제재 유지');
+    }else notice.value=`${actionName} 결과를 확인할 수 없습니다. 서버 상태를 다시 확인해 주세요.`;
+   }
    refresh();
   }catch{error.value='실시간 이벤트를 확인하지 못했습니다. 새로고침해 주세요.';}
  };
- for(const name of ['CHAT','MESSAGE_VISIBILITY_CHANGED','MESSAGE_RESTORED','LIVE_ACCESS_BLOCKED','LIVE_ENDED','ACTION_APPLIED','ACTION_FAILED'])source.addEventListener(name,handle);
+ for(const name of ['CHAT','MESSAGE_VISIBILITY_CHANGED','MESSAGE_RESTORED','LIVE_ACCESS_BLOCKED','LIVE_ENDED'])source.addEventListener(name,handle);
+ if(!operator.value)for(const name of ['ACTION_APPLIED','ACTION_FAILED'])source.addEventListener(name,handle);
  if(operator.value){
   const guard=api.liveEvents(live.value.liveId,true);streams.push(guard);
   for(const name of ['CASE_CREATED','CASE_UPDATED','CONTEXT_REVIEW_REQUIRED','KICK_REVIEW_REQUIRED','REVIEW_DECIDED','ACTION_APPLIED','ACTION_FAILED','TOOL_START','TOOL_END','TASK_FAILED'])guard.addEventListener(name,handle);
@@ -132,7 +147,7 @@ async function load(){
  loadingLive=true;const expected=generation;const channel=store.channelId;
  try{
   const current=await api.currentLive(channel);if(expected!==generation||store.channelId!==channel)return;
-  if(current.liveId!==live.value?.liveId){generation++;disconnect();resetAccess();messages.value=[];reviews.value=[];caseHistory.value=[];logs.value=[];names.value={};seen.clear();text.value='';outgoing=null;notice.value='';}
+  if(current.liveId!==live.value?.liveId){generation++;disconnect();resetAccess();messages.value=[];reviews.value=[];caseHistory.value=[];logs.value=[];names.value={};kickProgress.value={};tried.clear();seen.clear();text.value='';outgoing=null;notice.value='';}
   live.value=current;ended.value=!!current.endedAt;
   if(ended.value){markEnded();return;}
   if(await refresh()){error.value='';if(!streams.length)connect();}
@@ -151,27 +166,28 @@ async function send(){
  catch(e){fail(e);}finally{busy.value=false;}
 }
 const requests=new Map<string,{serialized:string;id:string}>();
-async function decide(r:LiveReview,value:string){
+async function decide(r:LiveReview,value:string,reason:string,categories:Category[]){
  if(!await sessionValid())return;
- const reason=(reasons.value[r.reviewId]??'').trim();if(!reason){error.value='결정 이유를 입력해 주세요.';return;}
- const body:Record<string,unknown>={expectedReviewVersion:r.version,decision:value,reason};
+ if(!reason.trim()){error.value='결정 이유를 입력해 주세요.';return;}
+ const body:Record<string,unknown>={expectedReviewVersion:r.version,decision:value,reason:reason.trim()};
  if(value==='CONFIRM_VIOLATION'){
-  body.categories=categories.value[r.reviewId]??[...new Set(r.findings.flatMap(f=>f.categories))];
-  if(!(body.categories as string[]).length){error.value='위반 유형을 하나 이상 선택해 주세요.';return;}
+  body.categories=categories;
+  if(!categories.length){error.value='위반 유형을 하나 이상 선택해 주세요.';return;}
   body.evidenceMessageIds=r.targetMessageIds;
  }
  const serialized=JSON.stringify(body);let req=requests.get(r.reviewId);
  if(!req||req.serialized!==serialized){req={serialized,id:crypto.randomUUID()};requests.set(r.reviewId,req);}
  body.clientRequestId=req.id;busy.value=true;error.value='';
- try{const d=await api.decideLive(r,body);notice.value=`결정 접수: ${d.value}. 실제 조치 결과를 기다립니다.`;await refresh();}
- catch(e){fail(e);if(e instanceof ApiError&&e.code==='STALE_VERSION')await refresh();}
+ try{const d=await api.decideLive(r,body);notice.value=`결정 접수: ${d.value}. 실제 조치 결과를 기다립니다.`;if(r.kind==='KICK')kickProgress.value[r.reviewId]=value==='APPROVE'?'결정 접수 · 실행 결과 대기':'강퇴 기각 · 기존 제재 유지';await refresh();}
+ catch(e){if(e instanceof ApiError&&e.code==='STALE_VERSION'){error.value='다른 운영자가 먼저 검토를 변경했습니다. 최신 상태를 불러왔습니다.';await refresh();}else fail(e);}
  finally{busy.value=false;}
 }
-async function revoke(c:LiveCase,findingId:string){
+async function revoke(caseId:string,findingId:string,reason:string){
  if(!await sessionValid())return;
- const reason=(revokeReasons.value[findingId]??'').trim();if(!reason){error.value='오판 취소 사유를 입력해 주세요.';return;}
+ const c=caseHistory.value.find(x=>x.caseId===caseId);if(!c)return;
+ if(!reason.trim()){error.value='오판 취소 사유를 입력해 주세요.';return;}
  busy.value=true;
- const body={expectedCaseVersion:c.version,reason};const serialized=JSON.stringify(body);const key='revoke:'+findingId;let req=requests.get(key);
+ const body={expectedCaseVersion:c.version,reason:reason.trim()};const serialized=JSON.stringify(body);const key='revoke:'+findingId;let req=requests.get(key);
  if(!req||req.serialized!==serialized){req={serialized,id:crypto.randomUUID()};requests.set(key,req);}
  try{await api.revokeFinding(findingId,{...body,clientRequestId:req.id});notice.value='확정 근거를 취소하고 남은 가림 원인·제한을 재계산했습니다.';await refresh();}
  catch(e){fail(e);}finally{busy.value=false;}
@@ -183,50 +199,14 @@ onBeforeUnmount(()=>{generation++;disconnect();window.removeEventListener('focus
 </script>
 <template>
  <ViewerScreen v-if="!operator&&!admin" v-model:draft="text" :messages="visibleMessages" :nickname="store.me?.nickname??'시청자'" :scope-key="`${store.me?.userId}:${live?.liveId??''}`" :clock="clock" :ready="accessReady" :loading="loading" :has-live="!!live" :blocked="blocked" :ended="ended" :busy="busy" :timed-out="timedOut" :timeout-until="timeoutUntil" :timeout-reason="timeoutReason" :started-at="live?.startedAt" :online="online" :error="error" :notice="notice" @send="send" @logout="store.logout()" @refresh="load"/>
+ <StudioScreen v-else-if="operator" :nickname="store.me?.nickname??'운영자'" :live="live" :ended="ended" :loading="loading" :online="online" :messages="visibleMessages" :reviews="reviews" :cases="caseHistory" :case-names="caseNames" :logs="logs" :kick-progress="kickProgress" :busy="busy" :error="error" :notice="notice"
+  @decide="decide" @revoke="revoke" @refresh="load" @start="start" @end="end" @logout="store.logout()" @page="p=>{if(p==='viewers')resolveNames().catch(fail);}"/>
  <div v-else class="v1-shell">
-  <header class="v1-top"><a class="yt-logo"><span class="yt-logo-mark"><ShieldCheck :size="16"/></span><b>LIVE:GUARD</b></a><b>{{operator?'Studio · 운영자':admin?'시스템 운영자':'라이브 시청'}}</b>
-   <span class="v1-connection"><i :class="{connected:online}"/>{{online?'실시간 연결':'연결 대기'}}</span><span>{{store.me?.nickname}}</span><button @click="store.logout()"><LogOut :size="15"/> 로그아웃</button></header>
-  <div class="v1-body" :class="{studio:operator}">
-  <aside v-if="operator" class="v1-side" aria-label="Studio 메뉴"><button :class="{on:studioPage==='monitor'}" :aria-current="studioPage==='monitor'?'page':undefined" @click="studioPage='monitor'"><Radio :size="18"/> 실시간 관제</button><button :class="{on:studioPage==='viewers'}" :aria-current="studioPage==='viewers'?'page':undefined" @click="openViewers"><Users :size="18"/> 시청자 관리<b v-if="viewerRows.length">{{viewerRows.length}}</b></button></aside>
-  <main class="v1-main"><p class="v1-fixture">로컬 통합 검증 · 정책 미정 항목의 시험 설정을 사용합니다. 영상은 데모 영상입니다.</p>
-   <div class="v1-heading"><div><p class="v1-eyebrow">LIVE MODERATION</p><h1>{{operator?(studioPage==='viewers'?'시청자 관리':'실시간 채팅 관제'):admin?'시스템 운영 현황':'오늘의 라이브'}}</h1><p>{{operator?'AI 조사 근거를 확인하고 정상·위반·보류를 결정하세요.':'채팅은 방송 정책에 따라 검사됩니다.'}}</p></div>
-    <div class="v1-actions"><button @click="load"><RefreshCcw :size="16"/> 새로고침</button><button v-if="operator&&!loading&&(!live||ended)" class="v1-primary" :disabled="busy" @click="start">방송 시작</button><button v-if="operator&&live&&!ended" :disabled="busy" @click="end">방송 종료</button></div></div>
-   <p v-if="error" role="alert" class="v1-error">{{error}}</p><p v-if="notice" role="status" class="v1-notice">{{notice}}</p>
-   <section v-if="admin" class="v1-card"><h2>등록된 역할로 접근했습니다</h2><p>이 계정에는 담당 방송이 없습니다. 방송 검토는 담당 운영자 계정으로 확인하세요.</p><p>이 화면에는 Mock 집계를 표시하지 않습니다.</p></section>
-   <section v-else-if="!live" class="v1-card v1-empty"><Radio :size="30"/><h2>진행 중인 방송이 없습니다</h2><p>{{operator?'방송을 시작하면 시청자 채팅과 AI 조사 결과를 확인할 수 있습니다.':'운영자가 방송을 시작하면 자동으로 연결됩니다.'}}</p></section>
-   <template v-else>
-    <div class="v1-live-id"><span :class="ended?'':'v1-live-dot'">{{ended?'종료':'LIVE'}}</span> 방송 {{live.liveId.slice(0,8)}} · {{time(live.startedAt)}} 시작</div>
-    <ViewerManage v-if="operator&&studioPage==='viewers'" :rows="viewerRows" :busy="busy||ended" scope="현재 방송(liveId)" @decide="onViewerDecide" @revoke="onViewerRevoke"/>
-    <div v-else class="v1-columns" :class="{'viewer-only':!operator}">
-     <section class="v1-card v1-chat">
-      <header><h2>실시간 채팅</h2><span>{{visibleMessages.length}}건</span></header>
-      <div class="v1-message-list"><article v-for="m in visibleMessages" :key="m.messageId" :data-message-id="m.messageId" class="v1-message" :class="m.visibility.toLowerCase()"><span class="v1-avatar">{{m.authorAlias.slice(0,1)}}</span><div><b>{{m.authorAlias}}</b><p>{{m.text}}</p><small v-if="m.visibility!=='PUBLIC'">{{visibilityLabels[m.visibility]}} · 작성자와 담당 운영자에게만 표시 <b v-if="reviewing(m)" class="v1-review-badge">검토 중</b></small><p v-if="m.visibility!=='PUBLIC'&&reasonOf(m)" class="v1-message-reason">{{reasonOf(m)}}</p></div><time>{{time(m.sentAt)}}</time></article><p v-if="!visibleMessages.length" class="v1-empty">{{blocked?'이용 제한으로 채팅을 표시하지 않습니다.':'아직 채팅이 없습니다.'}}</p></div>
-      <ChatTimeoutNotice v-if="timedOut" :until="timeoutUntil" :now="clock" :reason="timeoutReason"/>
-      <p v-else-if="blocked" class="v1-restriction" role="status">강퇴되어 이번 방송이 끝날 때까지 채팅을 보낼 수 없습니다.</p>
-      <p v-else-if="ended" class="v1-restriction" role="status">방송이 종료되어 채팅을 보낼 수 없습니다.</p>
-      <form @submit.prevent="send"><label for="live-message">채팅 보내기</label><div><input id="live-message" v-model="text" maxlength="500" placeholder="메시지를 입력하세요" :disabled="chatDisabled"/><button type="submit" :disabled="chatDisabled||!text.trim()" aria-label="채팅 전송"><Send :size="18"/></button></div><small>{{text.length}} / 500</small></form>
-     </section>
-     <section v-if="operator" class="v1-reviews"><div class="v1-review-title"><ClipboardCheck :size="21"/><h2>운영자 결정 대기</h2><b>{{pending.length}}</b></div>
-      <div v-if="!pending.length" class="v1-card v1-empty">지금은 결정이 필요한 검토가 없습니다. 문맥 의심 채팅을 조사하면 이곳에 표시됩니다.</div>
-      <article v-for="r in pending" :key="r.reviewId" class="v1-card v1-review" :data-review-id="r.reviewId"><header><span class="v1-kind">{{r.kind==='CONTEXT'?'문맥 검토':'강퇴 승인'}}</span><small>{{time(r.createdAt)}} · v{{r.version}}</small></header><h3>{{r.summary}}</h3>
-       <p v-if="r.kind==='KICK'">기준 사건 {{r.basisCaseIds.length}}건. 승인 후 재검증을 통과하면 현재 방송 종료까지 입장이 제한됩니다.</p>
-       <div v-for="f in r.findings" :key="f.messageId" class="v1-finding"><b>AI 제안 · {{f.verdict}}</b><blockquote>{{r.messages.find(m=>m.messageId===f.messageId)?.text}}</blockquote><p>{{f.reason}}</p><small>정책 {{f.policyIds.join(', ')}}</small><p v-if="f.missingFacts.length">확인 필요: {{f.missingFacts.join(', ')}}</p></div>
-       <details><summary>주변 문맥과 근거 메시지</summary><p v-for="m in r.messages" :key="m.messageId"><b>{{m.authorAlias}}</b> {{m.text}} <small>{{m.messageId.slice(0,8)}}</small></p></details>
-       <fieldset v-if="r.kind==='CONTEXT'"><legend>위반 확정 시 적용할 유형</legend><label v-for="(name,key) in categoryLabels" :key="key"><input type="checkbox" :checked="(categories[r.reviewId]??r.findings.flatMap(f=>f.categories)).includes(key)" @change="categories[r.reviewId]=($event.target as HTMLInputElement).checked?[...(categories[r.reviewId]??r.findings.flatMap(f=>f.categories)),key]:(categories[r.reviewId]??r.findings.flatMap(f=>f.categories)).filter(c=>c!==key)"/>{{name}}</label></fieldset>
-       <label :for="'reason-'+r.reviewId">결정 이유</label><textarea :id="'reason-'+r.reviewId" v-model="reasons[r.reviewId]" maxlength="500" placeholder="확인한 근거와 결정 이유를 입력하세요" :disabled="busy||ended"/>
-       <div class="v1-decision-actions"><template v-if="r.kind==='CONTEXT'"><button :disabled="busy||ended" @click="decide(r,'CONFIRM_NORMAL')">정상 확정</button><button class="v1-primary" :disabled="busy||ended" @click="decide(r,'CONFIRM_VIOLATION')">위반 확정</button><button :disabled="busy||ended" @click="decide(r,'DEFER')">보류</button></template><template v-else><button class="v1-primary" :disabled="busy||ended" @click="decide(r,'APPROVE')">강퇴 승인</button><button :disabled="busy||ended" @click="decide(r,'REJECT')">강퇴 거절</button></template></div><small>결정 접수와 실제 조치 적용은 별도입니다.</small>
-      </article>
-      <section class="v1-card"><h2>조치 이력 · 오판 취소</h2><details v-for="c in caseHistory.filter(c=>c.confirmedFindings.length)" :key="c.caseId" class="v1-recovery" :data-case-id="c.caseId"><summary>{{c.confirmationStatus}} · {{c.caseId.slice(0,8)}}</summary><p v-for="m in c.messages.filter(m=>c.targetMessageIds.includes(m.messageId))" :key="m.messageId">{{m.text}}</p><div v-for="f in c.confirmedFindings" :key="f.findingId"><b>{{categoryLabels[f.category as Category]}} · {{f.status}}</b><template v-if="f.status==='CONFIRMED'"><label :for="'revoke-'+f.findingId">취소 사유</label><textarea :id="'revoke-'+f.findingId" v-model="revokeReasons[f.findingId]" maxlength="500"/><button :disabled="busy" @click="revoke(c,f.findingId)">확정 근거 취소</button></template></div></details><p v-if="!caseHistory.some(c=>c.confirmedFindings.length)">아직 확정된 위반이 없습니다.</p></section>
-      <section class="v1-card"><h2>진행 기록</h2><ol class="v1-log"><li v-for="l in logs" :key="l.id"><time>{{time(l.time)}}</time> <b>{{l.event}}</b></li></ol><p v-if="!logs.length">새 이벤트를 기다립니다.</p></section>
-     </section>
-    </div>
-   </template>
-  </main>
-  </div>
+  <header class="v1-top"><span class="yt-logo"><span class="yt-logo-mark"><ShieldCheck :size="16"/></span><b>LIVE:GUARD</b></span><b>시스템 운영자</b><span class="v1-me">{{store.me?.nickname}}</span><button @click="store.logout()"><LogOut :size="15"/> 로그아웃</button></header>
+  <main class="v1-main"><section class="v1-card"><h2>등록된 역할로 접근했습니다</h2><p>이 계정에는 담당 방송이 없습니다. 방송 검토는 담당 운영자 계정으로 확인하세요.</p><p>여러 방송의 통합 지표 API가 없어 이 화면에는 Mock 집계를 표시하지 않습니다.</p></section></main>
  </div>
 </template>
 <style scoped>
-.v1-access-state{min-height:240px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:28px;background:#171717;color:white;text-align:center}.v1-access-state h2{font-size:20px}.v1-access-state p{line-height:1.7}.v1-restriction{padding:14px 18px;border-top:1px solid #e8d9ad;background:#fff8e7;color:#694d13;font-size:13px;line-height:1.7}.v1-restriction p{margin:3px 0}.v1-restriction time{font-variant-numeric:tabular-nums}.v1-review-badge{display:inline-block;margin-left:6px;padding:2px 6px;background:#fff0c2;color:#735400;border-radius:4px}.v1-message .v1-message-reason{font-size:12px;color:#775b28;margin-top:6px}
-.v1-shell{min-height:100vh;background:#f8f8f8;color:#111;font-family:inherit}.v1-top{height:64px;background:white;border-bottom:1px solid #e5e5e5;display:flex;align-items:center;gap:18px;padding:0 28px}.v1-connection{margin-left:auto;font-size:12px;color:#666;display:flex;align-items:center;gap:6px}.v1-connection i{height:7px;width:7px;background:#999;border-radius:50%}.v1-connection i.connected{background:#2ea44f}.v1-main{max-width:1440px;margin:auto;padding:30px}.v1-heading{display:flex;justify-content:space-between;gap:16px;margin-bottom:22px;align-items:center}.v1-eyebrow{font-size:11px;font-weight:700;letter-spacing:.12em;color:#e00}.v1-heading h1{font-size:28px;margin:5px 0 8px;letter-spacing:-.04em}.v1-heading p{color:#666;margin:0}.v1-actions{display:flex;gap:8px}.v1-shell button{display:inline-flex;align-items:center;justify-content:center;gap:6px;background:#fff;border:1px solid #ddd;border-radius:6px;padding:9px 13px;font-weight:600;cursor:pointer}.v1-shell button:disabled{opacity:.45;cursor:default}.v1-shell .v1-primary{background:#f00;color:white;border-color:#f00}.v1-shell button:focus-visible,.v1-shell input:focus-visible,.v1-shell textarea:focus-visible{outline:2px solid #065fd4;outline-offset:2px}.v1-card{background:#fff;border:1px solid #e4e4e4;border-radius:12px;padding:20px}.v1-card h2{font-size:18px;margin:0 0 15px}.v1-live-id{font-size:12px;color:#666;display:flex;gap:10px;align-items:center;margin-bottom:15px}.v1-live-dot{color:#f00;font-weight:700}.v1-columns{display:grid;grid-template-columns:minmax(300px,1fr) minmax(350px,1fr);gap:24px;align-items:start}.v1-columns.viewer-only{max-width:900px;margin:auto;display:block}.v1-chat{padding:0;overflow:hidden}.v1-chat header{display:flex;justify-content:space-between;padding:18px;border-bottom:1px solid #eee}.v1-chat header h2{margin:0}.v1-chat header span{font-size:12px;color:#666}.v1-message-list{max-height:510px;min-height:250px;overflow:auto;padding:12px}.v1-message{display:flex;gap:10px;padding:12px 8px;border-radius:6px;margin-bottom:4px}.v1-message.held{background:#fff8df}.v1-message.hidden{background:#fceaea}.v1-message p{margin:4px 0;white-space:pre-wrap;overflow-wrap:anywhere}.v1-message b{font-size:12px;color:#555}.v1-message small{font-size:11px;color:#94631c}.v1-message time{margin-left:auto;color:#888;font-size:10px;flex-shrink:0}.v1-avatar{display:flex;align-items:center;justify-content:center;border-radius:50%;background:#d41766;color:white;width:27px;height:27px;flex-shrink:0}.v1-chat form{border-top:1px solid #eee;padding:18px}.v1-chat form>div{display:flex;gap:8px;margin:8px 0}.v1-chat input{width:100%;border:0;border-bottom:1px solid #bbb;padding:10px}.v1-chat form small{font-size:11px;color:#888}.v1-review-title{display:flex;align-items:center;gap:8px;margin-bottom:15px}.v1-review-title h2{font-size:20px;margin:0}.v1-review-title>b{margin-left:auto;color:#666}.v1-reviews{display:grid;gap:16px}.v1-review header{display:flex;justify-content:space-between;gap:10px}.v1-review h3{font-size:16px;margin:15px 0}.v1-review p{font-size:13px;line-height:1.6}.v1-kind{background:#ece8ff;color:#5d39bc;padding:5px 8px;font-size:12px;border-radius:4px;font-weight:700}.v1-review small{font-size:11px;color:#777}.v1-finding{background:#f8f8fb;border-left:3px solid #8170cd;padding:12px;margin:12px 0;overflow-wrap:anywhere}.v1-finding>b{font-size:12px;color:#6554a4}.v1-finding blockquote{font-size:15px;margin:10px 0;font-weight:600}.v1-review details{font-size:12px;margin:14px 0;cursor:pointer}.v1-review fieldset{border:1px solid #eee;border-radius:6px;padding:10px;margin:15px 0;display:flex;flex-wrap:wrap;gap:10px}.v1-review legend,.v1-review label{font-size:12px;color:#555}.v1-review fieldset label{display:flex;gap:4px;align-items:center}.v1-review textarea{display:block;width:100%;min-height:70px;box-sizing:border-box;margin:7px 0 12px;padding:10px;border:1px solid #ccc;border-radius:5px;resize:vertical;font:inherit;font-size:13px}.v1-decision-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.v1-empty{padding:40px;text-align:center;color:#777;line-height:1.8}.v1-error,.v1-notice{padding:13px 16px;border-radius:6px;font-size:13px}.v1-error{color:#c00;background:#ffebeb}.v1-notice{color:#275c35;background:#eaf4ec}.v1-log{padding:0;list-style:none;max-height:200px;overflow:auto;font-size:11px}.v1-log li{padding:7px 0;border-bottom:1px solid #eee}.v1-log time{color:#888;margin-right:10px}@media(max-width:850px){.v1-columns{grid-template-columns:1fr}.v1-main{padding:18px}.v1-heading{align-items:start;flex-direction:column}.v1-top{padding:0 14px;gap:8px;font-size:12px}.v1-top>.yt-logo{display:none}.v1-message-list{max-height:380px}} 
-.v1-body.studio{display:grid;grid-template-columns:220px minmax(0,1fr);align-items:start}.v1-side{position:sticky;top:0;min-height:calc(100vh - 64px);background:#fff;border-right:1px solid #e5e5e5;padding:20px 12px;display:grid;align-content:start;gap:4px}.v1-shell .v1-side button{justify-content:flex-start;gap:14px;border:0;border-radius:8px;padding:12px 14px;font-weight:500;color:#606060;background:transparent;width:100%}.v1-shell .v1-side button:hover{background:#f2f2f2}.v1-shell .v1-side button.on{background:#f2f2f2;color:#f00}.v1-side b{margin-left:auto;min-width:22px;height:20px;padding:0 6px;border-radius:10px;background:#f00;color:#fff;font-size:12px;display:grid;place-items:center}@media(max-width:850px){.v1-body.studio{grid-template-columns:1fr}.v1-side{position:static;min-height:0;display:flex;border-right:0;border-bottom:1px solid #e5e5e5;padding:8px 12px;overflow-x:auto}.v1-shell .v1-side button{width:auto;white-space:nowrap}}
+.v1-shell{min-height:100vh;background:#f8f8f8;color:#111}.v1-top{height:64px;background:#fff;border-bottom:1px solid #e5e5e5;display:flex;align-items:center;gap:18px;padding:0 28px}.v1-me{margin-left:auto}.v1-top button{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid #ddd;border-radius:6px;padding:9px 13px;font-weight:600}.v1-main{max-width:960px;margin:auto;padding:30px}.v1-card{background:#fff;border:1px solid #e4e4e4;border-radius:12px;padding:20px;display:grid;gap:10px}.v1-card h2{font-size:18px}.v1-card p{color:#555;line-height:1.6}
+@media(max-width:600px){.v1-top{padding:0 14px;gap:10px;font-size:13px}.v1-main{padding:16px}}
 </style>

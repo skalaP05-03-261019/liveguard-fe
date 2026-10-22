@@ -22,7 +22,7 @@ async function open(role='author',clockTime){
  const context=await browser.newContext({extraHTTPHeaders:{'x-test-role':role},viewport:{width:1280,height:1000},timezoneId:'Asia/Seoul'});contexts.push(context);
  const page=await context.newPage();page.on('pageerror',e=>runtimeErrors.push(e.message));
  if(clockTime)await page.clock.install({time:new Date(clockTime)});
- await page.goto(base);await page.locator('.v1-shell, .viewer-shell').waitFor();
+ await page.goto(base);await page.locator('.v1-shell, .viewer-shell, .app-shell').waitFor();
  return page;
 }
 async function openMock(options={}){
@@ -34,6 +34,14 @@ async function openMock(options={}){
  await page.getByRole('button',{name:'시청자로 시작하기',exact:true}).click();
  await page.getByRole('button',{name:'로그인',exact:true}).click();
  await page.locator('.viewer-shell').waitFor();
+ return page;
+}
+async function openMockModerator(){
+ const context=await browser.newContext({viewport:{width:1280,height:1000},timezoneId:'Asia/Seoul'});contexts.push(context);
+ const page=await context.newPage();page.on('pageerror',e=>runtimeErrors.push(e.message));
+ const time=new Date('2026-10-22T05:14:50Z');await page.clock.install({time});await page.clock.pauseAt(time);
+ await page.goto(mockBase);await page.getByRole('button',{name:'스트리머로 시작하기',exact:true}).click();
+ await page.getByRole('button',{name:'로그인',exact:true}).click();await page.locator('.app-shell').waitFor();
  return page;
 }
 async function sendMock(page,text){
@@ -92,19 +100,25 @@ before(async()=>{
    if(state.delayHistory){await new Promise(r=>setTimeout(r,state.delayHistory));}
    return json(200,page);
   }
-  if(url.pathname==='/api/reviews'||url.pathname==='/api/cases')return json(200,[]);
+  if(url.pathname==='/api/reviews')return json(200,state.reviews.filter(r=>r.kind===url.searchParams.get('kind')));
+  if(url.pathname==='/api/cases')return json(200,state.cases);
+  if(req.method==='POST'&&/^\/api\/(context|kick)-reviews\/[^/]+\/decision$/.test(url.pathname)){
+   let body='';for await(const chunk of req)body+=chunk;const value=JSON.parse(body);state.decisions.push({path:url.pathname,body:value});
+   const review=state.reviews.find(r=>url.pathname.includes(r.reviewId));if(review){review.status='DECIDED';review.version++;}
+   return json(202,{decisionId:'decision-'+state.decisions.length,reviewId:review?.reviewId,kind:review?.kind,value:value.decision,operatorId:'operator',decidedAt:timestamp()});
+  }
   json(404,{code:'NOT_FOUND',message:url.pathname,retryable:false});
  });
  await new Promise(r=>server.listen(0,'127.0.0.1',r));
- process.env.VITE_USE_API='true';process.env.VITE_USE_LIVE_V1='true';process.env.VITE_API_BASE_URL='';process.env.VITE_BACKEND_TARGET=`http://127.0.0.1:${server.address().port}`;
+ process.env.VITE_USE_API='true';process.env.VITE_API_BASE_URL='';process.env.VITE_BACKEND_TARGET=`http://127.0.0.1:${server.address().port}`;
  const {createServer}=await import('vite');
  vite=await createServer({root:path.resolve(__dirname,'..'),server:{host:'127.0.0.1',port:0},logLevel:'error'});await vite.listen();
  base=`http://127.0.0.1:${vite.httpServer.address().port}`;
- mockVite=await createServer({root:path.resolve(__dirname,'..'),define:{'import.meta.env.VITE_USE_API':'"false"','import.meta.env.VITE_USE_LIVE_V1':'"false"'},server:{host:'127.0.0.1',port:0},logLevel:'error'});await mockVite.listen();
+ mockVite=await createServer({root:path.resolve(__dirname,'..'),define:{'import.meta.env.VITE_USE_API':'"false"'},server:{host:'127.0.0.1',port:0},logLevel:'error'});await mockVite.listen();
  mockBase=`http://127.0.0.1:${mockVite.httpServer.address().port}`;
  browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH}:{})});
 });
-beforeEach(()=>{state={active:true,liveId:'live-1',messages:[],until:{},kicked:new Set(),posts:0,historyReads:[],currentReads:0,postError:null,historyError:false,leak:false,delayHistory:0,delayCurrent:0};runtimeErrors.length=0;});
+beforeEach(()=>{state={active:true,liveId:'live-1',messages:[],until:{},kicked:new Set(),posts:0,historyReads:[],currentReads:0,postError:null,historyError:false,leak:false,delayHistory:0,delayCurrent:0,reviews:[],cases:[],decisions:[]};runtimeErrors.length=0;});
 afterEach(async()=>{await Promise.all(contexts.splice(0).map(c=>c.close()));assert.deepEqual(runtimeErrors,[]);});
 after(async()=>{await browser?.close();await mockVite?.close();await vite?.close();for(const c of clients)c.res.end();server?.closeAllConnections();await new Promise(r=>server?server.close(r):r());});
 
@@ -256,7 +270,8 @@ test('switching mock viewers preserves their limits and never announces another 
 
 test('typed mock profanity hides once per message and escalates from 10 minutes to 24 hours after expiry',async()=>{
  const page=await openMock();
- for(const text of ['안녕하세요','씨발','시 발','sibal','시발점 시발역']){
+ // 목업은 Backend 확정 욕설 사전을 쓴다. 띄어 쓴 표현·로마자·예외 단어는 숨기지 않는다.
+ for(const text of ['안녕하세요','시 발','sibal','시발점 시발역']){
   await sendMock(page,text);
   const row=page.locator('.yt-chat-row').filter({hasText:text});
   assert.equal(await row.count(),1);
@@ -383,6 +398,130 @@ test('session loss unmounts the shared API viewer and closes streams with cached
  await waitFor(()=>clients.size===0);
  assert.equal(await page.locator('.viewer-shell').count(),0);
  assert.equal(await page.locator('[data-message-id="cached"]').count(),0);assert.equal(state.posts,0);
+});
+
+test('API operator distinguishes confirmed action failure from an unknown result',async()=>{
+ const page=await open('operator');await waitFor(()=>clients.size>=2);
+ emit('ACTION_FAILED',{actionId:'action-failed',liveId:'live-1',type:'KICK',status:'FAILED',observation:'CONFIRMED'});
+ await page.getByRole('status').filter({hasText:'강퇴 실행 실패가 확인되었습니다'}).first().waitFor();
+ emit('ACTION_FAILED',{actionId:'action-unknown',liveId:'live-1',type:'KICK',status:'RUNNING',observation:'UNKNOWN'});
+ await page.getByRole('status').filter({hasText:'강퇴 실행 결과를 확인하고 있습니다'}).first().waitFor();
+});
+
+test('mock context review stays held on defer, then applies normal and violation decisions',async()=>{
+ async function decide(label,reason){
+  const page=await openMockModerator();await page.getByRole('button',{name:'공격 표현',exact:true}).click();
+  const row=page.locator('.chat-row').filter({hasText:'너 같은 건 방송 접어라'});await row.waitFor();
+  assert.match(await row.getAttribute('class'),/held/);
+  const card=page.locator('.studio-review').filter({hasText:'너 같은 건 방송 접어라'});
+  await card.getByText('AI 제안 · 위반 의심',{exact:true}).waitFor();await card.getByText('정책 CP-3.2',{exact:true}).waitFor();
+  await card.getByLabel('결정 이유 (필수)').fill(reason);
+  await card.getByRole('button',{name:label,exact:true}).click();
+  return {page,row,card};
+ }
+ const deferred=await decide('보류','아직 맥락을 더 확인해야 합니다.');
+ await deferred.page.getByText('보류했습니다. 검토 대기에 남습니다. (MOCK)',{exact:true}).waitFor();
+ assert.match(await deferred.row.getAttribute('class'),/held/);assert.equal(await deferred.card.count(),1);
+ const normal=await decide('정상 확정','위반 근거가 충분하지 않아 정상으로 확정합니다.');
+ await waitFor(async()=>!(await normal.row.getAttribute('class')).includes('held'));
+ assert.doesNotMatch(await normal.row.getAttribute('class'),/hidden/);assert.equal(await normal.card.count(),0);
+ const violation=await decide('위반 확정','대상에 대한 공격 표현으로 판단했습니다.');
+ await waitFor(async()=>(await violation.row.getAttribute('class')).includes('hidden'));
+});
+
+test('mock 24-hour timeout is automatic and the kick review lists its three basis cases',async()=>{
+ const page=await openMockModerator();
+ const card=page.locator('.studio-review.kick');await card.waitFor();
+ assert.equal(await card.locator('tbody tr').count(),3);
+ assert.match(await card.innerText(),/서로 다른 확정 사건 3건/);
+ await page.getByRole('button',{name:'정책 근거',exact:true}).click();
+ await page.getByText('모든 채팅 제한은 자동 적용되며, 24시간 제한도 강퇴가 아닙니다.',{exact:false}).waitFor();
+ assert.equal(await page.getByText('interrupt()',{exact:false}).count(),0);
+});
+
+test('mock kick approval is explicitly simulated and blocks that viewer for the live session',async()=>{
+ const page=await openMockModerator();
+ const reason=page.getByLabel('운영자 판단 근거 (필수)');await reason.fill('세 건의 확정 사건을 검토했습니다.');
+ await page.getByRole('button',{name:'강퇴 승인',exact:true}).click();
+ await page.getByRole('status').filter({hasText:'결정 접수 · 실행 결과 대기'}).first().waitFor();
+ await page.getByRole('button',{name:'로그아웃',exact:true}).click();
+ await page.getByRole('button',{name:'시청자로 시작하기',exact:true}).click();
+ await page.getByRole('button',{name:'로그인',exact:true}).click();await page.locator('.viewer-shell').waitFor();
+ await page.getByLabel('목업 시청자 선택').selectOption('22222222-2222-4222-8222-222222222222');
+ assert.equal(await page.getByRole('heading',{name:'이 방송의 이용이 제한되었습니다'}).count(),0);
+ await page.getByRole('button',{name:'로그아웃',exact:true}).click();
+ await page.getByRole('button',{name:'스트리머로 시작하기',exact:true}).click();
+ await page.getByRole('button',{name:'로그인',exact:true}).click();await page.locator('.app-shell').waitFor();
+ await page.getByRole('button',{name:'모의 적용 성공',exact:true}).click();
+ await page.getByRole('status').filter({hasText:'강퇴 적용 완료'}).first().waitFor();
+ await page.getByText('강퇴가 모의 적용됐습니다. (MOCK)',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'로그아웃',exact:true}).click();
+ await page.getByRole('button',{name:'시청자로 시작하기',exact:true}).click();
+ await page.getByRole('button',{name:'로그인',exact:true}).click();await page.locator('.viewer-shell').waitFor();
+ await page.getByLabel('목업 시청자 선택').selectOption('22222222-2222-4222-8222-222222222222');
+ await page.getByRole('heading',{name:'이 방송의 이용이 제한되었습니다'}).waitFor();
+ await page.getByText('이번 방송이 끝날 때까지 채팅과 시청이 제한됩니다',{exact:false}).waitFor();
+});
+
+test('mock kick failure and unknown outcomes never apply a viewer ban',async()=>{
+ for(const outcome of [
+  {button:'모의 적용 실패',status:'강퇴 실행 실패 · 기존 제재 유지'},
+  {button:'결과 미확인 시뮬레이션',status:'실행 결과 확인 중 · 실패로 단정하지 않음'}
+ ]){
+  const page=await openMockModerator();
+  await page.getByLabel('운영자 판단 근거 (필수)').fill('기준 사건 검토 완료');
+  await page.getByRole('button',{name:'강퇴 승인',exact:true}).click();
+  await page.getByRole('button',{name:outcome.button,exact:true}).click();
+  await page.getByRole('status').filter({hasText:outcome.status}).first().waitFor();
+  await page.getByRole('button',{name:'로그아웃',exact:true}).click();
+  await page.getByRole('button',{name:'시청자로 시작하기',exact:true}).click();
+  await page.getByRole('button',{name:'로그인',exact:true}).click();await page.locator('.viewer-shell').waitFor();
+  await page.getByLabel('목업 시청자 선택').selectOption('22222222-2222-4222-8222-222222222222');
+  assert.equal(await page.getByRole('heading',{name:'이 방송의 이용이 제한되었습니다'}).count(),0);
+ }
+});
+
+test('mock and API operators share the Studio screen and API decisions send the contract body',async()=>{
+ const masked=(id,text,visibility)=>({messageId:id,authorAlias:'U1',text,visibility,sentAt:timestamp()});
+ const basis=n=>({caseId:'case-'+n,liveId:'live-1',version:2,confirmationStatus:'CONFIRMED_VIOLATION',handlingRoute:'RULE_CONFIRMED',messages:[masked('old-'+n,'확정 욕설 '+n,'HIDDEN')],targetMessageIds:['old-'+n],confirmedFindings:[{findingId:'finding-'+n,category:'PROFANITY',status:'CONFIRMED',confirmedAt:timestamp(),revokedAt:null}],findings:[],createdAt:timestamp(),violationCount:n});
+ state.messages=[message('old-1','author','HIDDEN'),message('old-2','author','HIDDEN'),message('old-3','author','HIDDEN'),message('held-1','author','HELD')];
+ state.cases=[...[1,2,3].map(basis),{caseId:'case-ctx',liveId:'live-1',version:1,confirmationStatus:'PENDING',handlingRoute:'CONTEXT_REVIEW',messages:[masked('held-1','held-1 원문','HELD')],targetMessageIds:['held-1'],confirmedFindings:[],findings:[],createdAt:timestamp(),violationCount:3}];
+ state.reviews=[
+  {reviewId:'review-ctx',kind:'CONTEXT',liveId:'live-1',caseId:'case-ctx',status:'PENDING',version:1,createdAt:timestamp(),aiVerdict:'NEEDS_REVIEW',messages:[masked('held-1','held-1 원문','HELD')],targetMessageIds:['held-1'],findings:[{messageId:'held-1',verdict:'NEEDS_REVIEW',categories:['HARASSMENT'],policyIds:['CP-3.2'],reason:'대상이 분명하지 않습니다.',missingFacts:['특정 시청자를 겨냥했는지']}],basisCaseIds:[],summary:'AI 제안을 확인하고 최종 결정해 주세요'},
+  {reviewId:'review-kick',kind:'KICK',liveId:'live-1',caseId:'case-3',status:'PENDING',version:1,createdAt:timestamp(),aiVerdict:'VIOLATION',messages:[],targetMessageIds:['old-3'],findings:[],basisCaseIds:['case-1','case-2','case-3'],summary:'서로 다른 확정 사건 3건 — 방송 종료까지 차단 승인 요청'}
+ ];
+ const api=await open('operator'),mock=await openMockModerator();
+ const menus=page=>page.getByRole('navigation',{name:'운영자 메뉴'}).locator('button span').allInnerTexts();
+ assert.deepEqual(await menus(api),await menus(mock));
+ assert.deepEqual(await menus(api),['실시간 관제','시청자 관리','사건 이력','정책 근거','진행 기록']);
+ for(const page of [api,mock]){
+  for(const name of ['운영자 결정 대기','규칙 자동 숨김'])await page.locator('.section-head b').filter({hasText:name}).waitFor();
+  assert.equal(await page.locator('.studio-review.kick tbody tr').count(),3);
+ }
+ assert.equal(await api.getByText('MOCK',{exact:false}).count(),0);assert.equal(await api.locator('.scenario-toolbar').count(),0);
+ const card=api.locator('.studio-review[data-review-id="review-ctx"]');
+ await card.getByText('AI 제안 · 판단 보류',{exact:true}).waitFor();await card.getByText('확인 필요: 특정 시청자를 겨냥했는지',{exact:true}).waitFor();
+ await card.locator('header b').filter({hasText:'author'}).waitFor();
+ await card.getByLabel('결정 이유 (필수)').fill('대상이 분명한 괴롭힘입니다.');
+ await card.getByRole('button',{name:'위반 확정',exact:true}).click();
+ await waitFor(()=>state.decisions.length===1);
+ const {path:decisionPath,body}=state.decisions[0];
+ assert.equal(decisionPath,'/api/context-reviews/review-ctx/decision');
+ assert.deepEqual({...body,clientRequestId:typeof body.clientRequestId},{expectedReviewVersion:1,decision:'CONFIRM_VIOLATION',reason:'대상이 분명한 괴롭힘입니다.',categories:['HARASSMENT'],evidenceMessageIds:['held-1'],clientRequestId:'string'});
+ await waitFor(async()=>await card.count()===0);
+ await capture(api,'studio-api');await capture(mock,'studio-mock');
+ // 강퇴: 승인 접수 → ACTION_APPLIED로 적용 완료 → 기준 사건 오판 취소로 검토가 무효가 되면 해제로 표시
+ const kick=api.locator('.studio-review[data-review-id="review-kick"]');
+ await kick.getByLabel('운영자 판단 근거 (필수)').fill('확정 사건 3건을 확인했습니다.');
+ await kick.getByRole('button',{name:'강퇴 승인',exact:true}).click();
+ await waitFor(()=>state.decisions.length===2);assert.equal(state.decisions[1].path,'/api/kick-reviews/review-kick/decision');
+ await api.getByRole('status').filter({hasText:'결정 접수 · 실행 결과 대기'}).first().waitFor();
+ emit('REVIEW_DECIDED',{reviewId:'review-kick',decisionId:'decision-2',kind:'KICK',value:'APPROVE'});
+ emit('ACTION_APPLIED',{actionId:'action-1',caseId:'case-3',liveId:'live-1',type:'KICK',status:'SUCCEEDED',observation:'CONFIRMED'});
+ await api.getByRole('status').filter({hasText:'강퇴 적용 완료'}).first().waitFor();
+ state.reviews.find(r=>r.reviewId==='review-kick').status='INVALIDATED';emit('CASE_UPDATED',{caseId:'case-1'});
+ await api.getByRole('status').filter({hasText:'근거 취소 · 강퇴 해제'}).first().waitFor();
+ assert.equal(await api.getByRole('status').filter({hasText:'강퇴 적용 완료'}).count(),0);
 });
 
 test('shared chat keeps its scroll position during timeout and follows new messages after release',async()=>{

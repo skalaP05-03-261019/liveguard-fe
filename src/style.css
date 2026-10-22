@@ -95,6 +95,8 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .status-strip>div:first-child>svg{color:var(--red)}
 .status-strip b{font-size:24px;font-weight:500;letter-spacing:-.4px}
 .status-strip span{font-size:13px;color:var(--text-2)}
+.status-strip .mock-mode-pill{color:#704900;background:#fff1c2;border:1px solid #e7c35c;border-radius:4px;padding:4px 8px;font-weight:600}
+.mock-kick-progress{margin:0 0 14px;padding:10px 14px;border-left:3px solid #c58b00;background:#fff7dd;color:#533d00;font-size:13px}.mock-kick-progress p{margin:0 0 8px}.mock-kick-progress button{margin:0 6px 4px 0;padding:7px 10px;border:1px solid #94700d;border-radius:4px;background:white;color:#533d00;font:inherit;cursor:pointer}.mock-kick-actions{display:flex;flex-wrap:wrap;gap:6px}
 .status-controls button{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:500;color:var(--text);background:var(--chip);padding:0 14px;height:36px;border-radius:18px}
 .status-controls button:hover{background:var(--chip-hover)}
 .status-controls>span{color:var(--amber);background:var(--amber-bg);padding:7px 12px;border-radius:8px}
@@ -700,3 +702,50 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 /* 넓은 화면: 운영 콘솔 메뉴를 왼쪽에 고정 (YouTube Studio 형태, #5) */
 .sidebar.docked{position:sticky;top:56px;flex:none;width:232px;transform:none;visibility:visible;box-shadow:none;z-index:1}
 .side-count{margin-left:auto;min-width:22px;height:20px;padding:0 6px;border-radius:10px;background:var(--red);color:#fff;font-size:12px;font-weight:600;display:grid;place-items:center}
+
+/* Studio 공통 화면(#12): 목업·실제 API 운영자 콘솔 */
+.online-dot.off{background:var(--text-3)}
+.status-controls{display:flex;gap:8px;flex-wrap:wrap}
+.status-controls button.primary{background:var(--red);color:#fff}
+.studio-notice{border-radius:12px;background:#eaf4ec;color:#275c35;padding:12px 14px;font-size:13px;margin-bottom:12px}
+.kick-progress{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;padding:10px 14px;border-left:3px solid #c58b00;background:#fff7dd;color:#533d00;font-size:13px}
+.kick-progress .mock-kick-actions{display:flex;flex-wrap:wrap;gap:6px}
+.kick-progress button{padding:6px 10px;border:1px solid #94700d;border-radius:4px;background:#fff;color:#533d00;font-size:12px}
+.studio-live-line{display:flex;align-items:center;gap:8px;margin:-6px 0 12px;font-size:12px;color:var(--text-2)}
+.studio-live-line .on{color:var(--live);font-weight:700}.studio-live-line .ended{font-weight:700}
+.studio-empty{display:grid;justify-items:center;align-content:center;gap:10px;text-align:center;color:var(--text-2)}
+.studio-empty h2{color:var(--text);font-size:20px}
+.studio-review{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px;display:grid;gap:8px;background:#fff}
+.studio-review.kick{border-color:#f3b8b4;background:#fffafa}
+.studio-review>header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.studio-review>header b{font-size:15px}
+.studio-review>header small{color:var(--text-2);margin-left:auto}
+.review-kind{font-size:12px;font-weight:700;border-radius:4px;padding:3px 8px;background:#ece8ff;color:#5d39bc}
+.review-kind.kick{background:var(--pink-bg);color:var(--pink)}
+.review-target{margin:0;padding:8px 12px;border-left:3px solid #8170cd;background:#f8f8fb;font-size:14px;font-weight:500;overflow-wrap:anywhere}
+.review-finding{display:grid;gap:4px;font-size:13px;line-height:1.5}
+.review-finding-head{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.review-finding-head code{font-size:11px;color:var(--text-3)}
+.review-finding small{color:var(--text-2)}
+.review-missing{color:var(--amber)}
+.review-summary{font-size:13px;color:var(--text-2)}
+.review-context{font-size:12px}
+.review-context summary{cursor:pointer;color:var(--text-2)}
+.review-context ol{margin:8px 0 0;padding-left:18px;display:grid;gap:3px;max-height:180px;overflow:auto}
+.review-context li.target{background:#fff3c4;font-weight:500}
+.review-categories{border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin:0;display:flex;flex-wrap:wrap;gap:10px;font-size:12px;color:var(--text-2)}
+.review-categories label{display:flex;align-items:center;gap:4px}
+.review-reason-label{font-size:12px;color:var(--text-2)}
+.studio-review textarea{width:100%;min-height:52px;padding:8px 10px;border:1px solid #ccc;border-radius:6px;resize:vertical;font-size:13px}
+.review-actions{display:flex;gap:8px;flex-wrap:wrap}
+.review-actions button{height:34px;padding:0 14px;border-radius:17px;background:var(--chip);font-size:13px;font-weight:500}
+.review-actions button.primary{background:var(--text);color:#fff}
+.review-foot{color:var(--text-2);line-height:1.5}
+.basis-log caption{text-align:left;font-size:12px;color:var(--text-2);padding-bottom:4px}
+.basis-log th:nth-child(1){width:52px}.basis-log th:nth-child(2){width:64px}.basis-log th:nth-child(4){width:72px}.basis-log .log-text{white-space:normal;overflow-wrap:anywhere}
+.log-action.timeout{color:var(--amber);font-weight:500}
+.log-detail{font-size:12px;color:var(--text-2);overflow-wrap:anywhere}
+.studio-subhead{font-size:16px;font-weight:600;margin:24px 0 10px}
+.studio-help{font-size:13px;color:var(--text-2);margin-bottom:10px}
+.studio-rules{margin:0;padding-left:20px;display:grid;gap:6px;font-size:14px;line-height:1.6}
+@media(max-width:590px){.auto-log th:nth-child(4),.auto-log td:nth-child(4){display:none}.studio-review>header small{margin-left:0;flex-basis:100%}}

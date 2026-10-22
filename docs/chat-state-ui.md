@@ -1,6 +1,6 @@
 # P0 위반 메시지 미노출 및 채팅 상태 처리
 
-2026-10-22 현재 소스 기준. API 데이터 연결은 `VITE_USE_API=true`와 `VITE_USE_LIVE_V1=true`로 선택하는 `src/LiveConsole.vue`다. Infra에서는 `LIVEGUARD_V1_UI=true`를 빌드 인자로 전달한다. 목업 시청자 데이터는 `src/ViewerPage.vue`가 연결하며, 두 화면의 시청자 UI는 `src/ViewerScreen.vue`를 공통으로 사용한다. 제한 안내와 시간 포맷은 `src/ChatTimeoutNotice.vue`와 `src/chatTime.ts`를 사용한다. 아래의 API 이력·SSE 복원 검증은 API 경로에 해당한다.
+2026-10-22 현재 소스 기준. API 데이터 연결은 `VITE_USE_API=true`로 선택하는 `src/LiveConsole.vue`다. (#12 이후 `VITE_USE_LIVE_V1`은 쓰지 않는다.) 목업 시청자 데이터는 `src/ViewerPage.vue`가 연결하며, 두 화면의 시청자 UI는 `src/ViewerScreen.vue`를 공통으로 사용한다. 제한 안내와 시간 포맷은 `src/ChatTimeoutNotice.vue`와 `src/chatTime.ts`를 사용한다. 아래의 API 이력·SSE 복원 검증은 API 경로에 해당한다.
 
 ## 공통 시청자 화면
 
@@ -114,7 +114,7 @@ Frontend의 Mock·API 모드 빌드 및 Chromium 브라우저 테스트 26개 �
 npm ci
 npx playwright install chromium
 npm run test:chat
-VITE_USE_API=true VITE_USE_LIVE_V1=true npm run build
+VITE_USE_API=true npm run build
 ```
 
 이미 설치된 Chromium을 쓸 때는 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`로 실행 파일 경로를 지정할 수 있다. `CHAT_EVIDENCE_DIR=docs/evidence/chat-ui`를 지정하면 캡처도 저장한다.
