@@ -131,12 +131,14 @@ export function createMockLive(users: MockUser[]) {
     log('CASE_UPDATED', `${aliasOf(c.userId)} · ${categories.map(x => categoryLabels[x]).join('·')} 위반 확정${timeoutSec ? ` · 채팅 ${timeoutText(timeoutSec)} 제한` : ''}`, at);
     ensureKick(c, at);
   }
-  // 정책 v3.1 MP-4.1: 최근 24시간의 서로 다른 확정 사건 3건. 대기·결정된 강퇴 검토에 쓰인 사건은 다시 쓰지 않는다.
+  // 정책 v3.1 MP-4.1: 최근 24시간의 서로 다른 확정 사건 3건.
+  // MP-4.2 소진: 대기 중이거나 한 번이라도 결정된 강퇴 검토의 기준 사건은 다시 세지 않는다.
+  // 결정 뒤 오판 취소로 무효가 돼도 소진은 유지된다. 결정 전에 무효가 된 검토의 사건만 다시 센다(Backend live_reservations).
   function ensureKick(trigger: MockCase, at: number) {
     const userId = trigger.userId;
     const kicks = state.reviews.filter(r => r.kind === 'KICK' && ownerOfCase(r.caseId) === userId);
     if (kicks.some(r => r.status === 'PENDING')) return;
-    const used = new Set(kicks.filter(r => r.status !== 'INVALIDATED').flatMap(r => r.basisCaseIds));
+    const used = new Set(kicks.filter(r => r.status === 'PENDING' || state.decisions[r.reviewId]).flatMap(r => r.basisCaseIds));
     const eligible = state.cases.filter(c => c.userId === userId && isConfirmed(c) && !used.has(c.caseId) && confirmedAt(c) > at - KICK_WINDOW_MS)
       .sort((a, b) => confirmedAt(a) - confirmedAt(b) || a.caseId.localeCompare(b.caseId));
     if (eligible.length < KICK_THRESHOLD) return;
