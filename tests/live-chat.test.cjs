@@ -475,6 +475,21 @@ test('mock filter examples follow the Backend dictionary routes and fill the com
  assert.equal(await pass.evaluate(el=>el.classList.contains('myHidden')),false);
 });
 
+test('API context card shows when the message was sent and earlier cases with the same text',async()=>{
+ const sent=(id,at,visibility)=>({messageId:id,authorAlias:'U1',text:'꺼져',visibility,sentAt:at});
+ state.messages=[message('first','author','HIDDEN',{text:'꺼져'}),message('again','author','HELD',{text:'꺼져'}),message('other','observer','HELD',{text:'꺼져'})];
+ state.cases=[
+  {caseId:'case-first',liveId:'live-1',version:2,confirmationStatus:'CONFIRMED_VIOLATION',handlingRoute:'CONTEXT_REVIEW',messages:[sent('first','2026-10-22T13:39:51Z','HIDDEN')],targetMessageIds:['first'],confirmedFindings:[{findingId:'f-1',category:'HARASSMENT',status:'CONFIRMED',confirmedAt:timestamp(),revokedAt:null}],findings:[],createdAt:'2026-10-22T13:39:58Z',violationCount:1},
+  {caseId:'case-again',liveId:'live-1',version:1,confirmationStatus:'PENDING',handlingRoute:'CONTEXT_REVIEW',messages:[sent('again','2026-10-22T13:40:00Z','HELD')],targetMessageIds:['again'],confirmedFindings:[],findings:[],createdAt:'2026-10-22T13:40:13Z',violationCount:1},
+  {caseId:'case-other',liveId:'live-1',version:1,confirmationStatus:'PENDING',handlingRoute:'CONTEXT_REVIEW',messages:[sent('other','2026-10-22T13:41:00Z','HELD')],targetMessageIds:['other'],confirmedFindings:[],findings:[],createdAt:'2026-10-22T13:41:10Z',violationCount:0}];
+ state.reviews=[{reviewId:'review-again',kind:'CONTEXT',liveId:'live-1',caseId:'case-again',status:'PENDING',version:1,createdAt:'2026-10-22T13:40:13Z',aiVerdict:'VIOLATION',messages:state.cases[1].messages,targetMessageIds:['again'],findings:[],basisCaseIds:[],summary:'AI 제안을 확인하고 최종 결정해 주세요'}];
+ const page=await open('operator');
+ const card=page.locator('.studio-review[data-review-id="review-again"]');await card.waitFor();
+ assert.match(await card.locator('header small').innerText(),/^보낸 시각 22:40 · /);
+ const repeats=card.locator('.review-repeats');await repeats.waitFor();
+ assert.equal((await repeats.innerText()).replace(/\s+/g,' '),'같은 시청자가 같은 문장을 1번 더 보냈습니다: 22:39 위반 확정');
+});
+
 test('mock context review stays held on defer, then applies normal and violation decisions',async()=>{
  async function decide(label,reason){
   const page=await openMockModerator();await page.getByRole('button',{name:'공격 표현',exact:true}).click();

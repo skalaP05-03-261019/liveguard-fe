@@ -764,3 +764,5 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .filter-group button:not(:disabled):hover{filter:brightness(.96)}
 .studio-dict td:nth-child(2){line-height:1.9}
 .studio-dict code{display:inline-block;margin:0 4px 2px 0;padding:1px 6px;border-radius:4px;background:var(--chip);font-size:12px}
+.review-repeats{font-size:12px;color:var(--text-2);display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.review-repeats span{padding:2px 8px;border-radius:10px;background:var(--chip);color:var(--text);white-space:nowrap}
