@@ -742,7 +742,8 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .review-actions button.primary{background:var(--text);color:#fff}
 .review-foot{color:var(--text-2);line-height:1.5}
 .basis-log caption{text-align:left;font-size:12px;color:var(--text-2);padding-bottom:4px}
-.basis-log th:nth-child(1){width:52px}.basis-log th:nth-child(2){width:64px}.basis-log th:nth-child(4){width:72px}.basis-log .log-text{white-space:normal;overflow-wrap:anywhere}
+.basis-log .log-text{white-space:normal;overflow-wrap:anywhere}
+.basis-log th:nth-child(1){width:124px}.basis-log th:nth-child(2){width:72px}.basis-log th:nth-child(3){width:auto}.basis-log th:nth-child(4){width:72px}
 .log-action.timeout{color:var(--amber);font-weight:500}
 .log-detail{font-size:12px;color:var(--text-2);overflow-wrap:anywhere}
 .studio-subhead{font-size:16px;font-weight:600;margin:24px 0 10px}
@@ -766,6 +767,7 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .studio-dict code{display:inline-block;margin:0 4px 2px 0;padding:1px 6px;border-radius:4px;background:var(--chip);font-size:12px}
 .review-repeats{font-size:12px;color:var(--text-2);display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .review-repeats span{padding:2px 8px;border-radius:10px;background:var(--chip);color:var(--text);white-space:nowrap}
-.auto-log th:nth-child(1),.basis-log th:nth-child(1){width:108px}
+.auto-log th:nth-child(1){width:124px}
 .sanction-log .log-time{white-space:nowrap}
 .chat-time{min-width:84px;white-space:nowrap}
+@media(max-width:590px){.basis-log th:nth-child(1){width:76px}.basis-log th:nth-child(2){width:52px}.basis-log th:nth-child(4){width:60px}.basis-log .log-time{white-space:normal}}
