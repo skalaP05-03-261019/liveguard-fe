@@ -6,6 +6,7 @@ import { AlertCircle, BookOpen, Bot, ChevronDown, ClipboardCheck, FileClock, His
 import ViewerManage from './ViewerManage.vue';
 import { groupByViewer, type ViewerCase, type ViewerFinding, type ViewerReview } from './viewerManage';
 import { avatarColor } from './avatar';
+import { dateTimeText } from './chatTime';
 import {
   categoryLabels, confirmationLabels, eventLabels, reviewStatusLabels, routeLabels, verdictLabels, visibilityLabels,
   type Category, type ContextDecision, type KickDecision, type Live, type LiveCase, type LiveReview, type Message, type Verdict
@@ -44,14 +45,11 @@ const onWide = (e: MediaQueryListEvent) => { wide.value = e.matches; navOpen.val
 const navVisible = computed(() => wide.value ? !navCollapsed.value : navOpen.value);
 function toggleNav() { if (wide.value) navCollapsed.value = !navCollapsed.value; else navOpen.value = !navOpen.value; }
 function onKey(e: KeyboardEvent) { if (e.key === 'Escape') navOpen.value = false; }
-const now = ref(Date.now());
-let clock: ReturnType<typeof setInterval> | undefined;
-onMounted(() => { window.addEventListener('keydown', onKey); wideQuery.addEventListener('change', onWide); clock = setInterval(() => { now.value = Date.now(); }, 30000); });
-onBeforeUnmount(() => { window.removeEventListener('keydown', onKey); wideQuery.removeEventListener('change', onWide); clearInterval(clock); });
+onMounted(() => { window.addEventListener('keydown', onKey); wideQuery.addEventListener('change', onWide); });
+onBeforeUnmount(() => { window.removeEventListener('keydown', onKey); wideQuery.removeEventListener('change', onWide); });
 
 const iso = (v: unknown) => typeof v === 'number' ? new Date(v).toISOString() : String(v ?? '');
-const asTime = (v: unknown) => { const s = iso(v); return s ? new Date(s).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour12: false, hour: '2-digit', minute: '2-digit' }) : '-'; };
-const waited = (v: unknown) => { const m = Math.max(0, Math.floor((now.value - Date.parse(iso(v))) / 60000)); return m < 1 ? '방금' : m < 60 ? `${m}분째 대기` : `${Math.floor(m / 60)}시간 ${m % 60}분째 대기`; };
+const asTime = (v: unknown) => dateTimeText(iso(v) || null);
 const nameOf = (caseId: string) => props.caseNames[caseId] ?? `작성자 미확인 · 사건 ${caseId.slice(0, 8)}`;
 const caseById = computed(() => new Map(props.cases.map(c => [c.caseId, c])));
 const verdictTone = (v?: Verdict) => ({ VIOLATION: 'violation', NO_VIOLATION: 'clear', NEEDS_REVIEW: 'review' } as Record<string, string>)[v ?? ''] ?? 'pending';
@@ -189,8 +187,8 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
                 <section class="hitl-section" aria-label="운영자 결정 대기">
                   <header class="section-head"><span class="section-icon human"><ClipboardCheck :size="17"/></span><b>운영자 결정 대기</b><span class="pending-count">{{pending.length}}건</span><span class="section-note human-note">AI 제안은 참고용입니다. 공개·위반·강퇴는 운영자가 결정합니다.</span></header>
                   <p v-if="!pending.length" class="section-empty">지금은 결정이 필요한 검토가 없습니다. 문맥 판단이 필요한 채팅이나 확정 위반 {{KICK_THRESHOLD}}건이 쌓이면 여기에 표시됩니다.</p>
-                  <article v-for="r in pending" :key="r.reviewId" class="studio-review" :class="r.kind.toLowerCase()" :data-review-id="r.reviewId">
-                    <header><span class="review-kind" :class="r.kind.toLowerCase()">{{r.kind==='KICK' ? '강퇴 승인' : '문맥 검토'}}</span><b>{{nameOf(r.caseId)}}</b><small :title="`검토 요청 ${asTime(r.createdAt)}`"><template v-if="r.kind==='CONTEXT' && sentAt(r)">보낸 시각 {{asTime(sentAt(r))}} · </template><template v-else>{{asTime(r.createdAt)}} · </template>{{waited(r.createdAt)}} · v{{r.version}}</small></header>
+                  <article v-for="r in pending" :key="r.reviewId" class="studio-review" :class="r.kind.toLowerCase()" :data-review-id="r.reviewId" :data-version="r.version">
+                    <header><span class="review-kind" :class="r.kind.toLowerCase()">{{r.kind==='KICK' ? '강퇴 승인' : '문맥 검토'}}</span><b>{{nameOf(r.caseId)}}</b><small :title="`검토 요청 ${asTime(r.createdAt)} · 버전 ${r.version}`"><template v-if="r.kind==='CONTEXT' && sentAt(r)">보낸 시각 {{asTime(sentAt(r))}}</template><template v-else>요청 시각 {{asTime(r.createdAt)}}</template></small></header>
                     <template v-if="r.kind==='CONTEXT'">
                       <blockquote v-if="targetText(r)" class="review-target">{{targetText(r)}}</blockquote>
                       <p v-if="repeatsOf(r).length" class="review-repeats">같은 시청자가 같은 문장을 {{repeatsOf(r).length}}번 더 보냈습니다: <span v-for="x in repeatsOf(r)" :key="x.caseId">{{x.time}} {{x.status}}</span></p>

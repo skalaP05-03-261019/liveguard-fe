@@ -3,6 +3,7 @@
 // 오판 취소(findings/revoke), 강퇴 승인·기각(kick-reviews), 문맥 정상·위반·보류(context-reviews).
 import { computed, reactive, ref } from 'vue';
 import { ChevronDown, ChevronRight, Users } from 'lucide-vue-next';
+import { dateTimeText } from './chatTime';
 import {
   caseStatusLabels, categoriesOf, categoryName, confirmedCount, lastAt, latestViolationCount, statusOf, statusOrder, viewerStatusLabels,
   type ViewerCase, type ViewerFinding, type ViewerReview, type ViewerRow, type ViewerStatus
@@ -27,7 +28,7 @@ const counts = computed(() => {
 const chips = computed(() => statusOrder.filter(s => counts.value[s] > 0));
 const shown = computed(() => filter.value === 'ALL' ? props.rows : props.rows.filter(row => statusOf(row) === filter.value));
 const pendingOf = (row: ViewerRow) => row.reviews.filter(r => r.status === 'PENDING');
-const asTime = (v: string) => v ? new Date(v).toLocaleTimeString('ko-KR', { hour12: false, hour: '2-digit', minute: '2-digit' }) : '-';
+const asTime = (v: string) => dateTimeText(v || null);
 const reasonOf = (id: string) => (reasons[id] ?? '').trim();
 function toggle(name: string) { open.value = open.value === name ? null : name; revoking.value = null; }
 function decide(review: ViewerReview, value: string) { if (reasonOf(review.reviewId)) emit('decide', review, value, reasonOf(review.reviewId)); }
