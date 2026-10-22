@@ -485,7 +485,7 @@ test('API context card shows when the message was sent and earlier cases with th
  state.reviews=[{reviewId:'review-again',kind:'CONTEXT',liveId:'live-1',caseId:'case-again',status:'PENDING',version:1,createdAt:'2026-10-22T13:40:13Z',aiVerdict:'VIOLATION',messages:state.cases[1].messages,targetMessageIds:['again'],findings:[],basisCaseIds:[],summary:'AI 제안을 확인하고 최종 결정해 주세요'}];
  const page=await open('operator');
  const card=page.locator('.studio-review[data-review-id="review-again"]');await card.waitFor();
- assert.equal(await card.locator('header small').innerText(),'보낸 시각 10월 22일 22:40');
+ assert.equal(await card.locator('header small').innerText(),'10월 22일 22:40');
  const repeats=card.locator('.review-repeats');await repeats.waitFor();
  assert.equal((await repeats.innerText()).replace(/\s+/g,' '),'같은 시청자가 같은 문장을 1번 더 보냈습니다: 10월 22일 22:39 위반 확정');
 });
