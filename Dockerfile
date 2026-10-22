@@ -18,6 +18,8 @@ FROM nginxinc/nginx-unprivileged:1.27-alpine AS runtime
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# /api를 넘길 백엔드 주소. docker run -e BACKEND_URL=... 로 바꿀 수 있다
+# /api를 넘길 백엔드 주소. docker run -e BACKEND_URL=... 로 바꿀 수 있다 (끝에 / 없이)
 ENV BACKEND_URL=http://host.docker.internal:8080
+# nginx 이미지가 /etc/resolv.conf의 DNS 주소를 NGINX_LOCAL_RESOLVERS로 넘겨 준다 (nginx.conf.template의 resolver)
+ENV NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
 EXPOSE 8080
