@@ -220,9 +220,10 @@ src/
 ├── LoginPage.vue           # 로그인
 ├── ViewerScreen.vue        # Mock/API 공통 시청자 UI
 ├── ViewerPage.vue          # Mock·기존 채널 경로의 시청자 데이터 연결
-├── LiveConsole.vue         # liveId API/SSE 연결·운영 콘솔
+├── LiveConsole.vue         # 실제 API 콘솔 (VITE_USE_LIVE_V1): liveId API/SSE 연결·실시간 관제·시청자 관리
 ├── SystemPage.vue          # 시스템 운영자 모니터링
-├── LiveConsole.vue         # 실제 API 콘솔 (VITE_USE_LIVE_V1): 시청자 채팅·실시간 관제·시청자 관리
+├── ChatTimeoutNotice.vue   # 채팅 제한 안내 (Mock·API 공용)
+├── chatTime.ts             # 제한 종료 시각·남은 시간 표시 (한국 시간)
 ├── ViewerManage.vue        # 시청자 관리 탭 (실제 API 콘솔·Mock 콘솔 공용)
 ├── viewerManage.ts         # 시청자 관리 공통 모델 (사건·검토 → 시청자별 행)
 ├── YtPlayer.vue            # 방송 플레이어
@@ -234,9 +235,12 @@ src/
 └── style.css               # 공통 스타일
 docs/
 ├── screenshots/            # 화면 캡처
+├── evidence/chat-ui/       # 채팅 상태 UI 검증 캡처
+├── chat-state-ui.md        # 채팅 상태 처리(#7) 변경·검증 기록
 ├── live-v1-integration.md  # 실제 API 콘솔 통합 시험 기록
 ├── openapi-v0.5-lite.yaml  # 브라우저 API 명세 발췌본 (v0.5, 기존 화면 기준)
 └── erd.mmd                 # ERD 관계도
+tests/live-chat.test.cjs    # 채팅 상태 브라우저 테스트 (npm run test:chat)
 public/media/               # 데모 영상·포스터
 Dockerfile                  # 빌드(Node 20) → 실행(nginx) 2단계 이미지
 nginx.conf.template         # 화면 제공·/api 프록시·SSE 설정 (BACKEND_URL 치환)
