@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { api } from '../api/client';
-import { ApiError, categoryLabels, statusLabels, type AuditEntry, type CaseDetail, type Category, type CaseEvent, type CaseSummary, type ChatEvent, type KickReview, type KickReviewEvent, type Me, type Message, type TaskFailedEvent, type ToolEvent, type UserKickedEvent, type VisibilityChangedEvent } from '../contracts';
+import { ApiError, categoryLabels, reasonLabels, statusLabels, type AuditEntry, type CaseDetail, type Category, type CaseEvent, type CaseSummary, type ChatEvent, type KickReview, type KickReviewEvent, type Me, type Message, type TaskFailedEvent, type ToolEvent, type UserKickedEvent, type VisibilityChangedEvent } from '../contracts';
 import { caseSummary, CHANNEL_ID, cloneFixtures, DEMO_USERS, demoMe, demoScenarios, feedChats, feedUsers, feedViolations, mockPolicy } from '../mock';
-import { needsApproval, sanctionFor, sanctionLabel, SHORT_TIMEOUT_MS, timeoutText } from '../sanction';
+import { needsApproval, sanctionFor, sanctionLabel, timeoutText } from '../sanction';
 
 const demo = import.meta.env.VITE_USE_API !== 'true';
 // 시청자 채팅 최대 글자 수. 서버 계약(SendMessageRequest.text maxLength)과 같게 둔다
@@ -26,6 +26,8 @@ export const useLiveGuard = defineStore('liveGuard', () => {
   const selectedMessageId = ref<string | null>(null);
   const kicks = ref<Record<string, string>>({});
   const timeouts = ref<Record<string, string>>({});
+  // API 모드 강퇴: 계약상 방송 종료까지 유효하고 종료 시각(until)이 없다.
+  const liveBlocked = ref(false);
   // 시스템 운영자 화면용: 강퇴 검토가 결정된 시각(명세 KickReview에는 결정 시각 필드가 없다).
   const decidedAt = ref<Record<string, string>>({});
   const clock = ref(Date.now());
@@ -55,9 +57,15 @@ export const useLiveGuard = defineStore('liveGuard', () => {
   const viewerMessages = computed(() => messages.value.filter(m => m.visibility === 'PUBLIC' || (demo ? owners.value[m.messageId] === viewerId.value : m.isMine)));
   const viewerCases = computed(() => demo ? allCases.value.filter(c => c.userAlias === viewerAlias.value) : []);
   const viewerKickUntil = computed(() => demo ? kicks.value[viewerId.value] ?? null : kicks.value['session'] ?? null);
-  const kicked = computed(() => !!viewerKickUntil.value && new Date(viewerKickUntil.value).getTime() > clock.value);
+  const kicked = computed(() => (!demo && liveBlocked.value) || (!!viewerKickUntil.value && new Date(viewerKickUntil.value).getTime() > clock.value));
   const viewerTimeoutUntil = computed(() => demo ? timeouts.value[viewerId.value] ?? null : timeouts.value['session'] ?? null);
   const timedOut = computed(() => !kicked.value && !!viewerTimeoutUntil.value && new Date(viewerTimeoutUntil.value).getTime() > clock.value);
+  // 제한 바에 함께 안내할 사유: 지금 걸린 TIMEOUT을 일으킨 본인 메시지, 없으면 가장 최근 가려진 본인 메시지.
+  const viewerLastReason = computed(() => {
+    const own = [...viewerMessages.value].reverse().filter(m => m.visibility !== 'PUBLIC' && (m.moderationNotice || m.moderationReasonCode));
+    const last = own.find(m => m.timeoutUntil && new Date(m.timeoutUntil).getTime() > clock.value) ?? own[0];
+    return last ? last.moderationNotice ?? (last.moderationReasonCode ? reasonLabels[last.moderationReasonCode] : null) : null;
+  });
   // 운영자 채팅에 제한 중인 사용자를 표시한다. 사용자 ID가 공개되지 않는 API 모드에서는 Mock만 지원한다.
   const restrictedAliases = computed(() => {
     const out: Record<string, 'TIMEOUT' | 'KICK'> = {};
@@ -69,9 +77,9 @@ export const useLiveGuard = defineStore('liveGuard', () => {
   });
   const isOperator = computed(() => me.value?.role === 'MODERATOR' || me.value?.role === 'PLATFORM_ADMIN');
 
-  function restrict(until: string) {
-    // KICKED 응답과 USER_KICKED에는 until만 있으므로 남은 시간이 짧으면 TIMEOUT 600초로 구분한다.
-    if (new Date(until).getTime() - Date.now() <= SHORT_TIMEOUT_MS) timeouts.value['session'] = until; else kicks.value['session'] = until;
+  // 서버가 알려 준 본인 TIMEOUT 만료 시각을 반영한다. 지난 시각은 무시한다.
+  function applyTimeout(until?: string | null) {
+    if (until && new Date(until).getTime() > Date.now()) timeouts.value['session'] = until;
   }
   // 최근 24시간 이전 확정 위반 수. 오탐 해제된 사건과 결정이 끝난 강퇴 검토에 쓰인 사건은 제외한다(ERD 4절).
   function priorViolations(alias: string) {
@@ -83,7 +91,9 @@ export const useLiveGuard = defineStore('liveGuard', () => {
   function report(e: unknown): void {
     const err = e instanceof ApiError ? e : new ApiError('TEMPORARY_UNAVAILABLE', e instanceof Error ? e.message : '알 수 없는 오류');
     error.value = `${err.code}: ${err.message}`;
-    if (err.code === 'KICKED' && err.until) restrict(err.until);
+    // 제재 종류는 오류 코드로 구분한다. 남은 시간으로 추측하지 않는다.
+    if (err.code === 'TIMED_OUT') applyTimeout(err.until);
+    if (err.code === 'KICKED') { liveBlocked.value = true; delete timeouts.value['session']; }
     if (err.code === 'UNAUTHENTICATED') loginRequired.value = true;
     toast(error.value);
     log('API ERROR', error.value, '실패');
@@ -105,6 +115,7 @@ export const useLiveGuard = defineStore('liveGuard', () => {
     const page = await api.messages(channelId.value);
     // 서버는 최신 메시지부터 준다. 화면은 아래쪽이 최신이므로 오래된 순으로 뒤집는다
     messages.value = [...page.items].sort(bySentAt);
+    for (const m of messages.value) if (m.isMine) applyTimeout(m.timeoutUntil);
   }
   async function refreshCases() {
     if (demo || !isOperator.value) return;
@@ -185,8 +196,8 @@ export const useLiveGuard = defineStore('liveGuard', () => {
   async function logout() {
     stopFeed(); disconnectSse();
     if (!demo) { try { await api.logout(); } catch (e) { report(e); } }
-    me.value = null; loginRequired.value = true;
-    if (!demo) { messages.value = []; cases.value = []; details.value = {}; }
+    me.value = null; loginRequired.value = true; liveBlocked.value = false;
+    if (!demo) { messages.value = []; cases.value = []; details.value = {}; delete timeouts.value['session']; }
   }
   function selectMessage(id: string) {
     selectedMessageId.value = id;
@@ -243,9 +254,9 @@ export const useLiveGuard = defineStore('liveGuard', () => {
     chatSource.onerror = () => { online.value = false; }; // EventSource는 자동 재접속한다.
     chatSource.addEventListener('CHAT', onChatEvent);
     chatSource.addEventListener('MESSAGE_VISIBILITY_CHANGED', onVisibilityEvent);
-    chatSource.addEventListener('USER_KICKED', (e: Event) => { const v = JSON.parse((e as MessageEvent).data) as UserKickedEvent; kicks.value['session'] = v.until; log('USER_KICKED', `입장 제한 · ${v.until}`); disconnectSse(); });
+    chatSource.addEventListener('USER_KICKED', (e: Event) => { const v = JSON.parse((e as MessageEvent).data) as UserKickedEvent; if (v.until) kicks.value['session'] = v.until; else liveBlocked.value = true; log('USER_KICKED', `입장 제한 · ${v.until ?? '방송 종료까지'}`); disconnectSse(); });
     // 조치 기준표의 TIMEOUT 600초용 제안 이벤트. 명세에 추가되기 전까지는 수신되지 않는다.
-    chatSource.addEventListener('USER_TIMED_OUT', (e: Event) => { const v = JSON.parse((e as MessageEvent).data) as UserKickedEvent; timeouts.value['session'] = v.until; log('USER_TIMED_OUT', `채팅 제한 · ${v.until}`); });
+    chatSource.addEventListener('USER_TIMED_OUT', (e: Event) => { const v = JSON.parse((e as MessageEvent).data) as UserKickedEvent; applyTimeout(v.until); log('USER_TIMED_OUT', `채팅 제한 · ${v.until}`); });
     if (!isOperator.value) return;
     guardSource = api.guardEvents(channelId.value);
     for (const event of ['CASE_CREATED', 'CASE_UPDATED']) guardSource.addEventListener(event, onCaseEvent);
@@ -265,7 +276,7 @@ export const useLiveGuard = defineStore('liveGuard', () => {
         const alias = DEMO_USERS.find(u => u.id === viewerId.value)?.alias ?? '시청자';
         const id = newId(); const data: Message = { messageId: id, channelId: channelId.value, authorAlias: alias, text: trimmed, visibility: 'PUBLIC', version: 1, sentAt: now(), isMine: true };
         owners.value[id] = viewerId.value; addOrUpdateMessage(data); log('CHAT', `${alias} 채팅 작성`);
-      } else addOrUpdateMessage(await api.send(channelId.value, trimmed, newId()));
+      } else { const sent = await api.send(channelId.value, trimmed, newId()); addOrUpdateMessage(sent); applyTimeout(sent.timeoutUntil); }
       return true;
     } catch (e) { report(e); return false; }
     finally { busy.value = false; }
@@ -281,6 +292,11 @@ export const useLiveGuard = defineStore('liveGuard', () => {
     incoming(DEMO_USERS[sc.user], sc.text, sc.category, sc.filterResult, false);
   }
   // Mock 채팅 한 건을 받아 1차 필터 → Agent 판정 → 기준표 조치까지 처리한다. quiet이면 화면 선택·알림을 건드리지 않는다.
+  // Mock 작성자 안내. 실제 API는 서버가 moderationNotice를 채운다.
+  const mockNotice: Record<Category, string> = {
+    PROFANITY: reasonLabels.PROFANITY_INCLUDED, PHISHING: reasonLabels.LINK_NOT_ALLOWED, FLOOD: reasonLabels.FLOOD_REPEATED,
+    HARASSMENT: '운영자 검토로 위반이 확정되어 숨김 처리되었습니다.', PII_EXPOSURE: '개인정보가 포함되어 숨김 처리되었습니다.'
+  };
   function incoming(user: { id: string; alias: string }, text: string, category: Category | null, filterResult: 'PASS' | 'REVIEW' | 'HOLD' | 'FLOOD', quiet: boolean) {
     const s = { text, category, filterResult }; const id = newId();
     // REVIEW는 공개 상태로 분석하고, HOLD·FLOOD는 즉시 HELD(명세 sendMessage).
@@ -295,13 +311,14 @@ export const useLiveGuard = defineStore('liveGuard', () => {
     const sanction = sanctionFor(s.category, prior.length);
     const pending = Object.values(details.value).some(c => c.userAlias === user.alias && c.kickReview?.status === 'PENDING');
     const status = !violation ? 'NEEDS_REVIEW' : needsApproval(sanction) && !pending ? 'KICK_REVIEW_PENDING' : 'HIDDEN';
-    if (violation) { m.visibility = 'HIDDEN'; m.version = 2; } // 판단 보류는 상태 유지(ERD 1절)
+    if (violation) { m.visibility = 'HIDDEN'; m.version = 2; m.moderationNotice = mockNotice[s.category]; } // 판단 보류는 상태 유지(ERD 1절)
     const detail: CaseDetail = { caseId: cid, channelId: CHANNEL_ID, userAlias: user.alias, filterResult: s.filterResult, status, verdict: violation ? 'VIOLATION' : 'NEEDS_REVIEW', category: s.category, version: 2, createdAt: now(), messages: [structuredClone(m)], reason: violation ? `채팅 내용 및 전후 맥락에 ${categoryLabels[s.category]} 위반 근거가 있다고 판정했습니다. (목업)` : '맥락 부족으로 최종 판정 보류', evidenceMessageIds: [id], policySnapshots: [mockPolicy[s.category]], violationCount: count, kickReview: null, traceUrl: null };
     if (status === 'KICK_REVIEW_PENDING') {
       detail.kickReview = { reviewId: newId(), channelId: CHANNEL_ID, userAlias: user.alias, status: 'PENDING', summary: `최근 24시간 동안 ${groupCategories([...prior.map(c => c.category), s.category])} 위반이 이어졌습니다. 이전 확정 위반 ${prior.length}건이 있는 상태에서 다시 위반했습니다.`, caseIds: [...prior.map(c => c.caseId), cid], version: 1, createdAt: now(), kickExpiresAt: null, decisionReason: null };
     }
     if (violation && sanction.timeoutSec === 600) {
       timeouts.value[user.id] = new Date(Date.now() + 600_000).toISOString();
+      m.timeoutUntil = timeouts.value[user.id];
       log('TIMEOUT', `${user.alias} · 채팅 ${timeoutText(600)} 제한 (${sanctionLabel(sanction)})`, '자동 적용');
     }
     details.value[cid] = detail; cases.value.unshift(caseSummary(detail)); if (!quiet) selectedCaseId.value = cid;
@@ -374,6 +391,6 @@ export const useLiveGuard = defineStore('liveGuard', () => {
   function toggleFeed() { if (feedOn.value) stopFeed(); else startFeed(); }
   function dispose() { stopFeed(); disconnectSse(); if (clockTimer) clearInterval(clockTimer); if (notificationTimeout) clearTimeout(notificationTimeout); }
   return { mode, me, channelId, viewerId, messages, cases, details, selectedCaseId, selectedMessageId, kicks, owners, audit, online, busy, error, notice, lastTraceId, loginRequired,
-    selectedCase, allCases, selectedMessage, kickReviews, pendingReviews, viewerAlias, viewerMessages, viewerCases, viewerKickUntil, kicked, decidedAt, viewerTimeoutUntil, timedOut, restrictedAliases, timeouts, clock, priorViolations, isOperator,
+    selectedCase, allCases, selectedMessage, kickReviews, pendingReviews, viewerAlias, viewerMessages, viewerCases, viewerKickUntil, kicked, viewerLastReason, decidedAt, viewerTimeoutUntil, timedOut, restrictedAliases, timeouts, clock, priorViolations, isOperator,
     init, login, logout, feedOn, toggleFeed, refreshMessages, refreshCases, loadCase, selectCase, selectMessage, resetMock, sendMessage, mockScenario, release, decide, dispose, toast, log };
 });

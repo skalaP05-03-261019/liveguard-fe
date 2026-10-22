@@ -3,7 +3,7 @@ import { computed, nextTick, ref, watch } from 'vue';
 import { Bell, ChevronDown, Clock, Ellipsis, EllipsisVertical, Forward, LogOut, Menu, Mic, Search, SendHorizontal, ShieldCheck, Smile, ThumbsDown, ThumbsUp, Video } from 'lucide-vue-next';
 import YtPlayer from './YtPlayer.vue';
 import { MAX_CHAT_LENGTH, useLiveGuard } from './stores/liveGuard';
-import { visibilityLabels } from './contracts';
+import { reasonLabels, visibilityLabels, type Message } from './contracts';
 import { avatarColor } from './avatar';
 const store = useLiveGuard();
 const input = ref('');
@@ -31,6 +31,11 @@ const timeoutLeft = computed(() => {
   const ms = Math.max(0, new Date(store.viewerTimeoutUntil ?? 0).getTime() - store.clock);
   return `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
 });
+// 본인 가려진 메시지의 사유 안내. 서버 문구 → 사유 코드 라벨 → 검토 중 순으로 쓴다. 이의제기 입력은 명세에 없어 두지 않는다.
+const reasonOf = (m: Message) => m.moderationNotice ?? (m.moderationReasonCode ? reasonLabels[m.moderationReasonCode] : m.visibility === 'HELD' ? '운영자 검토 중인 메시지입니다.' : null);
+const reviewing = (m: Message) => m.reviewStatus === 'PENDING' || m.visibility === 'HELD';
+// TIMEOUT이 실제로 적용된 메시지에만 제한 시각을 붙인다(TIMEOUT 없는 첫 욕설에는 표시하지 않음).
+const timeoutNote = (m: Message) => m.timeoutUntil && new Date(m.timeoutUntil).getTime() > store.clock ? `채팅 제한 ${asTime(m.timeoutUntil)}까지` : null;
 function like() { liked.value = !liked.value; if (liked.value) disliked.value = false; }
 function dislike() { disliked.value = !disliked.value; if (disliked.value) liked.value = false; }
 </script>
@@ -45,7 +50,7 @@ function dislike() { disliked.value = !disliked.value; if (disliked.value) liked
     <div class="yt-watch" :class="{theater, 'chat-closed': !chatOpen}">
       <div class="yt-player-area">
         <YtPlayer v-if="!store.kicked" theater-button @theater="theater = !theater"/>
-        <div class="viewer-kicked" v-else><ShieldCheck :size="48"/><h2>이 채널의 이용이 제한되었습니다</h2><p>운영자 검토 이후 방송 입장이 제한되었습니다.</p><p v-if="store.viewerKickUntil">제한 종료 예정: {{new Date(store.viewerKickUntil).toLocaleString('ko-KR')}}</p><p>운영자의 승인 없이 강퇴 조치는 적용되지 않습니다.</p></div>
+        <div class="viewer-kicked" v-else><ShieldCheck :size="48"/><h2>이 방송의 이용이 제한되었습니다</h2><p>운영자 승인으로 강퇴되어 이번 방송이 끝날 때까지 채팅과 시청이 제한됩니다.</p><p>운영자의 승인 없이 강퇴 조치는 적용되지 않습니다.</p></div>
       </div>
 
       <main class="yt-primary">
@@ -70,11 +75,11 @@ function dislike() { disliked.value = !disliked.value; if (disliked.value) liked
           <div ref="chatRef" class="yt-chat-items" @scroll.passive="onScroll">
             <div v-for="message in visible" :key="message.messageId" class="yt-chat-row" :class="{myHidden: message.visibility!=='PUBLIC'}">
               <span class="yt-chat-avatar" :style="{background: avatarColor(message.authorAlias)}">{{message.authorAlias.slice(0,1)}}</span>
-              <div class="yt-chat-body"><time>{{asTime(message.sentAt)}}</time><span class="yt-chat-author">{{message.authorAlias}}</span><span v-if="message.visibility==='PUBLIC'" class="yt-chat-text">{{message.text}}</span><span v-else class="yt-chat-text"><em>{{visibilityLabels[message.visibility]}}</em> {{message.text}}</span><small v-if="message.visibility!=='PUBLIC'">나와 운영자에게만 표시</small></div>
+              <div class="yt-chat-body"><time>{{asTime(message.sentAt)}}</time><span class="yt-chat-author">{{message.authorAlias}}</span><span v-if="message.visibility==='PUBLIC'" class="yt-chat-text">{{message.text}}</span><span v-else class="yt-chat-text"><em>{{visibilityLabels[message.visibility]}}</em> {{message.text}}</span><small v-if="message.visibility!=='PUBLIC'">나와 운영자에게만 표시<b v-if="reviewing(message)" class="yt-review-badge">검토 중</b></small><span v-if="message.visibility!=='PUBLIC' && reasonOf(message)" class="yt-chat-reason">{{reasonOf(message)}}<template v-if="timeoutNote(message)"> · {{timeoutNote(message)}}</template></span></div>
             </div>
           </div><button v-if="unread" class="new-msg-pill" @click="toBottom()">새 메시지 {{unread}}개 <ChevronDown :size="15"/></button></div>
-          <div v-if="store.kicked" class="viewer-chat-restriction">방송 입장이 제한되어 채팅을 보낼 수 없습니다.</div>
-          <div v-else-if="store.timedOut" class="yt-timeout" role="status"><Clock :size="20"/><div><b>채팅이 일시 제한되었습니다</b><span>운영 정책에 따라 10분간 메시지를 보낼 수 없어요. 방송 시청은 계속할 수 있습니다.</span></div><time>{{timeoutLeft}}</time></div>
+          <div v-if="store.kicked" class="viewer-chat-restriction" role="status">강퇴되어 이번 방송이 끝날 때까지 채팅을 보낼 수 없습니다.</div>
+          <div v-else-if="store.timedOut" class="yt-timeout" role="status"><Clock :size="20"/><div><b>채팅이 일시 제한되었습니다</b><span v-if="store.viewerLastReason">사유: {{store.viewerLastReason}}</span><span>제한 시간 동안 메시지를 보낼 수 없어요. 방송 시청은 계속할 수 있습니다.</span></div><time>{{timeoutLeft}}</time></div>
           <form v-else class="yt-compose" @submit.prevent="send">
             <div class="yt-compose-who"><span class="yt-chat-avatar" :style="{background: avatarColor(store.viewerAlias)}">{{store.viewerAlias.slice(0,1)}}</span><b>{{store.viewerAlias}}</b></div>
             <div class="yt-compose-input"><input v-model="input" :maxlength="MAX_CHAT_LENGTH" placeholder="채팅..." aria-label="채팅 메시지"/></div>

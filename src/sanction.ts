@@ -22,5 +22,3 @@ export const sanctionFor = (category: Category, prior: number) => sanctionTable[
 export const needsApproval = (x: Sanction) => x.timeoutSec >= 86400;
 export const timeoutText = (sec: number) => sec >= 86400 ? '24시간' : `${sec / 60}분`;
 export const sanctionLabel = (x: Sanction) => x.timeoutSec ? `${hideLabels[x.hide]} + TIMEOUT ${x.timeoutSec}초` : hideLabels[x.hide];
-// 서버가 KICKED의 until만 주는 경우 남은 시간이 짧으면 채팅 일시 제한(TIMEOUT 600초)으로 본다.
-export const SHORT_TIMEOUT_MS = 15 * 60_000;
