@@ -2,9 +2,15 @@ server {
     listen 8080;
     root /usr/share/nginx/html;
 
+    # 백엔드 주소를 10초마다 다시 찾는다. 백엔드 컨테이너가 재시작돼 IP가 바뀌어도 502가 이어지지 않게
+    # (NGINX_LOCAL_RESOLVERS: 컨테이너의 /etc/resolv.conf 값. Dockerfile의 NGINX_ENTRYPOINT_LOCAL_RESOLVERS로 켬)
+    resolver ${NGINX_LOCAL_RESOLVERS} valid=10s ipv6=off;
+
     # 브라우저는 같은 출처의 /api만 부른다 → 백엔드로 전달 (세션·CSRF 쿠키 유지)
     location /api/ {
-        proxy_pass ${BACKEND_URL};
+        # 변수로 넘겨야 요청 때마다 위 resolver로 찾는다 (주소를 그대로 쓰면 nginx 시작 때 한 번만 찾음)
+        set $backend_url ${BACKEND_URL};
+        proxy_pass $backend_url;
         proxy_http_version 1.1;
         proxy_set_header Connection "";
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
