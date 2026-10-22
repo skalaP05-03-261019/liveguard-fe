@@ -28,6 +28,9 @@ export const useLiveGuard = defineStore('liveGuard', () => {
   const timeouts = ref<Record<string, string>>({});
   // 시스템 운영자 화면용: 강퇴 검토가 결정된 시각(명세 KickReview에는 결정 시각 필드가 없다).
   const decidedAt = ref<Record<string, string>>({});
+  // 시청자 관리 탭(#5) Mock 상태: 오판 취소된 사건(사유)과 문맥 결정이 끝난 사건(결정값).
+  const revokedCases = ref<Record<string, string>>({});
+  const contextDecided = ref<Record<string, string>>({});
   const clock = ref(Date.now());
   let clockTimer: ReturnType<typeof setInterval> | undefined;
   const owners = ref<Record<string, string>>({});
@@ -76,7 +79,7 @@ export const useLiveGuard = defineStore('liveGuard', () => {
   // 최근 24시간 이전 확정 위반 수. 오탐 해제된 사건과 결정이 끝난 강퇴 검토에 쓰인 사건은 제외한다(ERD 4절).
   function priorViolations(alias: string) {
     const consumed = new Set(Object.values(details.value).flatMap(c => c.kickReview && c.kickReview.status !== 'PENDING' ? c.kickReview.caseIds : []));
-    return Object.values(details.value).filter(c => c.userAlias === alias && c.verdict === 'VIOLATION' && !consumed.has(c.caseId) && Date.now() - new Date(c.createdAt).getTime() <= 86400000);
+    return Object.values(details.value).filter(c => c.userAlias === alias && c.verdict === 'VIOLATION' && !revokedCases.value[c.caseId] && !consumed.has(c.caseId) && Date.now() - new Date(c.createdAt).getTime() <= 86400000);
   }
   function toast(text: string) { notice.value = text; if (notificationTimeout) clearTimeout(notificationTimeout); notificationTimeout = setTimeout(() => notice.value = '', 3500); }
   function log(type: string, content: string, state = '완료') { audit.value.unshift({ id: newId(), time: time(), type, content, state }); audit.value = audit.value.slice(0, 80); }
@@ -97,7 +100,7 @@ export const useLiveGuard = defineStore('liveGuard', () => {
     const start = fixture.cases.find(c => c.kickReview?.status === 'PENDING') ?? fixture.cases[0];
     selectedCaseId.value = start.caseId;
     selectedMessageId.value = start.messages[0].messageId;
-    kicks.value = {}; decidedAt.value = {}; timeouts.value = fixture.timeouts; audit.value = []; online.value = true; error.value = ''; notice.value = '';
+    kicks.value = {}; decidedAt.value = {}; revokedCases.value = {}; contextDecided.value = {}; timeouts.value = fixture.timeouts; audit.value = []; online.value = true; error.value = ''; notice.value = '';
     log('MOCK', 'OpenAPI v0.5-lite 형식의 테스트 데이터 로드');
   }
   async function refreshMessages() {
@@ -339,6 +342,39 @@ export const useLiveGuard = defineStore('liveGuard', () => {
     } catch (e) { report(e); if (e instanceof ApiError && e.code === 'STALE_VERSION') await loadCase(id).catch(report); return false; }
     finally { busy.value = false; }
   }
+  // Mock 오판 취소: 위반 근거를 무효로 하고 메시지를 공개로 되돌린다. 기록은 남긴다(ERD findings.revoked_at).
+  // 실제 API의 오판 취소는 라이브 콘솔(VITE_USE_LIVE_V1)이 POST /api/findings/{findingId}/revoke로 처리한다.
+  function revokeCase(caseId: string, reason: string) {
+    if (!demo) { toast('실제 API의 오판 취소는 라이브 콘솔에서 지원합니다.'); return false; }
+    const c = details.value[caseId];
+    if (!c || revokedCases.value[caseId] || !reason.trim()) return false;
+    revokedCases.value[caseId] = reason;
+    setCaseVisibility(c, 'PUBLIC');
+    c.status = 'NO_ACTION'; c.version++; upsertCase(caseSummary(c));
+    log('REVOKE', `${c.userAlias} · ${c.category ? categoryLabels[c.category] : '위반'} 오판 취소 · ${reason}`, '모의 적용');
+    toast('오판 취소를 반영했습니다. 메시지가 다시 공개됩니다. (MOCK)');
+    return true;
+  }
+  // Mock 문맥 결정: 정상 확정은 공개, 위반 확정은 숨김, 보류는 검토 대기를 유지한다(openapi ContextDecision).
+  function decideContext(caseId: string, value: 'CONFIRM_NORMAL' | 'CONFIRM_VIOLATION' | 'DEFER', reason: string) {
+    if (!demo) { toast('실제 API의 문맥 결정은 라이브 콘솔에서 지원합니다.'); return false; }
+    const c = details.value[caseId];
+    if (!c || contextDecided.value[caseId] || !reason.trim()) return false;
+    if (value === 'DEFER') { log('CONTEXT_REVIEW', `${c.userAlias} · 보류 · ${reason}`, '대기 유지'); toast('보류했습니다. 검토 대기에 남습니다. (MOCK)'); return true; }
+    contextDecided.value[caseId] = value;
+    const violation = value === 'CONFIRM_VIOLATION';
+    c.verdict = violation ? 'VIOLATION' : 'NO_VIOLATION'; c.status = violation ? 'HIDDEN' : 'NO_ACTION'; c.version++;
+    setCaseVisibility(c, violation ? 'HIDDEN' : 'PUBLIC');
+    upsertCase(caseSummary(c));
+    log('CONTEXT_REVIEW', `${c.userAlias} · ${violation ? '위반 확정' : '정상 확정'} · ${reason}`, '모의 적용');
+    toast(violation ? '위반으로 확정해 메시지를 숨겼습니다. (MOCK)' : '정상으로 확정했습니다. (MOCK)');
+    return true;
+  }
+  function setCaseVisibility(c: CaseDetail, visibility: Message['visibility']) {
+    for (const m of [...c.messages, ...messages.value.filter(x => c.messages.some(y => y.messageId === x.messageId))]) {
+      if (m.visibility !== visibility) { m.visibility = visibility; m.version++; }
+    }
+  }
   async function decide(reviewId: string, decision: 'APPROVE' | 'REJECT', reason: string) {
     const detail = Object.values(details.value).find(c => c.kickReview?.reviewId === reviewId);
     const review = detail?.kickReview;
@@ -385,6 +421,6 @@ export const useLiveGuard = defineStore('liveGuard', () => {
   function toggleFeed() { if (feedOn.value) stopFeed(); else startFeed(); }
   function dispose() { stopFeed(); disconnectSse(); if (clockTimer) clearInterval(clockTimer); if (notificationTimeout) clearTimeout(notificationTimeout); }
   return { mode, me, channelId, viewerId, messages, cases, details, selectedCaseId, selectedMessageId, kicks, owners, audit, online, busy, error, notice, lastTraceId, loginRequired,
-    selectedCase, allCases, selectedMessage, kickReviews, pendingReviews, viewerAlias, viewerMessages, viewerCases, viewerKickUntil, kicked, decidedAt, viewerTimeoutUntil, timedOut, restrictedAliases, timeouts, clock, priorViolations, isOperator,
-    init, login, logout, syncIdentity, clearIdentity, feedOn, toggleFeed, refreshMessages, refreshCases, loadCase, selectCase, selectMessage, resetMock, sendMessage, mockScenario, release, decide, dispose, toast, log };
+    selectedCase, allCases, selectedMessage, kickReviews, pendingReviews, viewerAlias, viewerMessages, viewerCases, viewerKickUntil, kicked, decidedAt, viewerTimeoutUntil, timedOut, restrictedAliases, timeouts, clock, priorViolations, isOperator, revokedCases, contextDecided,
+    init, login, logout, syncIdentity, clearIdentity, feedOn, toggleFeed, refreshMessages, refreshCases, loadCase, selectCase, selectMessage, resetMock, sendMessage, mockScenario, release, decide, revokeCase, decideContext, dispose, toast, log };
 });

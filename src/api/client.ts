@@ -31,6 +31,8 @@ export const api = {
   startLive: (channelId:UUID) => request<Live>(`/api/channels/${channelId}/lives`, 'POST'),
   endLive: (liveId:UUID) => request<Live>(`/api/lives/${liveId}/end`, 'POST'),
   liveMessages: (liveId:UUID) => request<MessagePage>(`/api/lives/${liveId}/messages`),
+  // 시청자 관리(#5): 사건 대상 메시지의 작성자(닉네임)를 찾을 때 이전 페이지까지 읽는다.
+  liveMessagesPage: (liveId:UUID,cursor?:string) => request<MessagePage>(`/api/lives/${liveId}/messages?limit=100${cursor?`&cursor=${encodeURIComponent(cursor)}`:''}`),
   sendLive: (liveId:UUID,text:string,clientMessageId:UUID) => request<Message>(`/api/lives/${liveId}/messages`, 'POST',{text,clientMessageId}),
   liveReviews: async (liveId:UUID) => (await Promise.all(['CONTEXT','KICK'].map(kind=>request<LiveReview[]>(`/api/reviews?liveId=${encodeURIComponent(liveId)}&kind=${kind}`)))).flat(),
   liveCases: (liveId:UUID) => request<LiveCase[]>(`/api/cases?liveId=${encodeURIComponent(liveId)}`),
@@ -56,4 +58,4 @@ export interface Decision {decisionId:UUID;reviewId:UUID;kind:'CONTEXT'|'KICK';v
 
 export interface MaskedContextMessage {messageId:UUID;authorAlias:string;text:string;visibility:string;sentAt:string;version?:number}
 export interface ConfirmedFinding {findingId:UUID;category:string;status:string;confirmedAt:string;revokedAt:string|null}
-export interface LiveCase {caseId:UUID;liveId:UUID;version:number;confirmationStatus:string;messages:MaskedContextMessage[];targetMessageIds:UUID[];confirmedFindings:ConfirmedFinding[]}
+export interface LiveCase {caseId:UUID;liveId:UUID;version:number;confirmationStatus:string;messages:MaskedContextMessage[];targetMessageIds:UUID[];confirmedFindings:ConfirmedFinding[];createdAt?:string|number;violationCount?:number;status?:string}

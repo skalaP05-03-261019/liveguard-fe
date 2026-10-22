@@ -625,3 +625,58 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .sys-table td.report{color:var(--live);font-weight:500}
 @media(max-width:1300px){.sys-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:590px){.sys-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.sys-tile b{font-size:22px}}
+
+/* 시청자 관리 탭 (#5) — Mock 운영 콘솔과 실제 API 콘솔(LiveConsole) 공용 */
+.vm{padding:24px;min-height:420px}
+.vm-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;border-bottom:1px solid var(--line);padding-bottom:18px}
+.vm-head h2{font-size:22px;font-weight:500;display:flex;align-items:center;gap:10px}
+.vm-head h2 svg{color:var(--red)}
+.vm-head p{font-size:14px;color:var(--text-2);margin-top:8px}
+.vm-total{flex:none;font-size:13px;font-weight:500;background:var(--chip);padding:6px 12px;border-radius:8px}
+.vm-chips{display:flex;flex-wrap:wrap;gap:8px;padding:16px 0 8px}
+.vm-chips button{height:32px;padding:0 14px;border-radius:16px;border:1px solid var(--line);background:#fff;font-size:13px;color:var(--text)}
+.vm-chips button b{margin-left:4px;font-weight:600}
+.vm-chips button:hover{background:var(--chip)}
+.vm-chips button.on{background:var(--text);border-color:var(--text);color:#fff}
+.vm-table td{vertical-align:middle}
+.vm-toggle-col{width:40px;padding-right:0!important}
+.vm-row{cursor:pointer}
+.vm-row.open{background:#f9f9f9}
+.vm-expand{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;color:var(--text-2)}
+.vm-expand:hover{background:var(--chip)}
+.vm-num{font-variant-numeric:tabular-nums}
+.vm-badge{display:inline-block;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:500;white-space:nowrap;background:var(--chip);color:var(--text)}
+.vm-badge.kick_pending{background:var(--pink-bg);color:var(--pink)}
+.vm-badge.context_pending{background:var(--amber-bg);color:var(--amber)}
+.vm-badge.kick_decided,.vm-badge.confirmed{background:var(--chip);color:var(--text)}
+.vm-badge.investigating{background:var(--blue-bg);color:var(--blue)}
+.vm-badge.cleared{background:#fff;color:var(--text-2);border:1px solid var(--line)}
+.vm-cat{display:inline-block;margin:0 4px 2px 0;padding:2px 8px;border-radius:6px;background:var(--chip);font-size:12px}
+.vm-muted{color:var(--text-2);font-size:12px}
+.vm-detail>td{background:#fafafa;padding:16px 20px 20px 52px}
+.vm-cases{list-style:none;display:grid;gap:12px}
+.vm-cases li{background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.vm-case-head{display:flex;align-items:center;gap:10px;font-size:13px}
+.vm-case-head time{font-variant-numeric:tabular-nums;font-weight:500}
+.vm-case-status{font-size:12px;font-weight:500;padding:1px 8px;border-radius:6px;background:var(--chip)}
+.vm-case-status.confirmed_violation{background:var(--pink-bg);color:var(--pink)}
+.vm-case-status.pending{background:var(--blue-bg);color:var(--blue)}
+.vm-text{margin:8px 0 4px;font-size:14px;overflow-wrap:anywhere}
+.vm-finding{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:6px;font-size:13px}
+.vm-link{color:var(--blue);font-size:13px;font-weight:500;padding:2px 4px}
+.vm-link:disabled{color:var(--text-3)}
+.vm-inline{display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px}
+.vm-inline input{height:30px;width:min(280px,60vw);border:1px solid var(--line);border-radius:6px;padding:0 10px;font-size:13px}
+.vm-btn{height:32px;padding:0 14px;border-radius:16px;border:1px solid var(--line);background:#fff;font-size:13px;font-weight:500}
+.vm-btn.primary{background:var(--red);border-color:var(--red);color:#fff}
+.vm-btn:disabled{opacity:.45;cursor:not-allowed}
+.vm-review{margin-top:14px;border:1px solid var(--line);border-left:4px solid var(--red);border-radius:8px;background:#fff;padding:12px 14px;display:grid;gap:8px}
+.vm-review-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;font-size:14px}
+.vm-review textarea{width:100%;border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;resize:vertical}
+.vm-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.vm-actions small{color:var(--text-2);font-size:12px}
+.vm-foot{margin-top:16px;font-size:12px;color:var(--text-2)}
+@media(max-width:590px){.vm{padding:14px}.vm-detail>td{padding:12px}}
+/* 넓은 화면: 운영 콘솔 메뉴를 왼쪽에 고정 (YouTube Studio 형태, #5) */
+.sidebar.docked{position:sticky;top:56px;flex:none;width:232px;transform:none;visibility:visible;box-shadow:none;z-index:1}
+.side-count{margin-left:auto;min-width:22px;height:20px;padding:0 6px;border-radius:10px;background:var(--red);color:#fff;font-size:12px;font-weight:600;display:grid;place-items:center}
