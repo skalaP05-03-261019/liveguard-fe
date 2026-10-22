@@ -8,12 +8,12 @@ import { streamPoster, streamSrc } from './media';
 
 const store = useLiveGuard();
 const username = ref('moderator');
-const password = ref('demo1234');
+const password = ref('liveguard-local');
 const showPassword = ref(false);
 const panel = ref(false);
 const isMock = computed(() => store.mode === 'mock');
 async function submit() { await store.login(username.value, password.value); password.value = ''; }
-function pick(account: string) { username.value = account; password.value = 'demo1234'; }
+function pick(account: string) { username.value = account; password.value = 'liveguard-local'; }
 // 세 역할 모두 같은 로그인 창을 거친다(계약·ERD에 역할별 로그인 차이가 없고, 화면은 서버가 준 역할로 정해진다).
 // Mock에서는 누른 버튼의 데모 계정을 미리 채운다.
 const panelTitles = { viewer: '시청자 로그인', moderator: '스트리머 로그인', admin: '시스템 운영자 로그인' } as const;
@@ -75,7 +75,7 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', onKey); window.cle
         <div v-if="store.error" class="error-message" role="alert">{{store.error}}</div>
         <button type="submit" class="primary-button login-submit" :disabled="store.busy">{{store.busy ? '로그인 중…' : '로그인'}} <ArrowRight :size="18"/></button>
       </form>
-      <div v-if="isMock" class="demo-login-accounts"><span>빠른 계정 선택 · 비밀번호 demo1234</span><div><button @click="pick('viewer')">시청자</button><button @click="pick('moderator')">스트리머</button><button @click="pick('admin')">시스템 운영자</button></div></div>
+      <div v-if="isMock" class="demo-login-accounts"><span>빠른 계정 선택 · 비밀번호 liveguard-local</span><div><button @click="pick('viewer')">시청자</button><button @click="pick('moderator')">스트리머</button><button @click="pick('admin')">시스템 운영자</button></div></div>
       <small class="login-footnote">세션 쿠키(JSESSIONID) · CSRF 보호 · 역할별 접근제어</small>
     </section>
 

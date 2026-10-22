@@ -322,6 +322,9 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .yt-chat-text em{font-style:normal;font-size:11px;font-weight:500;background:#fde293;color:#5f4300;border-radius:4px;padding:1px 5px;margin-right:4px}
 .yt-chat-row.myHidden{background:var(--amber-bg)}
 .yt-chat-row.myHidden small{display:block;font-size:11px;color:var(--amber);margin-top:4px}
+/* 본인 가려진 메시지의 제재 사유 안내 (작성자 본인에게만 보인다) */
+.yt-review-badge{display:inline-block;margin-left:6px;padding:0 6px;border-radius:4px;background:var(--amber);color:#fff;font-size:10px;font-weight:500;line-height:16px}
+.yt-chat-reason{display:block;margin-top:2px;font-size:12px;line-height:1.4;color:var(--text-2)}
 .yt-timeout{flex:none;display:flex;align-items:center;gap:12px;border-top:1px solid var(--line);padding:14px 16px;background:var(--amber-bg)}
 .yt-timeout svg{color:var(--amber);flex:none}
 .yt-timeout div{display:grid;gap:2px;flex:1;min-width:0}
