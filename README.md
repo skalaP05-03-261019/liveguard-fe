@@ -47,11 +47,17 @@ npm run dev
 
 기본값은 **Mock 모드**이며, 백엔드 없이 화면과 제재 시나리오를 시연할 수 있습니다.
 
-| 역할      | 아이디         | 비밀번호       |
-| ------- | ----------- | ---------- |
-| 시청자     | `viewer`    | `demo1234` |
-| 스트리머    | `moderator` | `demo1234` |
-| 시스템 운영자 | `admin`     | `demo1234` |
+<br />
+
+###### 로그인 ID / Password
+
+* Mock 모드와 백엔드 연결(API 모드) 모두 같은 계정을 씁니다. API 모드에서는 Backend를 `local` 프로파일로 실행했을 때 들어가는 시드 계정입니다.
+
+| 역할      | 아이디         | 비밀번호              | 들어가는 화면       |
+| :------ | :---------- | :---------------- | :------------ |
+| 시청자     | `viewer`    | `liveguard-local` | 시청자 채팅 화면     |
+| 스트리머    | `moderator` | `liveguard-local` | 운영 콘솔         |
+| 시스템 운영자 | `admin`     | `liveguard-local` | AI Agent 모니터링 |
 
 **시연 예시:** `moderator` 로그인 → **빠른 시연**에서 `개인정보` 3회 선택 → 강퇴 승인·기각 → **실행 기록** 확인. Mock 상태는 같은 탭에서 계정을 전환해도 유지되며, 새로고침하면 초기화됩니다.
 
@@ -107,20 +113,6 @@ docker run --rm --name liveguard-fe -p 3000:8080 liveguard-fe:local
 ```
 
 접속: **<http://localhost:3000>**
-
-<br />
-
-###### 로그인 ID / Password 
-
-* Backend를 `local` 프로파일로 실행했을 때 들어가는 시드 계정입니다.
-
-| 역할      | 아이디         | 비밀번호              | 들어가는 화면       |
-| ------- | ----------- | ----------------- | ------------- |
-| 시청자     | `viewer`    | `liveguard-local` | 시청자 채팅 화면     |
-| 스트리머    | `moderator` | `liveguard-local` | 운영 콘솔         |
-| 시스템 운영자 | `admin`     | `liveguard-local` | AI Agent 모니터링 |
-
-* Frontend Mock 모드 이미지(`--build-arg VITE_USE_API=false`)에서는 Mock 계정( ID = `demo1234` Password = `liveguard-local` 사용)
 
 <br />
 

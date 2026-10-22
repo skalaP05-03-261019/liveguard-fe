@@ -1,4 +1,5 @@
 import type { CaseDetail, CaseSummary, KickReview, Me, Message, PolicySnapshot, UUID } from './contracts';
+import { reasonLabels } from './contracts';
 
 export const CHANNEL_ID = '11111111-1111-4111-8111-111111111111';
 export const DEMO_USERS = [
@@ -16,17 +17,17 @@ export const mockPolicy: Record<string, PolicySnapshot> = {
   PII_EXPOSURE: { policyId: 'CP-4.1', version: '0.5', title: '개인정보 노출', text: '본인 또는 타인의 연락처·계좌·주소 같은 개인정보를 채팅에 올리지 않습니다.', resourceUri: 'policy://0.5/community_policy/CP-4.1' }
 };
 const stamp = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
-function msg(id: UUID, authorAlias: string, text: string, minutes: number, visibility: Message['visibility']): Message {
-  return { messageId: id, channelId: CHANNEL_ID, authorAlias, text, visibility, version: visibility === 'PUBLIC' ? 1 : 2, sentAt: stamp(minutes), isMine: false };
+function msg(id: UUID, authorAlias: string, text: string, minutes: number, visibility: Message['visibility'], moderationNotice?: string): Message {
+  return { messageId: id, channelId: CHANNEL_ID, authorAlias, text, visibility, version: visibility === 'PUBLIC' ? 1 : 2, sentAt: stamp(minutes), isMine: false, moderationNotice };
 }
 const ids = ['44444444-4444-4444-8444-444444444441', '44444444-4444-4444-8444-444444444442', '44444444-4444-4444-8444-444444444443', '44444444-4444-4444-8444-444444444444', '44444444-4444-4444-8444-444444444445', '44444444-4444-4444-8444-444444444446'];
 export const fixtureMessages = [
   msg(ids[0], '김하늘', '오늘도 화이팅하세요! 💜', 6, 'PUBLIC'),
   msg(ids[1], '별빛시청자', '오늘 무슨 게임 하시나요?', 5, 'PUBLIC'),
-  msg(ids[2], '어둠의유저', '너 진짜 못하네', 4, 'HIDDEN'),
+  msg(ids[2], '어둠의유저', '너 진짜 못하네', 4, 'HIDDEN', reasonLabels.PROFANITY_INCLUDED),
   msg(ids[3], '게임소녀', '우와 보스 클리어!!', 3, 'PUBLIC'),
-  msg(ids[4], '어둠의유저', '공식 운영자입니다. 여기서 로그인하세요', 2, 'HIDDEN'),
-  msg(ids[5], '어둠의유저', '계속 말 걸어줄게 짜증나게', 1, 'HIDDEN')
+  msg(ids[4], '어둠의유저', '공식 운영자입니다. 여기서 로그인하세요', 2, 'HIDDEN', reasonLabels.LINK_NOT_ALLOWED),
+  msg(ids[5], '어둠의유저', '계속 말 걸어줄게 짜증나게', 1, 'HIDDEN', '운영자 검토로 위반이 확정되어 숨김 처리되었습니다.')
 ];
 // 초기 화면을 채우는 정상 채팅과, 다른 사용자들의 첫 위반(자동 조치 대상).
 const extraUsers: Record<string, string> = { 김하늘: '22222222-2222-4222-8222-222222222224', 게임소녀: '22222222-2222-4222-8222-222222222225', 치킨러버: '22222222-2222-4222-8222-222222222226', 고인물: '22222222-2222-4222-8222-222222222227', 뉴비123: '22222222-2222-4222-8222-222222222228', 새벽감성: '22222222-2222-4222-8222-222222222229', 도배러: '22222222-2222-4222-8222-222222222230', 이벤트봇: '22222222-2222-4222-8222-222222222231', 버럭이: '22222222-2222-4222-8222-222222222232' };
@@ -68,7 +69,14 @@ const extraCases: CaseDetail[] = [
   firstViolation('55555555-5555-4555-8555-555555555563', 12, 'PROFANITY', 'HOLD', '방송인을 향한 직접적인 모욕 표현입니다.')
 ];
 const byTime = (a: Message, b: Message) => a.sentAt.localeCompare(b.sentAt);
-export function cloneFixtures() { return { messages: structuredClone([...extraMessages, ...fixtureMessages].sort(byTime)), cases: structuredClone([...extraCases, ...fixtureCases]), owners: { ...fixtureOwners }, timeouts: fixtureTimeouts() }; }
+export function cloneFixtures() {
+  const timeouts = fixtureTimeouts();
+  const messages = structuredClone([...extraMessages, ...fixtureMessages].sort(byTime));
+  // 어둠의유저의 10분 제한은 운영진 사칭 메시지(ids[4])에서 적용됐다. 작성자 응답처럼 timeoutUntil을 싣는다.
+  const timedOut = messages.find(m => m.messageId === ids[4]);
+  if (timedOut) timedOut.timeoutUntil = timeouts[DEMO_USERS[1].id];
+  return { messages, cases: structuredClone([...extraCases, ...fixtureCases]), owners: { ...fixtureOwners }, timeouts };
+}
 export const demoScenarios = [
   { key: 'normal', label: '정상', user: 0, text: '오늘 방송 정말 재밌네요!', category: null, filterResult: 'PASS' as const },
   { key: 'profanity', label: '욕설', user: 1, text: '너 정말 못해. 바보 같아.', category: 'PROFANITY' as const, filterResult: 'HOLD' as const },
