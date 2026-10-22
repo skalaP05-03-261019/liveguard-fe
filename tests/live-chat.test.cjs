@@ -103,8 +103,12 @@ before(async()=>{
   if(url.pathname==='/api/reviews')return json(200,state.reviews.filter(r=>r.kind===url.searchParams.get('kind')));
   if(url.pathname==='/api/cases')return json(200,state.cases);
   if(req.method==='POST'&&/^\/api\/(context|kick)-reviews\/[^/]+\/decision$/.test(url.pathname)){
-   let body='';for await(const chunk of req)body+=chunk;const value=JSON.parse(body);state.decisions.push({path:url.pathname,body:value});
-   const review=state.reviews.find(r=>url.pathname.includes(r.reviewId));if(review){review.status='DECIDED';review.version++;}
+   let body='';for await(const chunk of req)body+=chunk;const value=JSON.parse(body);
+   const review=state.reviews.find(r=>url.pathname.includes(r.reviewId));
+   // Backend처럼 검토 버전이 다르면 거부한다. 보류는 같은 검토를 PENDING으로 남기고 버전만 올린다.
+   if(review&&value.expectedReviewVersion!==review.version)return json(409,{code:'STALE_VERSION',message:'Review version changed',retryable:false});
+   state.decisions.push({path:url.pathname,body:value});
+   if(review){review.version++;if(value.decision!=='DEFER')review.status='DECIDED';}
    return json(202,{decisionId:'decision-'+state.decisions.length,reviewId:review?.reviewId,kind:review?.kind,value:value.decision,operatorId:'operator',decidedAt:timestamp()});
   }
   json(404,{code:'NOT_FOUND',message:url.pathname,retryable:false});
@@ -406,6 +410,48 @@ test('API operator distinguishes confirmed action failure from an unknown result
  await page.getByRole('status').filter({hasText:'강퇴 실행 실패가 확인되었습니다'}).first().waitFor();
  emit('ACTION_FAILED',{actionId:'action-unknown',liveId:'live-1',type:'KICK',status:'RUNNING',observation:'UNKNOWN'});
  await page.getByRole('status').filter({hasText:'강퇴 실행 결과를 확인하고 있습니다'}).first().waitFor();
+});
+
+test('API operator on a stale review gets STALE_VERSION, sees the notice and reloads the newer review',async()=>{
+ state.messages=[message('held-1','author','HELD')];
+ state.cases=[{caseId:'case-ctx',liveId:'live-1',version:1,confirmationStatus:'PENDING',handlingRoute:'CONTEXT_REVIEW',messages:[{messageId:'held-1',authorAlias:'U1',text:'held-1 원문',visibility:'HELD',sentAt:timestamp()}],targetMessageIds:['held-1'],confirmedFindings:[],findings:[],createdAt:timestamp(),violationCount:0}];
+ state.reviews=[{reviewId:'review-ctx',kind:'CONTEXT',liveId:'live-1',caseId:'case-ctx',status:'PENDING',version:1,createdAt:timestamp(),aiVerdict:'NO_VIOLATION',messages:state.cases[0].messages,targetMessageIds:['held-1'],findings:[{messageId:'held-1',verdict:'NO_VIOLATION',categories:[],policyIds:['CP-2.2'],reason:'감탄 표현입니다.',missingFacts:[]}],basisCaseIds:[],summary:'AI 제안을 확인하고 최종 결정해 주세요'}];
+ const first=await open('operator'),second=await open('operator');
+ const card=p=>p.locator('.studio-review[data-review-id="review-ctx"]');
+ await card(first).waitFor();await card(second).waitFor();
+ // 두 번째 화면은 첫 번째 운영자의 보류를 아직 모르는 상태로 둔다.
+ const stale={};await second.route(/\/api\/reviews\?/,async route=>{const u=route.request().url();if(!stale[u]){const r=await route.fetch();stale[u]=await r.text();}await route.fulfill({status:200,contentType:'application/json',body:stale[u]});});
+ await second.getByRole('button',{name:'새로고침',exact:true}).click();await waitFor(()=>Object.keys(stale).length===2);
+ await card(first).getByLabel('결정 이유 (필수)').fill('더 확인이 필요합니다.');
+ await card(first).getByRole('button',{name:'보류',exact:true}).click();
+ await waitFor(()=>state.decisions.length===1);await card(first).getByText('v2',{exact:false}).waitFor();
+ await card(second).getByLabel('결정 이유 (필수)').fill('정상으로 판단합니다.');
+ await card(second).getByRole('button',{name:'정상 확정',exact:true}).click();
+ const staleNotice=second.getByRole('status').filter({hasText:'다른 운영자가 먼저 검토를 변경했습니다'});await staleNotice.waitFor();
+ // 5초 주기 재확인이 지나도 안내가 남아 있어야 한다.
+ await new Promise(r=>setTimeout(r,6000));assert.equal(await staleNotice.count(),1);assert.equal(await second.getByRole('alert').count(),0);
+ assert.equal(state.decisions.length,1);assert.equal(state.reviews[0].status,'PENDING');
+ await second.unrouteAll({behavior:'ignoreErrors'});await second.getByRole('button',{name:'새로고침',exact:true}).click();
+ await card(second).getByText('v2',{exact:false}).waitFor();
+ assert.equal(await card(second).getByLabel('결정 이유 (필수)').inputValue(),'정상으로 판단합니다.');
+});
+
+test('API kick rejection is accepted without blocking the viewer and keeps existing sanctions',async()=>{
+ const masked=(id,text)=>({messageId:id,authorAlias:'U1',text,visibility:'HIDDEN',sentAt:timestamp()});
+ state.messages=[1,2,3].map(n=>message('old-'+n,'author','HIDDEN'));
+ state.cases=[1,2,3].map(n=>({caseId:'case-'+n,liveId:'live-1',version:2,confirmationStatus:'CONFIRMED_VIOLATION',handlingRoute:'RULE_CONFIRMED',messages:[masked('old-'+n,'욕설 '+n)],targetMessageIds:['old-'+n],confirmedFindings:[{findingId:'finding-'+n,category:'PROFANITY',status:'CONFIRMED',confirmedAt:timestamp(),revokedAt:null}],findings:[],createdAt:timestamp(),violationCount:n}));
+ state.reviews=[{reviewId:'review-kick',kind:'KICK',liveId:'live-1',caseId:'case-3',status:'PENDING',version:1,createdAt:timestamp(),aiVerdict:'VIOLATION',messages:[],targetMessageIds:['old-3'],findings:[],basisCaseIds:['case-1','case-2','case-3'],summary:'서로 다른 확정 사건 3건 — 방송 종료까지 차단 승인 요청'}];
+ const operator=await open('operator'),viewer=await open('author');
+ const kick=operator.locator('.studio-review.kick');await kick.waitFor();
+ await kick.getByLabel('운영자 판단 근거 (필수)').fill('이번 방송에서는 강퇴하지 않습니다.');
+ await kick.getByRole('button',{name:'강퇴 기각',exact:true}).click();
+ await waitFor(()=>state.decisions.length===1);
+ assert.equal(state.decisions[0].path,'/api/kick-reviews/review-kick/decision');assert.equal(state.decisions[0].body.decision,'REJECT');
+ await operator.getByRole('status').filter({hasText:'강퇴 기각 · 기존 제재 유지'}).first().waitFor();
+ await kick.waitFor({state:'detached'});
+ await viewer.getByRole('button',{name:'새로고침',exact:true}).click();await viewer.locator('[data-message-id="old-1"]').waitFor();
+ assert.equal(await viewer.getByRole('heading',{name:'이 방송의 이용이 제한되었습니다'}).count(),0);
+ assert.match(await viewer.locator('[data-message-id="old-1"]').innerText(),/숨김/);
 });
 
 test('mock context review stays held on defer, then applies normal and violation decisions',async()=>{

@@ -1,5 +1,7 @@
 > 2026-10-22 운영자 콘솔 통일(#12): 목업과 실제 API가 같은 Studio 화면(`StudioScreen.vue`)을 씁니다. 목업 판정은 운영정책 v3.1과 Backend 처리 경로를 따릅니다. `VITE_USE_LIVE_V1`은 더 이상 쓰지 않으며, `VITE_USE_API=true`이면 항상 실제 liveId API 화면입니다.
 
+2026-10-22 운영자 검토·제재 승인 흐름(#13): 실제 Backend·Agent에서 보류·정상 확정·동시 결정 충돌·강퇴 기각을 확인했습니다. [검증 기록](docs/review-flow.md)을 참고하세요.
+
 2026-10-22 P0 채팅 상태 처리: 작성자 숨김 사유·검토 중 표시, TIMEOUT 안내·입력 차단, 강퇴·방송 종료 화면을 반영했습니다. [변경 내용과 검증 기록](docs/chat-state-ui.md)을 참고하세요.
 
 목업과 API는 화면 컴포넌트를 함께 쓰고 데이터 연결만 다릅니다. 시청자는 `ViewerScreen.vue`, 운영자는 `StudioScreen.vue`입니다. 목업 계정·시연 버튼·가상 구독자 수와 반응 수는 목업에서만 표시합니다.
@@ -236,6 +238,8 @@ docs/
 ├── screenshots/            # 화면 캡처
 ├── evidence/chat-ui/       # 채팅 상태 UI 검증 캡처
 ├── chat-state-ui.md        # 채팅 상태 처리(#7) 변경·검증 기록
+├── evidence/review-flow/   # 검토·제재 승인 흐름 검증 캡처
+├── review-flow.md          # 검토·제재 승인 흐름(#13) 검증 기록
 └── live-v1-integration.md  # 실제 API 콘솔 통합 시험 기록
 tests/live-chat.test.cjs    # 채팅 상태 브라우저 테스트 (npm run test:chat)
 public/media/               # 데모 영상·포스터

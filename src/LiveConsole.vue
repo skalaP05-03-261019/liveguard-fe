@@ -179,9 +179,11 @@ async function decide(r:LiveReview,value:string,reason:string,categories:Categor
  if(!req||req.serialized!==serialized){req={serialized,id:crypto.randomUUID()};requests.set(r.reviewId,req);}
  body.clientRequestId=req.id;busy.value=true;error.value='';
  try{const d=await api.decideLive(r,body);notice.value=`결정 접수: ${d.value}. 실제 조치 결과를 기다립니다.`;if(r.kind==='KICK')kickProgress.value[r.reviewId]=value==='APPROVE'?'결정 접수 · 실행 결과 대기':'강퇴 기각 · 기존 제재 유지';await refresh();}
- catch(e){if(e instanceof ApiError&&e.code==='STALE_VERSION'){error.value='다른 운영자가 먼저 검토를 변경했습니다. 최신 상태를 불러왔습니다.';await refresh();}else fail(e);}
+ catch(e){if(e instanceof ApiError&&e.code==='STALE_VERSION')await staleReloaded('다른 운영자가 먼저 검토를 변경했습니다. 최신 상태를 불러왔으니 확인한 뒤 다시 결정해 주세요.');else fail(e);}
  finally{busy.value=false;}
 }
+// 버전 충돌은 오류가 아니라 안내로 남긴다. 오류 문구는 5초 주기 재확인이 성공하면 지워지기 때문이다.
+async function staleReloaded(message:string){error.value='';notice.value=message;await refresh();}
 async function revoke(caseId:string,findingId:string,reason:string){
  if(!await sessionValid())return;
  const c=caseHistory.value.find(x=>x.caseId===caseId);if(!c)return;
@@ -190,7 +192,7 @@ async function revoke(caseId:string,findingId:string,reason:string){
  const body={expectedCaseVersion:c.version,reason:reason.trim()};const serialized=JSON.stringify(body);const key='revoke:'+findingId;let req=requests.get(key);
  if(!req||req.serialized!==serialized){req={serialized,id:crypto.randomUUID()};requests.set(key,req);}
  try{await api.revokeFinding(findingId,{...body,clientRequestId:req.id});notice.value='확정 근거를 취소하고 남은 가림 원인·제한을 재계산했습니다.';await refresh();}
- catch(e){fail(e);}finally{busy.value=false;}
+ catch(e){if(e instanceof ApiError&&e.code==='STALE_VERSION')await staleReloaded('사건이 먼저 변경되었습니다. 최신 상태를 불러왔으니 확인한 뒤 다시 취소해 주세요.');else fail(e);}finally{busy.value=false;}
 }
 const authChannel=typeof BroadcastChannel==='undefined'?null:new BroadcastChannel('liveguard-auth');
 const checkSession=async()=>{try{if(await sessionValid())await load();}catch(e){fail(e);}};
