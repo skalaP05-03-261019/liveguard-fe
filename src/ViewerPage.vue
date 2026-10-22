@@ -9,21 +9,19 @@ const demoPreviews = ref<Record<string, string>>({});
 const timeoutReason = computed(() => demoPreviews.value[store.viewerId] === store.viewerTimeoutUntil
   ? '채팅 제한 화면을 확인하기 위한 목업 시연입니다.' : store.viewerLastReason);
 async function send() { if (await store.sendMessage(input.value)) input.value = ''; }
-function chooseViewer(id: string) { if (store.mode === 'mock') store.viewerId = id; }
-// UI 효과 시연만 바꾼다. 실제 API 요청이나 위반 사건 생성·정책 판정은 하지 않는다.
+function chooseViewer(id: string) { store.viewerId = id; }
+// UI 효과 시연만 바꾼다. 위반 사건 생성·정책 판정은 하지 않는다.
 function previewTimeout(seconds: 0 | 10 | 86400) {
-  if (store.mode !== 'mock' || store.kicked) return;
-  store.clock = Date.now();
-  if (seconds) {
-    const until = new Date(store.clock + seconds * 1000).toISOString();
-    demoPreviews.value[store.viewerId] = until; store.timeouts[store.viewerId] = until;
-  } else { delete demoPreviews.value[store.viewerId]; delete store.timeouts[store.viewerId]; }
+  if (store.kicked) return;
+  const until = seconds ? new Date(Date.now() + seconds * 1000).toISOString() : null;
+  if (until) demoPreviews.value[store.viewerId] = until; else delete demoPreviews.value[store.viewerId];
+  store.setMockTimeout(store.viewerId, until);
 }
 </script>
 
 <template>
-  <ViewerScreen v-model:draft="input" :messages="store.viewerMessages" :nickname="store.viewerAlias" :scope-key="store.channelId + ':' + store.viewerId" :clock="store.clock" :mock="store.mode==='mock'" :busy="store.busy" :blocked="store.kicked" :timed-out="store.timedOut" :timeout-until="store.viewerTimeoutUntil" :timeout-reason="timeoutReason" :error="store.error" @send="send" @logout="store.logout()" @refresh="store.refreshMessages()">
-    <template v-if="store.mode==='mock'" #demo>
+  <ViewerScreen v-model:draft="input" :messages="store.viewerMessages" :nickname="store.viewerAlias" :scope-key="store.channelId + ':' + store.viewerId" :clock="store.clock" mock :busy="store.busy" :blocked="store.kicked" :timed-out="store.timedOut" :timeout-until="store.viewerTimeoutUntil" :timeout-reason="timeoutReason" :error="store.error" @send="send" @logout="store.logout()">
+    <template #demo>
       <div class="viewer-demo">
         <b>목업 시연</b><span>시청자 계정을 변경하면 본인의 비공개 메시지 가시성을 확인할 수 있습니다.</span>
         <select aria-label="목업 시청자 선택" :value="store.viewerId" @change="chooseViewer(($event.target as HTMLSelectElement).value)"><option value="22222222-2222-4222-8222-222222222221">별빛시청자 (정상)</option><option value="22222222-2222-4222-8222-222222222222">어둠의유저 (제한 상태 확인)</option><option value="22222222-2222-4222-8222-222222222223">정보왕</option></select>

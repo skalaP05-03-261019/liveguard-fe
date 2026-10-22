@@ -8,9 +8,10 @@ COPY . .
 
 # VITE_ 변수는 빌드 결과에 박힌다. 기본은 실제 백엔드 연결(API 모드)
 ARG VITE_USE_API=true
-ARG VITE_USE_LIVE_V1=false
 ARG VITE_API_BASE_URL=
-ENV VITE_USE_API=$VITE_USE_API VITE_API_BASE_URL=$VITE_API_BASE_URL VITE_USE_LIVE_V1=$VITE_USE_LIVE_V1
+# 예전 빌드 인자(infra LIVEGUARD_V1_UI). API 모드는 항상 liveId 콘솔이라 더 이상 쓰지 않는다.
+ARG VITE_USE_LIVE_V1=
+ENV VITE_USE_API=$VITE_USE_API VITE_API_BASE_URL=$VITE_API_BASE_URL
 RUN npm run build
 
 # 2단계: 실행 (비루트 nginx, 컨테이너 안 포트 8080)

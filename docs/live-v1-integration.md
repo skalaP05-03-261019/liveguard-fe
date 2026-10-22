@@ -2,7 +2,7 @@
 
 2026-10-22 채팅 상태 UI 보완과 현재 검증 범위는 [P0 채팅 상태 처리](chat-state-ui.md)를 참고한다. 아래는 기존 통합 시험 기록이다.
 
-`VITE_USE_API=true` + `VITE_USE_LIVE_V1=true`로 `LiveConsole.vue`의 liveId API/SSE 연결을 선택한다. Docker build args에도 동일하게 지정한다. 시청자는 목업의 `ViewerPage.vue`와 동일한 `ViewerScreen.vue`를 사용하며, 운영자·시스템 운영자 콘솔은 기존 역할 분기를 유지한다. 두 모드의 시청자 UI를 맞추기 위해 플래그를 끄거나 이전 channelId API로 되돌릴 필요는 없다. 아래 localhost:3002 기록은 이전 통합 시험 서버 기준이다.
+`VITE_USE_API=true`이면 `LiveConsole.vue`의 liveId API/SSE 연결을 쓴다(#12 이후 `VITE_USE_LIVE_V1`은 쓰지 않는다). 시청자는 `ViewerScreen.vue`, 운영자는 `StudioScreen.vue`를 목업과 함께 쓴다. 아래 localhost:3002 기록은 이전 통합 시험 서버 기준이다.
 
 운영자: moderator, 시청자: viewer 또는 demo-viewer-10..19, 관리자: admin. 시드 비밀번호는 로컬 시험용 `liveguard-local`이다. 추가 시청자는 Infra SQL로 별도 시드하며 운영 계정에 적용하지 않는다.
 
