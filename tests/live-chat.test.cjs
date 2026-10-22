@@ -424,7 +424,7 @@ test('API operator on a stale review gets STALE_VERSION, sees the notice and rel
  await second.getByRole('button',{name:'새로고침',exact:true}).click();await waitFor(()=>Object.keys(stale).length===2);
  await card(first).getByLabel('결정 이유 (필수)').fill('더 확인이 필요합니다.');
  await card(first).getByRole('button',{name:'보류',exact:true}).click();
- await waitFor(()=>state.decisions.length===1);await card(first).getByText('v2',{exact:false}).waitFor();
+ await waitFor(()=>state.decisions.length===1);await first.locator('.studio-review[data-review-id="review-ctx"][data-version="2"]').waitFor();
  await card(second).getByLabel('결정 이유 (필수)').fill('정상으로 판단합니다.');
  await card(second).getByRole('button',{name:'정상 확정',exact:true}).click();
  const staleNotice=second.getByRole('status').filter({hasText:'다른 운영자가 먼저 검토를 변경했습니다'});await staleNotice.waitFor();
@@ -432,7 +432,7 @@ test('API operator on a stale review gets STALE_VERSION, sees the notice and rel
  await new Promise(r=>setTimeout(r,6000));assert.equal(await staleNotice.count(),1);assert.equal(await second.getByRole('alert').count(),0);
  assert.equal(state.decisions.length,1);assert.equal(state.reviews[0].status,'PENDING');
  await second.unrouteAll({behavior:'ignoreErrors'});await second.getByRole('button',{name:'새로고침',exact:true}).click();
- await card(second).getByText('v2',{exact:false}).waitFor();
+ await second.locator('.studio-review[data-review-id="review-ctx"][data-version="2"]').waitFor();
  assert.equal(await card(second).getByLabel('결정 이유 (필수)').inputValue(),'정상으로 판단합니다.');
 });
 
@@ -473,6 +473,21 @@ test('mock filter examples follow the Backend dictionary routes and fill the com
  await examples.getByRole('button',{name:'개못하네',exact:true}).click();await page.getByRole('button',{name:'채팅 전송',exact:true}).click();
  const pass=page.locator('.yt-chat-row').filter({hasText:'아 개못하네'});await pass.waitFor();
  assert.equal(await pass.evaluate(el=>el.classList.contains('myHidden')),false);
+});
+
+test('API context card shows when the message was sent and earlier cases with the same text',async()=>{
+ const sent=(id,at,visibility)=>({messageId:id,authorAlias:'U1',text:'꺼져',visibility,sentAt:at});
+ state.messages=[message('first','author','HIDDEN',{text:'꺼져'}),message('again','author','HELD',{text:'꺼져'}),message('other','observer','HELD',{text:'꺼져'})];
+ state.cases=[
+  {caseId:'case-first',liveId:'live-1',version:2,confirmationStatus:'CONFIRMED_VIOLATION',handlingRoute:'CONTEXT_REVIEW',messages:[sent('first','2026-10-22T13:39:51Z','HIDDEN')],targetMessageIds:['first'],confirmedFindings:[{findingId:'f-1',category:'HARASSMENT',status:'CONFIRMED',confirmedAt:timestamp(),revokedAt:null}],findings:[],createdAt:'2026-10-22T13:39:58Z',violationCount:1},
+  {caseId:'case-again',liveId:'live-1',version:1,confirmationStatus:'PENDING',handlingRoute:'CONTEXT_REVIEW',messages:[sent('again','2026-10-22T13:40:00Z','HELD')],targetMessageIds:['again'],confirmedFindings:[],findings:[],createdAt:'2026-10-22T13:40:13Z',violationCount:1},
+  {caseId:'case-other',liveId:'live-1',version:1,confirmationStatus:'PENDING',handlingRoute:'CONTEXT_REVIEW',messages:[sent('other','2026-10-22T13:41:00Z','HELD')],targetMessageIds:['other'],confirmedFindings:[],findings:[],createdAt:'2026-10-22T13:41:10Z',violationCount:0}];
+ state.reviews=[{reviewId:'review-again',kind:'CONTEXT',liveId:'live-1',caseId:'case-again',status:'PENDING',version:1,createdAt:'2026-10-22T13:40:13Z',aiVerdict:'VIOLATION',messages:state.cases[1].messages,targetMessageIds:['again'],findings:[],basisCaseIds:[],summary:'AI 제안을 확인하고 최종 결정해 주세요'}];
+ const page=await open('operator');
+ const card=page.locator('.studio-review[data-review-id="review-again"]');await card.waitFor();
+ assert.equal(await card.locator('header small').innerText(),'2026-10-22 22:40');
+ const repeats=card.locator('.review-repeats');await repeats.waitFor();
+ assert.equal((await repeats.innerText()).replace(/\s+/g,' '),'같은 시청자가 같은 문장을 1번 더 보냈습니다: 2026-10-22 22:39 위반 확정');
 });
 
 test('mock context review stays held on defer, then applies normal and violation decisions',async()=>{
