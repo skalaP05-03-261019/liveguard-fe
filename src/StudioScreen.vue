@@ -94,6 +94,10 @@ function repeatsOf(r: LiveReview) {
 const picked = reactive<Record<string, Category[]>>({});
 // 검토 응답에 근거가 없으면 같은 사건에 저장된 AI 판정을 사용한다.
 const findingsOf = (r: LiveReview) => r.findings.length ? r.findings : caseById.value.get(r.caseId)?.findings ?? [];
+// AI 판정 없이 열린 문맥 검토(Backend A-25): Agent 판정이 마감(기본 3분) 안에 오지 않았거나 분석이 실패했다.
+// aiVerdict는 NEEDS_REVIEW로 오지만 AI가 판단을 보류한 것이 아니므로 "AI 결과 없음"으로 구분한다. 늦게 판정이 오면 같은 검토에 붙는다.
+const noAiResult = (r: LiveReview) => r.kind === 'CONTEXT' && !findingsOf(r).length;
+const NO_AI_NOTICE = 'AI 분석 결과를 받지 못했습니다. 주변 문맥을 확인하고 직접 결정해 주세요';
 const categoriesOf = (r: LiveReview) => picked[r.reviewId] ?? [...new Set(findingsOf(r).flatMap(f => f.categories))];
 function toggleCategory(r: LiveReview, c: Category, on: boolean) { const now = categoriesOf(r); picked[r.reviewId] = on ? [...new Set([...now, c])] : now.filter(x => x !== c); }
 // 결정 대기는 강퇴 승인과 문맥 검토를 따로 보여 준다(정책상 별개의 결정).
@@ -175,11 +179,14 @@ function flowOf(c: LiveCase): FlowStep[] {
     steps.push({ label: '운영자 결정', time: null, detail: '없음 · 규칙 확정은 사람이 결정하지 않습니다', tone: 'skip' });
   } else {
     const start = first('TOOL_START'), end = last('TOOL_END'), failed = last('TASK_FAILED');
-    if (failed && !finding) steps.push({ label: 'AI 조사', time: at(failed), detail: 'AI 조사 실패', tone: 'wait' });
+    // AI 판정 없이 열린 검토(A-25): 조사 결과가 없고 운영자가 직접 판단한다.
+    if (review && !finding) steps.push({ label: 'AI 조사', time: at(failed), detail: 'AI 결과 없음 · 마감(기본 3분) 초과 또는 분석 실패', tone: 'skip' });
+    else if (failed && !finding) steps.push({ label: 'AI 조사', time: at(failed), detail: 'AI 조사 실패', tone: 'wait' });
     else if (finding) steps.push({ label: 'AI 조사', time: at(end) ?? at(start), detail: start || end ? `시작 ${at(start) ?? '-'} → 완료 ${at(end) ?? '-'}` : '완료 (시각은 이 화면을 연 뒤의 기록만 보입니다)', tone: 'done' });
     else steps.push({ label: 'AI 조사', time: at(start), detail: '조사 중', tone: 'wait' });
     steps.push(finding
       ? { label: 'AI 판정', time: null, detail: `${verdictLabels[finding.verdict]} (${finding.verdict}) · ${finding.reason}${finding.policyIds.length ? ` · 정책 ${finding.policyIds.join(', ')}` : ''}`, tone: 'done' }
+      : review ? { label: 'AI 판정', time: null, detail: '없음 · 운영자가 주변 문맥을 보고 직접 결정', tone: 'skip' }
       : { label: 'AI 판정', time: null, detail: '판정 대기', tone: 'wait' });
     const decided = last('REVIEW_DECIDED');
     if (review?.status === 'PENDING' || c.confirmationStatus === 'PENDING') steps.push({ label: '운영자 결정', time: null, detail: decided ? `보류됨 (${at(decided)}) · 다시 결정 대기` : '결정 대기', tone: 'wait' });
@@ -216,7 +223,8 @@ function caseStateOf(c: LiveCase): { label: string; tone: string } {
   if (c.confirmationStatus === 'CONFIRMED_VIOLATION') return { label: `위반 확정 · ${ruleAction(c).label}`, tone: 'violation' };
   if (c.confirmationStatus === 'CONFIRMED_NORMAL') return { label: '정상 확정 · 공개', tone: 'clear' };
   if (c.confirmationStatus === 'CANCELLED') return { label: '오판 취소', tone: 'cancelled' };
-  return { label: c.findings?.length ? '결정 대기' : 'AI 조사 중', tone: 'pending' };
+  const openReview = props.reviews.some(r => r.kind === 'CONTEXT' && r.caseId === c.caseId && r.status === 'PENDING');
+  return { label: c.findings?.length ? '결정 대기' : openReview ? '결정 대기 · AI 결과 없음' : 'AI 조사 중', tone: 'pending' };
 }
 // 강퇴 카드의 기준 사건별 근거. 고정 요약 문구 대신 사건마다 AI 판단 이유를 보여 준다.
 function basisReason(c: LiveCase) {
@@ -325,13 +333,14 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
                       <ChevronDown v-if="isOpen(r)" :size="16"/><ChevronRight v-else :size="16"/>
                       <b>{{nameOf(r.caseId)}}</b>
                       <span class="review-excerpt">{{excerptOf(r)}}</span>
-                      <span v-if="r.kind==='CONTEXT' && findingsOf(r)[0]" class="verdict-badge" :class="verdictTone(findingsOf(r)[0].verdict)">{{verdictLabels[findingsOf(r)[0].verdict]}}</span>
+                      <span v-if="r.kind==='CONTEXT' && findingsOf(r)[0]" class="verdict-badge" :class="verdictTone(findingsOf(r)[0].verdict)">{{verdictLabels[findingsOf(r)[0].verdict]}}</span><span v-else-if="noAiResult(r)" class="verdict-badge no-ai">AI 결과 없음</span>
                       <small :title="r.kind==='CONTEXT' && sentAt(r) ? `메시지 보낸 시각 · 검토 요청 ${asTime(r.createdAt)} · 버전 ${r.version}` : `강퇴 승인 요청 시각 · 버전 ${r.version}`">{{asTime(r.kind==='CONTEXT' && sentAt(r) ? sentAt(r) : r.createdAt)}}</small>
                     </button>
                     <div v-if="isOpen(r)" class="review-body">
                       <template v-if="r.kind==='CONTEXT'">
                         <blockquote v-if="targetText(r)" class="review-target">{{targetText(r)}}</blockquote>
-                        <AiEvidence :findings="findingsOf(r)" :mock="mock"/>
+                        <div v-if="noAiResult(r)" class="no-ai-box" role="note" aria-label="AI 결과 없음"><b>AI 결과 없음</b><p>{{r.summary || NO_AI_NOTICE}}</p><small>AI 판정이 마감(기본 3분) 안에 오지 않았거나 분석이 실패해 AI 결과 없이 검토가 열렸습니다. 메시지는 계속 임시 비노출입니다. 결정하면 백엔드가 바로 적용합니다. 그 전에 판정이 늦게 오면 이 카드에 AI 제안이 붙습니다.</small></div>
+                        <AiEvidence v-else :findings="findingsOf(r)" :mock="mock"/>
                         <div class="review-choice" role="radiogroup" aria-label="결정"><label v-for="opt in contextChoices" :key="opt.value" :class="{on: choice[r.reviewId]===opt.value}"><input type="radio" :name="'choice-' + r.reviewId" :value="opt.value" v-model="choice[r.reviewId]" :disabled="busy || ended"/>{{opt.label}}</label></div>
                         <fieldset v-if="choice[r.reviewId]==='CONFIRM_VIOLATION'" class="review-categories"><legend>적용할 위반 유형</legend><label v-for="(name, key) in categoryLabels" :key="key"><input type="checkbox" :checked="categoriesOf(r).includes(key)" :disabled="busy || ended" @change="toggleCategory(r, key, ($event.target as HTMLInputElement).checked)"/>{{name}}</label></fieldset>
                         <div class="review-submit"><button class="primary" :disabled="!canSubmit(r)" @click="submit(r)">제출</button></div>

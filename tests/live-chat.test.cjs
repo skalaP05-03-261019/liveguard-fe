@@ -739,6 +739,80 @@ test('mock CP-3.3 example: group exclusion goes to context review with an AI sug
  assert.equal(await page.getByText('판정 시점 누적',{exact:true}).count(),0);
 });
 
+test('API review opened without an AI judgment (A-25) shows "AI 결과 없음", then takes the late judgment',async()=>{
+ const held={messageId:'held-1',authorAlias:'U1',text:'held-1 원문',visibility:'HELD',sentAt:timestamp()};
+ state.messages=[message('held-1','author','HELD')];
+ state.cases=[{caseId:'case-ctx',liveId:'live-1',version:1,confirmationStatus:'PENDING',handlingRoute:'CONTEXT_REVIEW',messages:[held],targetMessageIds:['held-1'],confirmedFindings:[],findings:[],createdAt:timestamp(),violationCount:0}];
+ state.reviews=[{reviewId:'review-ctx',kind:'CONTEXT',liveId:'live-1',caseId:'case-ctx',status:'PENDING',version:1,createdAt:timestamp(),aiVerdict:'NEEDS_REVIEW',messages:[held],targetMessageIds:['held-1'],findings:[],basisCaseIds:[],summary:'AI 분석 결과를 받지 못했습니다. 주변 문맥을 확인하고 직접 결정해 주세요'}];
+ const page=await open('operator');await waitFor(()=>clients.size>=1);
+ await showQueue(page,'문맥 검토');
+ const card=page.locator('.studio-review[data-review-id="review-ctx"]');await card.waitFor();
+ // AI가 판단을 보류한 것(판단 보류)이 아니라 AI 결과가 아예 없다.
+ await card.locator('.review-head').getByText('AI 결과 없음',{exact:true}).waitFor();
+ await openCard(card);
+ const box=card.getByRole('note',{name:'AI 결과 없음'});
+ await box.getByText('AI 분석 결과를 받지 못했습니다. 주변 문맥을 확인하고 직접 결정해 주세요',{exact:true}).waitFor();
+ assert.equal(await card.getByText('판단 보류',{exact:false}).count(),0);
+ assert.equal(await card.getByRole('region',{name:'AI 판단 근거'}).count(),0);
+ // 사건 이력도 "AI 조사 중"이 아니라 결정 대기 · AI 결과 없음으로 보인다.
+ await page.getByRole('navigation',{name:'운영자 메뉴'}).getByRole('button',{name:'사건 이력',exact:true}).click();
+ await page.getByText('결정 대기 · AI 결과 없음',{exact:true}).first().waitFor();
+ // 결정 전에 판정이 늦게 오면 같은 검토에 붙고 버전이 오른다. 카드는 AI 제안으로 바뀐다.
+ const finding={messageId:'held-1',verdict:'VIOLATION',categories:['HARASSMENT'],policyIds:['CP-3.2'],reason:'특정 시청자를 반복해서 공격합니다.',missingFacts:[]};
+ state.cases[0].findings=[finding];Object.assign(state.reviews[0],{version:2,aiVerdict:'VIOLATION',findings:[finding],summary:'AI 제안을 확인하고 최종 결정해 주세요'});
+ emit('CONTEXT_REVIEW_REQUIRED',{reviewId:'review-ctx',caseId:'case-ctx',aiVerdict:'VIOLATION'});
+ await gotoQueue(page);await showQueue(page,'문맥 검토');
+ await page.locator('.studio-review[data-review-id="review-ctx"][data-version="2"]').waitFor();
+ await card.locator('.review-head').getByText('위반 의심',{exact:true}).waitFor();
+ await openCard(card);await card.getByRole('region',{name:'AI 판단 근거'}).getByText('특정 시청자를 반복해서 공격합니다.',{exact:true}).waitFor();
+ assert.equal(await card.getByRole('note',{name:'AI 결과 없음'}).count(),0);
+ await decideCard(card,'정상 확정');await waitFor(()=>state.decisions.length===1);
+ assert.equal(state.decisions[0].body.expectedReviewVersion,2);
+});
+
+test('mock "Agent 응답 없음" (A-25): the card says AI 결과 없음 and the decision is applied right away',async()=>{
+ const page=await openMockModerator();await openDemo(page);
+ await page.getByRole('button',{name:'Agent 응답 없음 (A-25)',exact:true}).click();
+ const row=page.locator('.chat-row').filter({hasText:'진짜 미쳤냐 그만 좀 해'});await row.waitFor();
+ assert.match(await row.getAttribute('class'),/held/);
+ await showQueue(page,'문맥 검토');
+ const card=page.locator('.studio-review').filter({hasText:'진짜 미쳤냐 그만 좀 해'});await openCard(card);
+ await card.getByRole('note',{name:'AI 결과 없음'}).waitFor();
+ await decideCard(card,'정상 확정');
+ await gotoMonitor(page);await waitFor(async()=>!/held/.test(await row.getAttribute('class')));
+});
+
+test('admin chat tracking shows the no-AI path (A-25) and counts real DEFER decisions, not version bumps',async()=>{
+ const page=await openTracking();const detail=page.locator('.chat-detail'),outcome=detail.locator('[data-flow-outcome]'),evidence=detail.locator('[data-flow-evidence]');
+ await page.locator('.tracking-grid .chat-row').filter({hasText:'방송 왜 이래 미쳤나 진짜'}).first().click();
+ await outcome.getByText('AI 결과 없음 · 운영자 결정 대기',{exact:true}).waitFor();
+ assert.deepEqual(await pathOf(detail),['input','classify','agent']);
+ const nodes=await flowTones(detail),edges=await flowTones(detail,'edge');
+ assert.equal(nodes.wait,'wait');assert.equal(nodes.policy,'skip');assert.equal(nodes.verify,'skip');
+ assert.equal(edges['agent-wait'],'path');assert.equal(edges['agent-policy'],'skip');
+ await detail.locator('[data-flow-edge="agent-wait"]').getByText('AI 결과 없음',{exact:true}).waitFor();
+ await detail.locator('.flow-graph [data-flow-node="agent"]').click();
+ await evidence.getByText(/AI 분석 결과를 받지 못했습니다/).waitFor();await evidence.getByText('A-25',{exact:true}).waitFor();
+ await detail.locator('.flow-graph [data-flow-node="wait"]').click();
+ await evidence.getByText('AI 결과 없음 · 운영자가 주변 문맥을 보고 직접 판단',{exact:true}).waitFor();
+ assert.equal(await evidence.getByText(/^보류 /).count(),0,'no defer was recorded');
+ await detail.locator('[data-flow-history]').getByText('판정 마감 초과',{exact:true}).waitFor();
+});
+
+test('admin chat tracking shows a real DEFER as "보류 1회" (from the decision event, not the review version)',async()=>{
+ const page=await openMockModerator();
+ await showQueue(page,'문맥 검토');
+ const card=page.locator('.studio-review').filter({hasText:'아 진짜 노잼이네 꺼져라'});await openCard(card);
+ await decideCard(card,'보류');await page.waitForTimeout(200);
+ await page.getByRole('button',{name:'로그아웃',exact:true}).click();
+ await page.getByRole('button',{name:'시스템 운영자 전용',exact:true}).click();await page.getByRole('button',{name:'로그인',exact:true}).click();
+ await page.getByRole('tab',{name:'채팅관제 Tracking',exact:true}).click();
+ const detail=page.locator('.chat-detail');
+ await page.locator('.tracking-grid .chat-row').filter({hasText:'아 진짜 노잼이네 꺼져라'}).first().click();
+ await detail.locator('.flow-graph [data-flow-node="wait"]').click();
+ await detail.locator('[data-flow-evidence]').getByText(/^보류 1회 · 같은 검토로 다시 결정 대기/).waitFor();
+});
+
 test('mock context review stays held on defer, then applies normal and violation decisions',async()=>{
  async function decide(label,reason){
   const page=await openMockModerator();await openDemo(page);await page.getByRole('button',{name:'공격 표현',exact:true}).click();
@@ -828,7 +902,7 @@ test('mock and API operators share the Studio screen and API decisions send the 
   // 강퇴 승인과 문맥 검토는 탭으로 나뉜다. 강퇴 요청이 있으면 강퇴 탭이 먼저 보이고, 다른 탭에는 대기 표시가 붙는다.
   assert.equal(await page.locator('.studio-review').count(),0);await gotoQueue(page);
   const tabs=page.getByRole('tablist',{name:'결정 대기 종류'});
-  assert.deepEqual((await tabs.getByRole('tab').allInnerTexts()).map(x=>x.replace(/\s+/g,' ').trim()),['강퇴 승인 1','문맥 검토 1']);
+  assert.deepEqual((await tabs.getByRole('tab').allInnerTexts()).map(x=>x.replace(/\s+/g,' ').trim()),['강퇴 승인 1',`문맥 검토 ${page===mock?2:1}`]); // 목업은 'AI 결과 없음' 검토(A-25)가 하나 더 있다
   assert.match(await tabs.getByRole('tab',{selected:true}).innerText(),/^강퇴 승인/);
   assert.equal(await page.locator('.studio-review.context').count(),0);assert.equal(await tabs.locator('.tab-alert').count(),1);
   await showQueue(page,'문맥 검토');assert.equal(await page.locator('.studio-review.kick').count(),0);assert.equal(await page.locator('.studio-review.context.open').count(),1);
