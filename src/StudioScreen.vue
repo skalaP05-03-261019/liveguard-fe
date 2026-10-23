@@ -274,33 +274,33 @@ type GraphNodeId = 'chat' | 'classify' | 'public' | 'rule' | 'agent' | 'research
 type GraphEdgeId = 'chat-classify' | 'classify-public' | 'classify-rule' | 'classify-agent' | 'agent-research' | 'research-verify' | 'verify-apply' | 'verify-wait' | 'wait-decide' | 'decide-normal' | 'decide-violation' | 'decide-defer';
 interface GraphNode { id: GraphNodeId; label: string; actor: string; shape: 'rect' | 'diamond'; x: number; y: number; w: number; h: number }
 const graphNodes: GraphNode[] = [
-  { id: 'chat', label: '채팅 접수', actor: '시청자', shape: 'rect', x: 300, y: 40, w: 170, h: 46 },
-  { id: 'classify', label: '백엔드 1차 분류', actor: 'Backend', shape: 'diamond', x: 300, y: 130, w: 190, h: 72 },
-  { id: 'public', label: '공개 유지', actor: 'Backend', shape: 'rect', x: 95, y: 230, w: 150, h: 46 },
-  { id: 'rule', label: '숨김·제재 처리', actor: 'Backend 규칙', shape: 'rect', x: 505, y: 230, w: 150, h: 46 },
-  { id: 'agent', label: 'Agent 조사', actor: 'AI Agent', shape: 'rect', x: 300, y: 230, w: 170, h: 46 },
-  { id: 'research', label: '문맥·정책 조사', actor: 'AI Agent', shape: 'rect', x: 300, y: 310, w: 170, h: 46 },
-  { id: 'verify', label: '판단·근거 검증', actor: 'Backend', shape: 'diamond', x: 300, y: 400, w: 190, h: 72 },
-  { id: 'apply', label: '백엔드 결과 반영', actor: 'Backend', shape: 'rect', x: 515, y: 400, w: 130, h: 46 },
-  { id: 'wait', label: '운영자 결정 대기', actor: '운영자', shape: 'rect', x: 300, y: 500, w: 170, h: 46 },
-  { id: 'decide', label: '운영자 결정', actor: '운영자', shape: 'diamond', x: 300, y: 590, w: 190, h: 72 },
-  { id: 'normal', label: '공개', actor: '정상 확정', shape: 'rect', x: 110, y: 680, w: 150, h: 46 },
-  { id: 'violation', label: '숨김·제재 적용', actor: '위반 확정', shape: 'rect', x: 490, y: 680, w: 150, h: 46 }
+  { id: 'chat', label: '채팅 접수', actor: '시청자', shape: 'rect', x: 240, y: 40, w: 160, h: 50 },
+  { id: 'classify', label: '백엔드 1차 분류', actor: 'Backend', shape: 'diamond', x: 240, y: 135, w: 200, h: 80 },
+  { id: 'public', label: '공개 유지', actor: 'Backend', shape: 'rect', x: 65, y: 235, w: 120, h: 50 },
+  { id: 'rule', label: '숨김·제재 처리', actor: 'Backend 규칙', shape: 'rect', x: 415, y: 235, w: 124, h: 50 },
+  { id: 'agent', label: 'Agent 조사', actor: 'AI Agent', shape: 'rect', x: 240, y: 235, w: 160, h: 50 },
+  { id: 'research', label: '문맥·정책 조사', actor: 'AI Agent', shape: 'rect', x: 240, y: 320, w: 160, h: 50 },
+  { id: 'verify', label: '판단·근거 검증', actor: 'Backend', shape: 'diamond', x: 240, y: 415, w: 200, h: 80 },
+  { id: 'apply', label: '백엔드 결과 반영', actor: 'Backend', shape: 'rect', x: 415, y: 520, w: 124, h: 50 },
+  { id: 'wait', label: '운영자 결정 대기', actor: '운영자', shape: 'rect', x: 240, y: 520, w: 160, h: 50 },
+  { id: 'decide', label: '운영자 결정', actor: '운영자', shape: 'diamond', x: 240, y: 615, w: 200, h: 80 },
+  { id: 'normal', label: '공개', actor: '정상 확정', shape: 'rect', x: 65, y: 710, w: 120, h: 50 },
+  { id: 'violation', label: '숨김·제재 적용', actor: '위반 확정', shape: 'rect', x: 415, y: 710, w: 124, h: 50 }
 ];
 // 화살표는 노드의 변·꼭짓점에 붙는다. label은 분기 조건이다.
 const graphEdges: { id: GraphEdgeId; points: [number, number][]; label?: string; lx?: number; ly?: number; anchor?: 'start' | 'end' }[] = [
-  { id: 'chat-classify', points: [[300, 63], [300, 92]] },
-  { id: 'classify-public', points: [[205, 130], [95, 130], [95, 205]], label: '통과', lx: 150, ly: 122 },
-  { id: 'classify-rule', points: [[395, 130], [505, 130], [505, 205]], label: '규칙 위반 확정', lx: 452, ly: 122 },
-  { id: 'classify-agent', points: [[300, 166], [300, 205]], label: '추가 조사 필요', lx: 308, ly: 190, anchor: 'start' },
-  { id: 'agent-research', points: [[300, 253], [300, 285]] },
-  { id: 'research-verify', points: [[300, 333], [300, 362]] },
-  { id: 'verify-apply', points: [[395, 400], [448, 400]], label: '검증 완료', lx: 421, ly: 391 },
-  { id: 'verify-wait', points: [[300, 436], [300, 475]], label: '문맥 검토 · 추가 검토', lx: 308, ly: 460, anchor: 'start' },
-  { id: 'wait-decide', points: [[300, 523], [300, 552]] },
-  { id: 'decide-normal', points: [[300, 626], [300, 642], [110, 642], [110, 655]], label: '정상 확정', lx: 200, ly: 642 },
-  { id: 'decide-violation', points: [[395, 590], [490, 590], [490, 655]], label: '위반 확정', lx: 445, ly: 582 },
-  { id: 'decide-defer', points: [[205, 590], [150, 590], [150, 500], [213, 500]], label: '보류', lx: 142, ly: 548, anchor: 'end' }
+  { id: 'chat-classify', points: [[240, 65], [240, 95]] },
+  { id: 'classify-public', points: [[140, 135], [65, 135], [65, 210]], label: '통과', lx: 102, ly: 127 },
+  { id: 'classify-rule', points: [[340, 135], [415, 135], [415, 210]], label: '규칙 위반 확정', lx: 380, ly: 127 },
+  { id: 'classify-agent', points: [[240, 175], [240, 210]], label: '추가 조사 필요', lx: 248, ly: 184, anchor: 'start' },
+  { id: 'agent-research', points: [[240, 260], [240, 295]] },
+  { id: 'research-verify', points: [[240, 345], [240, 375]] },
+  { id: 'verify-apply', points: [[340, 415], [415, 415], [415, 495]], label: '검증 완료', lx: 380, ly: 407 },
+  { id: 'verify-wait', points: [[240, 455], [240, 495]], label: '문맥 검토 · 추가 검토', lx: 248, ly: 480, anchor: 'start' },
+  { id: 'wait-decide', points: [[240, 545], [240, 575]] },
+  { id: 'decide-normal', points: [[240, 655], [240, 670], [65, 670], [65, 685]], label: '정상 확정', lx: 150, ly: 666 },
+  { id: 'decide-violation', points: [[340, 615], [415, 615], [415, 685]], label: '위반 확정', lx: 380, ly: 607 },
+  { id: 'decide-defer', points: [[140, 615], [105, 615], [105, 520], [160, 520]], label: '보류', lx: 99, ly: 572, anchor: 'end' }
 ];
 const edgePath = (pts: [number, number][]) => pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join(' ');
 const diamondPoints = (n: GraphNode) => `${n.x},${n.y - n.h / 2} ${n.x + n.w / 2},${n.y} ${n.x},${n.y + n.h / 2} ${n.x - n.w / 2},${n.y}`;
@@ -342,6 +342,32 @@ const graph = computed(() => {
   return { node, edge };
 });
 // 분기 조건 글자는 실제로 지난 분기일 때 그 이유로 바꿔 보여 준다.
+// 1차 분류로 갈라지는 세 영역. 이 채팅이 들어간 영역만 색을 채운다.
+type GraphZoneId = 'pass' | 'hide' | 'held';
+const graphZones: { id: GraphZoneId; label: string; d: string; lx: number; ly: number; anchor?: 'end' }[] = [
+  { id: 'pass', label: '통과 · PUBLIC', d: 'M4 186 H132 V282 H4 Z', lx: 10, ly: 277 },
+  { id: 'hide', label: '숨김 · HIDDEN', d: 'M348 186 H476 V282 H348 Z', lx: 470, ly: 277, anchor: 'end' },
+  { id: 'held', label: 'Agent 인계 · HELD', d: 'M140 186 H340 V290 H476 V746 H4 V290 H140 Z', lx: 10, ly: 306 }
+];
+const graphZone = computed<GraphZoneId | null>(() => {
+  const node = graph.value.node;
+  if (node.public === 'path') return 'pass';
+  if (node.rule === 'path') return 'hide';
+  if (node.agent === 'path' || node.agent === 'wait') return 'held';
+  return null;
+});
+// 그래프 위 한 줄: 어떤 경로로 분류됐는지 바로 읽히게 한다.
+const graphZoneText = computed(() => {
+  const item = selected.value?.item;
+  if (!graphZone.value || !item) return '1차 분류 기록 없음';
+  if (graphZone.value === 'pass') return '통과 → 공개';
+  const route = item.handlingRoute ? routeLabels[item.handlingRoute] : '';
+  if (graphZone.value === 'hide') {
+    const cats = item.confirmedFindings.map(f => categoryName(f.category)).join('·');
+    return `숨김 → ${route || '규칙 확정'}${cats ? ` (${cats})` : ''}`;
+  }
+  return `Agent 인계 → ${route || 'AI 조사'}`;
+});
 function edgeLabel(id: GraphEdgeId, fallback?: string) {
   const route = selected.value?.item?.handlingRoute;
   if (id === 'verify-wait' && graph.value.edge[id] === 'path') return route === 'PII_INVESTIGATION' ? '추가 검토 필요' : '문맥 검토';
@@ -479,12 +505,25 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
                 <div class="panel-heading"><h2>채팅 상세</h2><button v-if="selected" type="button" class="icon-control" title="닫기" aria-label="채팅 상세 닫기" @click="selectedId=null">✕</button></div>
                 <p v-if="!selected" class="chat-detail-empty">채팅을 누르면 그 채팅이 어떻게 처리됐는지, AI Agent가 어떻게 판단했는지 볼 수 있습니다.</p>
                 <div v-else class="chat-detail-body">
-                  <div class="detail-message"><div><b>{{selected.message.authorAlias}}</b><time>{{asTime(selected.message.sentAt)}}</time><span v-if="selected.message.visibility!=='PUBLIC'" class="state-pill" :class="selected.message.visibility.toLowerCase()">{{visibilityLabels[selected.message.visibility]}}</span></div><p>{{selected.message.text}}</p></div>
+                  <div class="chat-row detail-message" :class="{held: selected.message.visibility==='HELD', hidden: selected.message.visibility==='HIDDEN'}"><span class="chat-avatar" :style="{background: avatarColor(selected.message.authorAlias)}">{{selected.message.authorAlias.slice(0,1)}}</span><span class="chat-line"><b>{{selected.message.authorAlias}}</b><span class="chat-text">{{selected.message.text}}</span></span><span v-if="selected.message.visibility!=='PUBLIC'" class="state-pill" :class="selected.message.visibility.toLowerCase()">{{visibilityLabels[selected.message.visibility]}}</span><time class="chat-time">{{asTime(selected.message.sentAt)}}</time></div>
+                  <div class="detail-main">
                   <section class="detail-block"><h3>처리 경로</h3><p class="detail-route">{{selected.route.title}}</p><small>{{selected.route.detail}}</small><p v-if="selected.state" class="detail-state"><span class="case-state" :class="selected.state.tone">{{selected.state.label}}</span></p></section>
+                  <section v-if="selected.ai" class="detail-block" aria-live="polite"><h3>AI Agent 판단 근거</h3>
+                    <p v-if="selected.investigating" class="detail-wait"><span class="pulse-dot"/>조사 중입니다. 결과가 나오면 자동으로 보입니다.</p>
+                    <template v-else-if="selected.finding"><div class="review-ai"><span class="verdict-badge" :class="verdictTone(selected.finding.verdict)">AI 제안 · {{verdictLabels[selected.finding.verdict]}}</span><code title="AI 판정 코드">{{selected.finding.verdict}}</code><span class="detail-reason">{{selected.finding.reason}}</span><small>정책 {{selected.finding.policyIds.join(', ') || '-'}}</small></div>
+                      <p v-if="selected.finding.missingFacts.length" class="review-missing">확인 필요: {{selected.finding.missingFacts.join(', ')}}</p>
+                      <small class="detail-note">AI 제안은 참고용입니다. 공개 여부는 운영자가 결정합니다.</small></template>
+                  </section>
+                  <div class="detail-actions"><button v-if="selected.review && selected.review.status==='PENDING'" type="button" class="primary" @click="openDecision(selected.review)">결정하러 가기 →</button><button v-if="selected.item" type="button" @click="showFlow(selected.item.caseId)">사건 이력에서 보기</button></div>
+                  </div>
                   <section class="detail-block graph-section" aria-label="판단 경로">
                     <div class="graph-heading"><h3>판단 경로</h3><span class="graph-status-badge" :class="'status-' + selected.message.visibility.toLowerCase()" :title="`현재 메시지 상태 ${selected.message.visibility}`">현재 {{visibilityLabels[selected.message.visibility]}}</span></div>
+                    <p class="graph-zone-line" :class="graphZone ? 'zone-' + graphZone : 'zone-none'" data-graph-zone-line><span>1차 분류 결과</span><b>{{graphZoneText}}</b></p>
                     <div class="decision-graph-scroll">
-                      <svg class="process-graph" viewBox="0 0 600 712" role="group" aria-label="처리 단계와 분기. 선택한 채팅이 실제로 거친 경로를 강조">
+                      <svg class="process-graph" viewBox="0 0 480 750" role="group" aria-label="처리 단계와 분기. 선택한 채팅이 실제로 거친 경로를 강조">
+                        <g class="process-zones">
+                          <g v-for="z in graphZones" :key="z.id" class="process-zone" :class="['zone-' + z.id, {on: graphZone===z.id}]" :data-graph-zone="z.id"><path :d="z.d"/><text :x="z.lx" :y="z.ly" :style="z.anchor ? { textAnchor: z.anchor } : undefined">{{z.label}}</text></g>
+                        </g>
                         <g class="process-edges">
                           <g v-for="e in graphEdges" :key="e.id" class="process-edge" :class="graph.edge[e.id]" :data-graph-edge="e.id">
                             <marker :id="'arrow-' + e.id" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path class="edge-head" d="M0 0 L10 5 L0 10 z"/></marker>
@@ -495,7 +534,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
                         <g v-for="n in graphNodes" :key="n.id" class="process-node" :class="[graph.node[n.id], {chosen: graphFocus===n.id}]" :data-graph-node="n.id" role="button" tabindex="0" :aria-label="`${n.label} · ${n.actor} · ${toneText[graph.node[n.id]]}`" :aria-pressed="graphFocus===n.id" @click="graphChosen=n.id" @keydown.enter.prevent="graphChosen=n.id" @keydown.space.prevent="graphChosen=n.id">
                           <rect v-if="n.shape==='rect'" :x="n.x - n.w / 2" :y="n.y - n.h / 2" :width="n.w" :height="n.h" rx="12"/>
                           <polygon v-else :points="diamondPoints(n)"/>
-                          <text :x="n.x" :y="n.y - 3" text-anchor="middle"><tspan :x="n.x">{{n.label}}</tspan><tspan class="node-sub" :x="n.x" dy="14">{{n.actor}}</tspan></text>
+                          <text :x="n.x" :y="n.y - 3" text-anchor="middle"><tspan :x="n.x">{{n.label}}</tspan><tspan class="node-sub" :x="n.x" dy="17">{{n.actor}}</tspan></text>
                         </g>
                       </svg>
                     </div>
@@ -504,13 +543,6 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
                       <dl v-if="graphDetail.rows.length"><template v-for="row in graphDetail.rows" :key="row.k"><dt>{{row.k}}</dt><dd>{{row.v}}</dd></template></dl>
                       <p v-if="graphDetail.note">{{graphDetail.note}}</p></div>
                   </section>
-                  <section v-if="selected.ai" class="detail-block" aria-live="polite"><h3>AI Agent 판단 근거</h3>
-                    <p v-if="selected.investigating" class="detail-wait"><span class="pulse-dot"/>조사 중입니다. 결과가 나오면 자동으로 보입니다.</p>
-                    <template v-else-if="selected.finding"><div class="review-ai"><span class="verdict-badge" :class="verdictTone(selected.finding.verdict)">AI 제안 · {{verdictLabels[selected.finding.verdict]}}</span><code title="AI 판정 코드">{{selected.finding.verdict}}</code><span class="detail-reason">{{selected.finding.reason}}</span><small>정책 {{selected.finding.policyIds.join(', ') || '-'}}</small></div>
-                      <p v-if="selected.finding.missingFacts.length" class="review-missing">확인 필요: {{selected.finding.missingFacts.join(', ')}}</p>
-                      <small class="detail-note">AI 제안은 참고용입니다. 공개 여부는 운영자가 결정합니다.</small></template>
-                  </section>
-                  <div class="detail-actions"><button v-if="selected.review && selected.review.status==='PENDING'" type="button" class="primary" @click="openDecision(selected.review)">결정하러 가기 →</button><button v-if="selected.item" type="button" @click="showFlow(selected.item.caseId)">사건 이력에서 보기</button></div>
                 </div>
               </aside>
             </section>

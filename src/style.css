@@ -129,14 +129,14 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .chat-row .chat-avatar{margin-top:-4px}
 .chat-row:hover{background:#f2f2f2}
 .chat-row.selected{background:var(--blue-bg)}
-.chat-row.held{background:var(--amber-bg)}
+.chat-row.held{background:#f5f5f5}
 .chat-row.hidden{background:#f5f5f5}
 .chat-line{flex:1;min-width:0;padding-top:4px;overflow-wrap:anywhere}
 .chat-line b{font-weight:500;color:var(--text-2);margin-right:8px}
 .chat-text{color:var(--text)}
-.chat-row.hidden .chat-text{color:var(--text-2);text-decoration:line-through}
+.chat-row.held .chat-text,.chat-row.hidden .chat-text{color:var(--text-2);text-decoration:line-through}
 .state-pill{font-weight:500;font-size:11px;border-radius:4px;padding:3px 6px;white-space:nowrap;margin-top:2px}
-.state-pill.held{background:#fde293;color:#5f4300}
+.state-pill.held{background:#e5e5e5;color:#3f3f3f}
 .state-pill.hidden{background:#e5e5e5;color:#3f3f3f}
 .chat-footer{border-top:1px solid var(--line);padding:10px 16px;display:grid;gap:10px}
 .ai-notice,.yt-chat-banner{display:flex;align-items:center;gap:8px;color:var(--text-2);font-size:12px}
@@ -760,7 +760,7 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .filter-group>div{display:flex;flex-wrap:wrap;gap:6px}
 .filter-group button{padding:6px 10px;border:1px solid var(--line);border-radius:14px;background:#fff;font-size:12px}
 .filter-group.hide button{border-color:#e5b4b0;background:#fdf1f0}
-.filter-group.held button{border-color:#e8d39a;background:#fff8e1}
+.filter-group.held button{border-color:#d6d6d6;background:#f5f5f5}
 .filter-group.pass button{border-color:#b9dcc2;background:#f0f8f2}
 .filter-group button:not(:disabled):hover{filter:brightness(.96)}
 .studio-dict td:nth-child(2){line-height:1.9}
@@ -850,13 +850,15 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 @media(max-width:950px){.monitor-grid.chat-only{grid-template-areas:'stream' 'chat' 'detail'}}
 
 /* 채팅 상세 */
-.chat-detail{grid-area:detail;min-height:0;display:flex;flex-direction:column}
+.chat-detail{grid-area:detail;min-height:0;display:flex;flex-direction:column;container-type:inline-size}
 .chat-detail-empty{margin:auto;padding:24px;max-width:340px;text-align:center;font-size:13px;color:var(--text-2);line-height:1.6}
-.chat-detail-body{overflow:auto;padding:14px 16px 16px;display:grid;gap:14px;align-content:start}
-.detail-message{padding:10px 12px;border-left:3px solid #8170cd;background:#f8f8fb;border-radius:0 8px 8px 0}
-.detail-message>div{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-2)}
-.detail-message>div b{color:var(--text);font-size:13px}
-.detail-message p{margin-top:4px;font-size:14px;overflow-wrap:anywhere}
+.chat-detail-body{overflow:auto;padding:14px 16px 16px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:16px;align-items:start}
+.chat-row.detail-message{grid-column:1 / -1}
+.detail-main{display:grid;gap:14px;align-content:start;min-width:0}
+@container (max-width:520px){.chat-detail-body{grid-template-columns:minmax(0,1fr)}}
+.chat-row.detail-message{padding:8px 12px;gap:12px;border:1px solid var(--line);border-radius:8px;animation:none;flex-wrap:wrap}
+.chat-row.detail-message:not(.held):not(.hidden):hover{background:transparent}
+.chat-row.detail-message .chat-time{min-width:0}
 .detail-block{display:grid;gap:4px}
 .detail-block h3{font-size:13px;font-weight:600;color:var(--text-2)}
 .detail-route{font-size:14px;font-weight:500}
@@ -868,20 +870,20 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .graph-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .graph-heading h3{margin:0;font-size:13px;font-weight:600;color:var(--text-2)}
 .graph-status-badge{flex:0 0 auto;padding:4px 8px;border:1px solid #cbd2da;border-radius:4px;background:#f0f3f7;color:#344255;font-size:10px;font-weight:650}
-.graph-status-badge.status-public{background:#edf3f8}.graph-status-badge.status-held{background:#fff3cb;border-color:#c29113;color:#674b00}.graph-status-badge.status-hidden{background:#f7e9e8;border-color:#bf7770;color:#85342d}
-.decision-graph-scroll{max-height:540px;overflow:auto;border:1px solid var(--line);border-radius:6px;background:#fafbfc}
-.process-graph{display:block;width:100%;height:auto;min-width:360px;font-family:inherit}
+.graph-status-badge.status-public{background:#edf3f8}.graph-status-badge.status-held,.graph-status-badge.status-hidden{background:#e5e5e5;border-color:#cfcfcf;color:#3f3f3f}
+.decision-graph-scroll{overflow:auto;border:1px solid var(--line);border-radius:6px;background:#fafbfc}
+.process-graph{display:block;width:100%;max-width:520px;height:auto;margin:0 auto;font-family:inherit}
 .process-edges .edge-line{fill:none;stroke:#c3cad3;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .process-edges .edge-head{fill:#a5afbb;stroke:none}
-.process-edge text{font-size:10px;fill:#657181;text-anchor:middle;paint-order:stroke;stroke:#fafbfc;stroke-width:4px;stroke-linejoin:round}
+.process-edge text{font-size:12.5px;fill:#657181;text-anchor:middle;paint-order:stroke;stroke:#fafbfc;stroke-width:4px;stroke-linejoin:round}
 .process-edge.path .edge-line{stroke:#1558a6;stroke-width:3.2}.process-edge.path .edge-head{fill:#1558a6}
 .process-edge.wait .edge-line{stroke:#c38b10;stroke-width:2.6;stroke-dasharray:5 3}.process-edge.wait .edge-head{fill:#c38b10}
 .process-edge.skip .edge-line{stroke:#d9dee5;stroke-width:1.35}.process-edge.skip .edge-head{fill:#d9dee5}.process-edge.unknown .edge-line{stroke:#cbd2da;stroke-dasharray:3 4}
 .process-edge.skip text,.process-edge.unknown text{fill:#a0a8b2}
 .process-node{cursor:pointer;outline:none}
 .process-node rect,.process-node polygon{fill:#fff;stroke:#c6ced8;stroke-width:1.5;transition:fill .12s ease,stroke .12s ease}
-.process-node text{font-size:12px;font-weight:650;fill:#3f4854;pointer-events:none}
-.process-node text .node-sub{font-size:9px;font-weight:450;fill:#6b7582}
+.process-node text{font-size:15.5px;font-weight:650;fill:#3f4854;pointer-events:none}
+.process-node text .node-sub{font-size:12px;font-weight:450;fill:#6b7582}
 .process-node.path rect,.process-node.path polygon{fill:#e7f0ff;stroke:#1558a6;stroke-width:2.8}.process-node.path text{fill:#12467f}.process-node.path text .node-sub{fill:#275b91}
 .process-node.wait rect,.process-node.wait polygon{fill:#fff3c8;stroke:#c18a0b;stroke-width:2.2}.process-node.wait text{fill:#694c00}
 .process-node.skip rect,.process-node.skip polygon{fill:#f0f2f5;stroke:#d4d9df;stroke-width:1.2}.process-node.skip text{fill:#929aa5}
@@ -898,8 +900,21 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .detail-actions button{height:34px;padding:0 14px;border-radius:17px;background:var(--chip);font-size:13px;font-weight:500}
 .detail-actions button.primary{background:var(--text);color:#fff}
 .chat-row[role=button]{cursor:pointer}
-@media(max-width:950px){.decision-graph-scroll{max-height:460px}.process-graph{min-width:400px}.process-node text{font-size:13px}.process-node text .node-sub{font-size:10px}}
+
 .graph-step-detail b small{font-weight:400;color:var(--text-2)}
 .graph-step-detail dl{display:grid;grid-template-columns:72px minmax(0,1fr);gap:3px 8px;margin:6px 0 0;font-size:11px}
 .graph-step-detail dt{color:var(--text-2)}
 .graph-step-detail dd{margin:0;overflow-wrap:anywhere;color:#2d3540}
+
+/* 판단 경로: 1차 분류 영역 (통과 · 숨김 · Agent 인계) */
+.process-zone path{fill:none;stroke:#d3d8de;stroke-width:1.4;stroke-dasharray:6 5}
+.process-zone text{font-size:11.5px;font-weight:650;fill:#a3abb5}
+.process-zone.on path{stroke-width:2;stroke-dasharray:7 4}
+.process-zone.zone-pass.on path{stroke:#2f8a46;fill:#2f8a4612}.process-zone.zone-pass.on text{fill:#23703a}
+.process-zone.zone-hide.on path{stroke:#6a6a6a;fill:#6a6a6a14}.process-zone.zone-hide.on text{fill:#444}
+.process-zone.zone-held.on path{stroke:#7a5fc8;fill:#7a5fc80d}.process-zone.zone-held.on text{fill:#5b43a6}
+.graph-zone-line{display:flex;align-items:center;gap:8px;margin:0;padding:7px 10px;border-radius:6px;border:1px dashed #cfd5dc;font-size:12px;color:var(--text-2)}
+.graph-zone-line b{color:var(--text);font-size:13px}
+.graph-zone-line.zone-pass{border-color:#2f8a46;background:#f0f8f2}.graph-zone-line.zone-pass b{color:#23703a}
+.graph-zone-line.zone-hide{border-color:#6a6a6a;background:#f3f3f3}.graph-zone-line.zone-hide b{color:#333}
+.graph-zone-line.zone-held{border-color:#7a5fc8;background:#f5f2fc}.graph-zone-line.zone-held b{color:#5b43a6}

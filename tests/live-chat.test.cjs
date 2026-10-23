@@ -619,6 +619,7 @@ test('API chat detail follows the AI investigation of a selected chat in real ti
  // 판정이 아직 없으니 Agent 조사에서 멈추고, 그 뒤 단계는 거쳤다고 표시하지 않는다.
  nodes=await graphTones(detail);
  assert.equal(nodes.classify,'path');assert.equal(nodes.agent,'wait');
+ assert.deepEqual(await detail.locator('.process-zone.on').evaluateAll(z=>z.map(x=>x.dataset.graphZone)),['held']);
  assert.equal(nodes.public,'skip');assert.equal(nodes.rule,'skip');
  for(const id of ['research','verify','wait','decide','normal','violation'])assert.notEqual(nodes[id],'path',id);
  assert.equal((await graphTones(detail,'edge'))['classify-agent'],'path');
@@ -656,12 +657,16 @@ test('mock chat detail shows the filter result, rule outcome and AI judgment wit
  await page.locator('.chat-row').filter({hasText:'오늘 몇 시까지 하세요?'}).click();
  await detail.getByText('서버 경로 기록 없음',{exact:true}).waitFor();
  assert.deepEqual(Object.entries(await graphTones(detail)).filter(([,t])=>t==='path').map(([k])=>k),['chat']);
+ assert.equal(await detail.locator('.process-zone.on').count(),0);
+ await detail.locator('[data-graph-zone-line]').getByText('1차 분류 기록 없음',{exact:true}).waitFor();
  await page.locator('.chat-row').filter({hasText:'시발 너 진짜 못하네'}).click();
  await detail.getByText('규칙 자동 확정',{exact:true}).waitFor();
  let nodes=await graphTones(detail);
  assert.equal(nodes.rule,'path');
  for(const id of ['public','agent','research','verify','wait','decide'])assert.equal(nodes[id],'skip',id);
  assert.equal((await graphTones(detail,'edge'))['classify-rule'],'path');
+ assert.deepEqual(await detail.locator('.process-zone.on').evaluateAll(z=>z.map(x=>x.dataset.graphZone)),['hide']);
+ await detail.locator('[data-graph-zone-line]').getByText(/^숨김 → .*욕설/).waitFor();
  // 규칙으로 확정된 채팅은 숨김·제재 처리 노드가 기본으로 열린다.
  const step=detail.locator('.graph-step-detail');
  await step.getByText('숨김·제재 처리',{exact:false}).waitFor();await step.getByText('욕설',{exact:true}).waitFor();
@@ -679,6 +684,17 @@ test('mock chat detail shows the filter result, rule outcome and AI judgment wit
  // 채팅 칸은 영상 정보와 같은 왼쪽 열 그대로이고, 상세 패널은 그 오른쪽에 있다.
  const chat=await page.locator('.chat-panel').boundingBox(),stream=await page.locator('.stream-panel').boundingBox(),side=await detail.boundingBox();
  assert.equal(Math.round(chat.width),Math.round(stream.width));assert(side.x>chat.x+chat.width);
+ // 넓은 화면에서 판단 경로 그래프는 상세 패널의 오른쪽 열, 채팅은 왼쪽 채팅 줄과 같은 모양이다.
+ await page.setViewportSize({width:1440,height:1000});
+ const main=await detail.locator('.detail-main').boundingBox(),graphBox=await detail.locator('.graph-section').boundingBox();
+ assert(graphBox.x>=main.x+main.width,'graph sits in the right column');
+ assert.equal(await detail.locator('.chat-row.detail-message .chat-avatar').count(),1);
+ // 임시 비노출과 숨김은 같은 회색 표시다.
+ const look=sel=>page.locator(sel).first().evaluate(el=>{const c=getComputedStyle(el);return c.backgroundColor+'|'+c.color;});
+ await page.locator('.demo-fold summary').click();await page.getByRole('button',{name:'개인정보',exact:true}).click();
+ await page.locator('.chat-row.held').first().waitFor();
+ assert.equal(await look('.chat-row.held .state-pill'),await look('.chat-row.hidden .state-pill'));
+ assert.equal(await look('.chat-row.held'),await look('.chat-row.hidden'));
 });
 
 test('mock context review stays held on defer, then applies normal and violation decisions',async()=>{
