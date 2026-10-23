@@ -38,7 +38,7 @@ export const confirmedCount = (row: ViewerRow) => row.cases.filter(isConfirmed).
 export const categoriesOf = (row: ViewerRow) => [...new Set(row.cases.flatMap(activeFindings).map(f => f.category))];
 export const categoryName = (c: string) => categoryLabels[c as Category] ?? c;
 export const lastAt = (row: ViewerRow) => row.cases.reduce((max, c) => (c.createdAt > max ? c.createdAt : max), '');
-// 사건 응답의 violationCount는 판정 시점 누적값이라 실시간 카운터가 아니다. 가장 최근 사건의 값을 보여 준다.
+// 사건 응답의 violationCount는 같은 방송에서 이 시청자의 다른 확정 위반 사건 수다(현재 사건 제외, 조회 시점). 가장 최근 사건의 값을 보여 준다.
 export const latestViolationCount = (row: ViewerRow) => [...row.cases].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]?.violationCount ?? null;
 
 // 사건을 시청자 이름으로 묶고, 검토는 기준·대상 사건이 속한 시청자에게 붙인다.

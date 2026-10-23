@@ -287,7 +287,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
  <button :class="{active: page==='chats'}" :aria-current="page==='chats' ? 'page' : undefined" @click="goto('chats')"><MessagesSquare :size="22" :stroke-width="1.8"/><span>채팅 기록</span></button>
           <button :class="{active: page==='policy'}" :aria-current="page==='policy' ? 'page' : undefined" @click="goto('policy')"><BookOpen :size="22" :stroke-width="1.8"/><span>정책 근거</span></button>
         </nav>
-        <div class="sidebar-foot"><span class="online-dot" :class="{off: !online}"/>{{mock ? '목업 방송 · 정책 v3.1 판정' : online ? 'SSE 연결됨' : '연결 확인 중'}}</div>
+        <div class="sidebar-foot"><span class="online-dot" :class="{off: !online}"/>{{mock ? '목업 방송 · 정책 v3.2 판정' : online ? 'SSE 연결됨' : '연결 확인 중'}}</div>
       </aside>
       <div class="workspace">
         <main class="main-content">
@@ -375,10 +375,18 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
                 <p v-if="!reviews.length" class="empty-block">아직 검토 기록이 없습니다.</p>
               </template></section>
 
-            <section v-else-if="page==='policy'" class="secondary-page card"><div class="secondary-heading"><div><h2><BookOpen :size="24"/> 정책 근거</h2><p>운영정책 v3.1 기준의 처리 경로와 제재 기준입니다. 읽기 전용이며 제재 기간은 운영자가 정하지 않습니다.</p></div></div>
+            <section v-else-if="page==='policy'" class="secondary-page card"><div class="secondary-heading"><div><h2><BookOpen :size="24"/> 정책 근거</h2><p>운영정책 v3.2(2026-10-23) 기준의 처리 경로와 제재 기준입니다. 읽기 전용이며 제재 기간은 운영자가 정하지 않습니다. 전환 전에 열린 사건은 그 사건에 기록된 v3.1로 판정합니다.</p></div></div>
               <h3 class="studio-subhead">처리 경로</h3>
               <div class="table-scroll"><table class="data-table"><thead><tr><th>경로</th><th>조건</th><th>결정</th><th>결과</th></tr></thead><tbody><tr v-for="row in routeRows" :key="row.route"><td><b>{{routeLabels[row.route]}}</b></td><td>{{row.trigger}}</td><td>{{row.decider}}</td><td>{{row.result}}</td></tr></tbody></table></div>
-              <h3 class="studio-subhead">필터 사전</h3><p class="studio-help">Backend 필터 사전(dict-v2, 팀 확정 전 초기 목록)과 같은 단어입니다. 애매한 표현(존나·지랄·'개-' 접두어·시바 등)은 일부러 넣지 않아 그대로 공개됩니다. 링크와 전화번호·이메일은 사전이 아니라 코드 규칙으로 찾습니다.</p>
+              <h3 class="studio-subhead">괴롭힘 판단 기준 (CP-3.2 · CP-3.3)</h3>
+              <ul class="studio-rules" data-policy-harassment>
+                <li><b>CP-3.2 괴롭힘:</b> 특정 대상을 향한 문맥상 인신공격과 괴롭힘.</li>
+                <li><b>CP-3.3 집단 대상 비하·배제 <span class="policy-new">v3.2 추가</span>:</b> 지역·출신·국적·인종·민족·종교·성별·연령·장애 등 정체성 속성으로 묶인 집단의 열등성을 단정하거나, 그 집단의 배제·차별을 요구하는 표현. 대상 집단과 열등 단정 또는 배제 표현이 모두 있어야 합니다.</li>
+                <li>위반이 아닌 경우: 자조, 비판·제지 목적의 인용, 정책·정치적 주장 비판, 가벼운 고정관념. 인용·자조 형식으로 실제 비하를 퍼뜨리면 예외가 아닙니다.</li>
+                <li>대상 집단이 불명확하면 AI는 판단 보류(NEEDS_REVIEW)로 넘깁니다. 특정 팀의 팬처럼 정체성 속성이 아닌 집단은 해당하지 않습니다.</li>
+                <li>새 위반 유형이 아니라 괴롭힘(HARASSMENT)에 포함되므로 제재표와 강퇴 기준은 같습니다. 필터 사전은 바뀌지 않아, 공격 표현이 있는 채팅만 AI 검토 후보가 됩니다.</li>
+              </ul>
+              <h3 class="studio-subhead">필터 사전</h3><p class="studio-help">Backend 필터 사전(dict-v2, 팀 확정 전 초기 목록)과 같은 단어입니다. 애매한 표현(존나·지랄·'개-' 접두어·시바 등)은 일부러 넣지 않아 그대로 공개됩니다. 링크와 전화번호·계좌번호·이메일은 사전이 아니라 코드 규칙으로 찾습니다.</p>
               <div class="table-scroll"><table class="data-table studio-dict"><thead><tr><th>사전</th><th>단어</th><th>처리</th></tr></thead><tbody><tr v-for="row in dictRows" :key="row.name"><td><b>{{row.name}}</b></td><td><code v-for="w in row.words" :key="w">{{w}}</code></td><td>{{row.result}}</td></tr></tbody></table></div>
               <h3 class="studio-subhead">제재 기준표 (MP-2.1)</h3><p class="studio-help">같은 방송·같은 유형의 이전 확정 사건 수로 정합니다. 모든 채팅 제한은 자동 적용되며, 24시간 제한도 강퇴가 아닙니다.</p>
               <div class="table-scroll"><table class="data-table sanction-table"><thead><tr><th>유형</th><th v-for="col in priorColumns" :key="col">{{col}}</th></tr></thead><tbody><tr v-for="[cat, row] in sanctionRows" :key="cat"><td><b>{{categoryName(cat)}}</b><small>{{cat}}</small></td><td v-for="(cell, i) in row" :key="i">{{sanctionLabel(cell)}}</td></tr></tbody></table></div>

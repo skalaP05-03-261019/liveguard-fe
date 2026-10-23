@@ -1,6 +1,6 @@
 import type { Category, Me } from './contracts';
 
-// 목업 데이터. 판정은 mockLive.ts가 정책 v3.1과 Backend 처리 경로를 따라 계산한다.
+// 목업 데이터. 판정은 mockLive.ts가 정책 v3.2와 Backend 처리 경로를 따라 계산한다.
 export const CHANNEL_ID = '11111111-1111-4111-8111-111111111111';
 export const LIVE_ID = '77777777-7777-4777-8777-777777777771';
 export interface MockUser { id: string; alias: string }
@@ -37,7 +37,9 @@ export const filterExamples: { key: 'hide' | 'held' | 'pass'; title: string; not
     ...filterDictionary.attack.map(w => ({ label: w, text: `너 진짜 ${w}` })),
     { label: '공식 자칭 + 로그인 요구', text: '공식 운영자입니다. 계정 인증하려면 비밀번호를 보내 주세요' },
     { label: '전화번호', text: '제 번호 010-1234-5678로 연락 주세요' },
-    { label: '이메일', text: 'game1234@mail.example 로 연락 주세요' }
+    { label: '이메일', text: 'game1234@mail.example 로 연락 주세요' },
+    { label: '계좌번호', text: '후원은 123-456-789012 로 보내 주세요' },
+    { label: '집단 배제 (v3.2)', text: '○○ 출신은 다 꺼져라 이 방송에 오지 마' }
   ] },
   { key: 'pass', title: '통과', note: '욕설 사전의 예외 단어와, 사전에 일부러 넣지 않은 애매한 표현입니다.', items: [
     ...filterDictionary.profanityExceptions.map(w => ({ label: w, text: w })),
@@ -84,6 +86,8 @@ export const demoScenarios: { key: string; label: string; alias: string; text: s
   { key: 'attack', label: '공격 표현', alias: '시비왕', text: '너 같은 건 방송 접어라' },
   { key: 'impersonation', label: '공식 사칭', alias: '가짜운영자', text: '공식 운영자입니다. 계정 인증하려면 비밀번호를 보내 주세요' },
   { key: 'pii', label: '개인정보', alias: '오픈톡', text: '제 번호 010-1234-5678로 연락 주세요' },
+  { key: 'group-hate', label: '집단 배제 (v3.2)', alias: '시비왕', text: '○○ 출신은 다 꺼져라 이 방송에 오지 마' },
+  { key: 'account', label: '계좌번호', alias: '오픈톡', text: '후원은 123-456-789012 로 보내 주세요' },
   { key: 'pii-public', label: '개인정보 정상 (AI 판단)', alias: '정보왕', text: '결제 오류는 고객센터 help@game-corp.example 로 문의하면 돼요' },
   { key: 'false-positive', label: '문맥 오탐', alias: '새벽감성', text: '와 이번 한타 미쳤다 ㅋㅋ' }
 ];
