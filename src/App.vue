@@ -27,7 +27,7 @@ onBeforeUnmount(() => store.dispose());
   <LiveConsole v-else-if="store.mode==='api'"/>
   <ViewerPage v-else-if="role==='VIEWER'"/>
   <SystemPage v-else-if="role==='PLATFORM_ADMIN'"/>
-  <StudioScreen v-else mock :nickname="store.me?.nickname ?? '운영자'" channel-name="행복한게임방" :live="mock.live" :online="true" :messages="mock.messages" :reviews="mock.reviews" :cases="mock.cases" :case-names="caseNames" :logs="mock.logs" :kick-progress="mock.kickProgress" :busy="store.busy" :error="store.error" :feed-on="store.feedOn"
+  <StudioScreen v-else mock :nickname="store.me?.nickname ?? '운영자'" channel-name="행복한게임방" :live="mock.live" :online="true" :messages="mock.messages" :reviews="mock.reviews" :cases="mock.cases" :case-names="caseNames" :logs="mock.logs" :kick-progress="mock.kickProgress" :busy="store.busy" :error="store.error" :notice="store.notice" :feed-on="store.feedOn"
     @decide="onDecide" @revoke="(caseId, findingId, reason) => store.revoke(caseId, findingId, reason)" @logout="store.logout()" @toggle-feed="store.toggleFeed()">
     <template #demo><div class="scenario-toolbar"><span>빠른 시연</span><button v-for="s in demoScenarios" :key="s.key" @click="store.mockScenario(s.key)">{{s.label}}</button></div></template>
     <template #kick-actions="{ reviewId, state }"><span v-if="state===KICK_WAITING" class="mock-kick-actions">
@@ -36,6 +36,6 @@ onBeforeUnmount(() => store.dispose());
       <button @click="store.finishKick(reviewId,'UNKNOWN')">결과 미확인 시뮬레이션</button>
     </span></template>
   </StudioScreen>
-  <!-- 시청자·운영자·시스템 화면 공통 알림. 로그인 화면은 오류를 로그인 창 안에 보여주므로 띄우지 않는다 -->
-  <div v-if="store.notice && !store.loginRequired && store.me" class="toast" :role="store.notice === store.error ? 'alert' : 'status'"><AlertCircle v-if="store.notice === store.error" :size="18"/><CheckCircle2 v-else :size="18"/> {{store.notice}}</div>
+  <!-- 알림: 시청자·운영자 화면은 화면 안 안내 줄(role=status)로 보여 준다. 안내 줄이 없는 시스템 운영자 화면에만 토스트를 띄운다 -->
+  <div v-if="store.notice && !store.loginRequired && store.me && role==='PLATFORM_ADMIN'" class="toast" :role="store.notice === store.error ? 'alert' : 'status'"><AlertCircle v-if="store.notice === store.error" :size="18"/><CheckCircle2 v-else :size="18"/> {{store.notice}}</div>
 </template>

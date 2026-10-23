@@ -47,7 +47,6 @@ export const useLiveGuard = defineStore('liveGuard', () => {
     const err = e instanceof ApiError ? e : new ApiError('TEMPORARY_UNAVAILABLE', e instanceof Error ? e.message : '알 수 없는 오류');
     error.value = `${err.code}: ${err.message}`;
     if (err.code === 'UNAUTHENTICATED') loginRequired.value = true;
-    toast(error.value);
   }
   function resetMock() { mock.reset(fixtureLines); error.value = ''; notice.value = ''; }
   async function init() {
@@ -132,8 +131,7 @@ export const useLiveGuard = defineStore('liveGuard', () => {
   }
   function decide(reviewId: string, value: ContextDecision | KickDecision, reason: string, categories: Category[] = []) {
     const r = mock.decide(reviewId, value, reason.trim(), categories);
-    if (r.ok) error.value = ''; else error.value = r.message;
-    toast(r.message);
+    if (r.ok) { error.value = ''; toast(r.message); } else error.value = r.message;
     return r.ok;
   }
   function revoke(caseId: string, findingId: string, reason: string) {

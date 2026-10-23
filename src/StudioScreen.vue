@@ -5,6 +5,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { AlertCircle, BookOpen, ChevronDown, ChevronRight, ClipboardCheck, FileClock, LogOut, Menu, MessagesSquare, Pause, Play, Radio, RefreshCcw, ShieldCheck, Sparkles, Users, UserX } from 'lucide-vue-next';
 import ViewerManage from './ViewerManage.vue';
 import AiEvidence from './AiEvidence.vue';
+import ModeBadge from './ModeBadge.vue';
 import { groupByViewer, type ViewerCase, type ViewerFinding, type ViewerReview } from './viewerManage';
 import { avatarColor } from './avatar';
 import { clockText as hourMinute, dateTimeText } from './chatTime';
@@ -282,7 +283,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
 <template>
   <div class="app-shell studio-shell">
     <header class="topbar"><div class="topbar-title"><button class="yt-icon-button" :class="{on: navVisible}" :title="navVisible ? '메뉴 닫기' : '메뉴 열기'" aria-controls="operator-nav" :aria-expanded="navVisible" @click="toggleNav"><Menu :size="22"/></button><span class="yt-logo"><span class="yt-logo-mark"><ShieldCheck :size="15"/></span><b>LIVE<span>:</span>GUARD</b></span><span class="console-tag">Studio</span></div>
-      <div class="topbar-right"><span class="connection"><span class="online-dot" :class="{off: !online}"/> {{mock ? 'MOCK 데이터' : online ? '실시간 연결' : '연결 대기'}}</span><span class="yt-me" :style="{background: avatarColor(nickname)}" :title="nickname">{{nickname.slice(0,1)}}</span><span class="operator-info">{{nickname}}</span><button class="header-logout" @click="emit('logout')"><LogOut :size="16"/> 로그아웃</button></div></header>
+      <div class="topbar-right"><ModeBadge :mock="mock" :online="online"/><span class="yt-me" :style="{background: avatarColor(nickname)}" :title="nickname">{{nickname.slice(0,1)}}</span><span class="operator-info">{{nickname}}</span><button class="header-logout" @click="emit('logout')"><LogOut :size="16"/> 로그아웃</button></div></header>
     <div class="app-body">
       <div v-if="!wide && navOpen" class="nav-backdrop" @click="navOpen = false"/>
       <aside id="operator-nav" class="sidebar" :class="{open: !wide && navOpen, docked: wide && !navCollapsed}" :aria-hidden="!navVisible" :inert="!navVisible">
@@ -295,11 +296,11 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
  <button :class="{active: page==='chats'}" :aria-current="page==='chats' ? 'page' : undefined" @click="goto('chats')"><MessagesSquare :size="22" :stroke-width="1.8"/><span>채팅 기록</span></button>
           <button :class="{active: page==='policy'}" :aria-current="page==='policy' ? 'page' : undefined" @click="goto('policy')"><BookOpen :size="22" :stroke-width="1.8"/><span>정책 근거</span></button>
         </nav>
-        <div class="sidebar-foot"><span class="online-dot" :class="{off: !online}"/>{{mock ? '목업 방송 · 정책 v3.2 판정' : online ? 'SSE 연결됨' : '연결 확인 중'}}</div>
+        <div class="sidebar-foot"><span class="online-dot" :class="{off: !online}"/>정책 v3.2 판정</div>
       </aside>
       <div class="workspace">
         <main class="main-content">
-          <div class="status-strip"><div><Sparkles :size="16"/><b>{{pageTitles[page]}}</b><span v-if="mock" class="mock-mode-pill">MOCK · 시뮬레이션 결과</span><span v-else>LIVE API · 서버 권한 적용</span></div>
+          <div class="status-strip"><div><Sparkles :size="16"/><b>{{pageTitles[page]}}</b><span v-if="mock" class="mock-mode-pill">MOCK · 시뮬레이션 결과</span><span v-else class="mock-mode-pill live-mode-pill">LIVE API · 서버 권한 적용</span></div>
             <div class="status-controls"><button v-if="!mock" @click="emit('refresh')"><RefreshCcw :size="14"/> 새로고침</button><button v-if="!mock && !loading && (!live || ended)" class="primary" :disabled="busy" @click="emit('start')">방송 시작</button><button v-if="!mock && live && !ended" :disabled="busy" @click="emit('end')">방송 종료</button></div></div>
           <p v-if="error" class="error-inline" role="alert"><AlertCircle :size="17"/> {{error}}</p>
           <p v-if="notice" class="studio-notice" role="status">{{notice}}</p>

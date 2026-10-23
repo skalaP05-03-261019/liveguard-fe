@@ -7,6 +7,7 @@ import { categoryLabels, type Category, type Verdict } from './contracts';
 import { avatarColor } from './avatar';
 import { KICK_SUMMARY } from './mockLive';
 import ChatTracking from './ChatTracking.vue';
+import ModeBadge from './ModeBadge.vue';
 import { LIVE_CHANNEL_ID, sysChannels, sysLogs, sysReports, type SysChannel, type SysLog, type SysReport, type ReportStatus } from './systemMock';
 
 // 시스템 운영자(Mock 전용): LIVE:GUARD Agent가 여러 방송에서 올바르게 판단하는지 모니터링한다.
@@ -89,7 +90,7 @@ const channelStats = computed(() => shownChannels.value.map(c => {
 <template>
   <div class="app-shell sys-shell">
     <header class="topbar"><div class="topbar-title"><span class="yt-logo"><span class="yt-logo-mark"><ShieldCheck :size="15"/></span><b>LIVE<span>:</span>GUARD</b></span><span class="console-tag">System</span></div>
-      <div class="topbar-right"><span class="yt-me" :style="{background: avatarColor(store.me?.nickname ?? '시스템')}">{{(store.me?.nickname ?? '시').slice(0,1)}}</span><span class="operator-info">{{store.me?.nickname}}</span><button class="header-logout" @click="store.logout()"><LogOut :size="16"/> 로그아웃</button></div></header>
+      <div class="topbar-right"><ModeBadge mock/><span class="yt-me" :style="{background: avatarColor(store.me?.nickname ?? '시스템')}">{{(store.me?.nickname ?? '시').slice(0,1)}}</span><span class="operator-info">{{store.me?.nickname}}</span><button class="header-logout" @click="store.logout()"><LogOut :size="16"/> 로그아웃</button></div></header>
     <div class="sys-layout">
     <!-- 왼쪽 메뉴: 아이콘과 이름, 고른 항목은 회색 배경 -->
     <nav class="sys-side" role="tablist" aria-orientation="vertical" aria-label="시스템 운영자 화면">

@@ -21,7 +21,7 @@ function previewTimeout(seconds: 0 | 10 | 86400) {
 </script>
 
 <template>
-  <ViewerScreen v-model:draft="input" :messages="store.viewerMessages" :nickname="store.viewerAlias" :scope-key="store.channelId + ':' + store.viewerId" :clock="store.clock" mock :busy="store.busy" :blocked="store.kicked" :timed-out="store.timedOut" :timeout-until="store.viewerTimeoutUntil" :timeout-reason="timeoutReason" :error="store.error" @send="send" @logout="store.logout()">
+  <ViewerScreen v-model:draft="input" :messages="store.viewerMessages" :nickname="store.viewerAlias" :scope-key="store.channelId + ':' + store.viewerId" :clock="store.clock" mock :busy="store.busy" :blocked="store.kicked" :timed-out="store.timedOut" :timeout-until="store.viewerTimeoutUntil" :timeout-reason="timeoutReason" :error="store.error" :notice="store.notice" :started-at="store.mock.state.live.startedAt" @send="send" @logout="store.logout()">
     <template #demo>
       <div class="viewer-demo">
         <b>목업 시연</b><span>시청자 계정을 변경하면 본인의 비공개 메시지 가시성을 확인할 수 있습니다.</span>

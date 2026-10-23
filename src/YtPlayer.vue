@@ -3,8 +3,9 @@ import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { streamPoster, streamSrc } from './media';
 import { Captions, Maximize, Minimize, Pause, Play, RectangleHorizontal, Settings, Volume2, VolumeX } from 'lucide-vue-next';
 
-// 유튜브 라이브 플레이어 형태의 목업. 실제 스트림 대신 짧은 루프 영상을 재생한다.
-withDefaults(defineProps<{ demo?: boolean; viewers?: string; title?: string; theaterButton?: boolean }>(), { demo: false, viewers: '2,341', title: '', theaterButton: false });
+// 유튜브 라이브 플레이어 형태. 목업·실제 API 모두 실제 스트림 대신 짧은 루프 영상을 재생한다.
+// 지난 시간은 방송 시작 시각(startedAt)으로 계산하고, 시청자 수는 값이 있을 때만(목업) 보인다.
+const props = withDefaults(defineProps<{ startedAt?: string | null; viewers?: string | null; title?: string; theaterButton?: boolean }>(), { startedAt: null, viewers: null, title: '', theaterButton: false });
 const emit = defineEmits<{ theater: [] }>();
 const root = ref<HTMLElement | null>(null);
 const video = ref<HTMLVideoElement | null>(null);
@@ -12,8 +13,7 @@ const playing = ref(true);
 const muted = ref(true);
 const fullscreen = ref(false);
 const captions = ref(false);
-const elapsed = ref('1:12:08');
-const started = Date.now() - 4328_000;
+const elapsed = ref('');
 let timer: number | undefined;
 
 function fmt(ms: number) {
@@ -32,7 +32,8 @@ function toggleFullscreen() {
 function onFullscreen() { fullscreen.value = document.fullscreenElement === root.value; }
 onMounted(() => {
   document.addEventListener('fullscreenchange', onFullscreen);
-  timer = window.setInterval(() => { elapsed.value = fmt(Date.now() - started); }, 1000);
+  const tick = () => { const t = props.startedAt ? Date.parse(props.startedAt) : NaN; elapsed.value = Number.isNaN(t) ? '' : fmt(Math.max(0, Date.now() - t)); };
+  tick(); timer = window.setInterval(tick, 1000);
 });
 onBeforeUnmount(() => { document.removeEventListener('fullscreenchange', onFullscreen); window.clearInterval(timer); });
 </script>
@@ -49,9 +50,9 @@ onBeforeUnmount(() => { document.removeEventListener('fullscreenchange', onFulls
       <div class="yt-controls">
         <button :title="playing ? '일시중지 (k)' : '재생 (k)'" @click="togglePlay"><Pause v-if="playing" :size="22" fill="currentColor"/><Play v-else :size="22" fill="currentColor"/></button>
         <button :title="muted ? '음소거 해제 (m)' : '음소거 (m)'" @click="toggleMute"><VolumeX v-if="muted" :size="22"/><Volume2 v-else :size="22"/></button>
-        <span class="yt-live-dot">{{ demo ? '데모 영상' : '실시간' }}</span>
-        <span v-if="!demo" class="yt-time">{{ elapsed }}</span>
-        <span v-if="!demo" class="yt-watching">{{ viewers }}명 시청 중</span>
+        <span class="yt-live-dot">실시간</span>
+        <span v-if="elapsed" class="yt-time">{{ elapsed }}</span>
+        <span v-if="viewers" class="yt-watching">{{ viewers }}명 시청 중</span>
         <span class="yt-controls-spacer"/>
         <button :class="{ on: captions }" title="자막" @click="captions = !captions"><Captions :size="22"/></button>
         <button title="설정"><Settings :size="21"/></button>

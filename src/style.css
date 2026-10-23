@@ -1029,3 +1029,14 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .no-ai-box b{display:block;font-size:14px}
 .no-ai-box p{margin:4px 0;font-size:13px;line-height:1.55}
 .no-ai-box small{display:block;color:var(--text-2);font-size:12px;line-height:1.5}
+
+/* 데이터 모드 표시 (ModeBadge): 시청자·운영자·시스템 운영자 상단 같은 자리 */
+.mode-badge{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:14px;border:1px solid var(--line);background:#fff;color:var(--text-2);font-size:12px;font-weight:500;white-space:nowrap;margin-right:6px}
+.mode-badge i{width:7px;height:7px;border-radius:50%;background:#9aa0a6}
+.mode-badge.on i{background:#2ea44f}
+.mode-badge.mock{border-color:#e7c35c;background:#fff8e1;color:#5c3d00}
+.mode-badge.mock i{background:#d39e00}
+@media(max-width:600px){.mode-badge{height:24px;padding:0 8px;font-size:11px}}
+/* 좁은 화면에서는 장식 아이콘(음성 검색·만들기·알림)을 숨기고 모드 표시·새로고침·계정만 남긴다 */
+@media(max-width:760px){.yt-masthead .yt-deco{display:none}}
+.mock-mode-pill.live-mode-pill{background:#eef6f0;border-color:#b9dcc4;color:#1f6b38}

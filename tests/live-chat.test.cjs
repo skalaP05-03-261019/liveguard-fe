@@ -363,6 +363,53 @@ test('API mode sends the same profanity text to the backend without the mock rul
  assert.equal(await page.getByLabel('채팅 메시지',{exact:true}).isEnabled(),true);
 });
 
+test('mock and API viewers use the same decoration; numbers the API does not provide are mock-only',async()=>{
+ const mock=await openMock(),api=await open();
+ for(const page of [mock,api])await page.setViewportSize({width:1440,height:1000});
+ await waitFor(async()=>await api.getByLabel('채팅 메시지',{exact:true}).isEnabled());
+ for(const page of [mock,api]){
+  for(const title of ['음성으로 검색','만들기','알림'])await page.getByTitle(title,{exact:true}).waitFor();
+  await page.locator('.yt-subscribe').waitFor();await page.locator('.yt-actions').waitFor();
+  assert.equal(await page.locator('.yt-live-dot').innerText(),'실시간');
+  assert.match(await page.locator('.yt-time').innerText(),/^\d+:\d{2}:\d{2}$/);
+  assert.match(await page.locator('.yt-description b').innerText(),/방송 시작: /);
+ }
+ assert.equal(await mock.locator('[data-mode-badge]').innerText(),'MOCK 데이터');
+ assert.match(await api.locator('[data-mode-badge]').innerText(),/^(실시간 연결|연결 대기)$/);
+ // 실제 API에 없는 시청자·구독자 수와 알림 개수는 목업에서만 보인다. 새로고침은 실제 API에만 있다.
+ assert.equal(await mock.locator('.yt-watching').innerText(),'2,341명 시청 중');assert.equal(await api.locator('.yt-watching').count(),0);
+ assert.equal(await mock.locator('.yt-badge').count(),1);assert.equal(await api.locator('.yt-badge').count(),0);
+ assert.equal(await mock.getByTitle('새로고침',{exact:true}).count(),0);assert.equal(await api.getByTitle('새로고침',{exact:true}).count(),1);
+});
+
+test('mock notices appear inline like the API (role=status), not as toasts; the admin screen keeps its toast',async()=>{
+ // 시청자: 숨김 안내가 화면 안 안내 줄로 나온다.
+ const viewer=await openMock();
+ await sendMock(viewer,'아 시발 진짜');
+ await viewer.locator('.viewer-notice[role=status]').filter({hasText:'메시지 숨김'}).waitFor();
+ assert.equal(await viewer.locator('.toast').count(),0);
+ // 운영자: 결정 결과가 화면 안 안내 줄로 나오고, 같은 문구가 토스트로 또 나오지 않는다.
+ const studio=await openMockModerator();
+ await studio.locator('[data-mode-badge]').getByText('MOCK 데이터',{exact:true}).waitFor();
+ await showQueue(studio,'문맥 검토');
+ const card=studio.locator('.studio-review').filter({hasText:'아 진짜 노잼이네 꺼져라'});await openCard(card);
+ await decideCard(card,'보류');
+ await studio.locator('.studio-notice[role=status]').filter({hasText:'보류했습니다'}).waitFor();
+ assert.equal(await studio.locator('.toast').count(),0);
+ // 시스템 운영자 화면에는 안내 줄이 없어 토스트를 쓴다. 모드 표시는 같은 배지.
+ const ctx=await browser.newContext({viewport:{width:1280,height:1000},timezoneId:'Asia/Seoul'});contexts.push(ctx);
+ const admin=await ctx.newPage();admin.on('pageerror',e=>runtimeErrors.push(e.message));
+ await admin.goto(mockBase);await admin.getByRole('button',{name:'시스템 운영자 전용',exact:true}).click();await admin.getByRole('button',{name:'로그인',exact:true}).click();
+ await admin.locator('.toast').filter({hasText:'로그인 완료'}).waitFor();
+ assert.equal(await admin.locator('[data-mode-badge]').innerText(),'MOCK 데이터');
+});
+
+test('API operator shows the same mode badge (connection state) as the viewer',async()=>{
+ const page=await open('operator');
+ assert.match(await page.locator('[data-mode-badge]').innerText(),/^(실시간 연결|연결 대기)$/);
+ assert.equal(await page.getByText('MOCK 데이터',{exact:true}).count(),0);
+});
+
 test('mock and API viewers share desktop geometry and theater controls without invented API metrics',async()=>{
  const mock=await openMock(),api=await open();
  for(const page of [mock,api])await page.setViewportSize({width:1440,height:1000});
@@ -691,7 +738,7 @@ test('admin chat tracking shows the filter result, rule outcome and AI judgment 
 
 test('policy v3.2: the policy page explains CP-3.3 and the mock shows v3.2',async()=>{
  const page=await openMockModerator();
- await page.locator('.sidebar-foot').getByText('목업 방송 · 정책 v3.2 판정',{exact:true}).waitFor();
+ await page.locator('.sidebar-foot').getByText('정책 v3.2 판정',{exact:true}).waitFor();
  await page.getByRole('navigation',{name:'운영자 메뉴'}).getByRole('button',{name:'정책 근거',exact:true}).click();
  await page.getByText(/운영정책 v3\.2\(2026-10-23\) 기준/).waitFor();
  const rules=page.locator('[data-policy-harassment]');
