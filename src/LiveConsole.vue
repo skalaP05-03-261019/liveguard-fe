@@ -2,7 +2,7 @@
 // 실제 API(liveId) 연결. 시청자는 ViewerScreen, 운영자는 목업과 같은 StudioScreen에 데이터를 넘긴다.
 import {ref,computed,onMounted,onBeforeUnmount} from 'vue';
 import {api} from './api/client';
-import {ApiError,type Category,type Live,type LiveCase,type LiveReview,type Message,type MessagePage,reasonLabels} from './contracts';
+import {ApiError,authorNotice,type Category,type Live,type LiveCase,type LiveReview,type Message,type MessagePage} from './contracts';
 import {useLiveGuard} from './stores/liveGuard';
 import {LogOut,ShieldCheck} from 'lucide-vue-next';
 import ViewerScreen from './ViewerScreen.vue';
@@ -20,7 +20,7 @@ const accessReady=ref(false),clock=ref(Date.now()),timeoutUntil=ref<string|null>
 const timedOut=computed(()=>!blocked.value&&!ended.value&&(timeoutUnknown.value||!!timeoutUntil.value&&new Date(timeoutUntil.value).getTime()>clock.value));
 const chatDisabled=computed(()=>busy.value||!accessReady.value||ended.value||blocked.value||timedOut.value);
 const visibleMessages=computed(()=>blocked.value?[]:messages.value.filter(m=>operator.value||m.visibility==='PUBLIC'||m.isMine));
-const reasonOf=(m:Message)=>m.isMine?(m.moderationNotice??(m.moderationReasonCode?reasonLabels[m.moderationReasonCode]:null)??(m.visibility==='HELD'?'운영자 검토 중인 메시지입니다.':null)):null;
+const reasonOf=(m:Message)=>m.isMine?authorNotice(m):null;
 const timeoutReason=computed(()=>{
  const own=[...messages.value].reverse().find(m=>m.isMine&&m.timeoutUntil===timeoutUntil.value&&reasonOf(m));
  return own?reasonOf(own):restrictionReason.value;

@@ -128,11 +128,29 @@ after(async()=>{await browser?.close();await mockVite?.close();await vite?.close
 
 test('author sees reasons and review state; observer receives no private text; operator sees private messages',async()=>{
  state.messages=[message('normal','observer'),message('held','author','HELD',{moderationNotice:'문맥 확인을 기다립니다.',reviewStatus:'PENDING'}),message('hidden','author','HIDDEN',{moderationReasonCode:'LINK_NOT_ALLOWED'})];
- const author=await open();await author.getByText('문맥 확인을 기다립니다.',{exact:true}).waitFor();await author.getByText('검토 중',{exact:true}).waitFor();await author.getByText('허용되지 않은 링크가 포함되어 숨김 처리되었습니다.',{exact:true}).waitFor();
+ const author=await open();await author.getByText('문맥 확인을 기다립니다.',{exact:true}).waitFor();await author.getByText('검토 중',{exact:true}).waitFor();await author.getByText('이 방송에서는 링크 전송이 금지되어 있습니다.',{exact:true}).waitFor();
  const observer=await open('observer');await observer.getByText('normal 원문',{exact:true}).waitFor();assert.equal(await observer.locator('[data-message-id="held"]').count(),0);assert.equal(await observer.locator('[data-message-id="hidden"]').count(),0);
  assert(state.historyReads.filter(r=>r.role==='observer').every(r=>r.page.items.every(m=>m.visibility==='PUBLIC'||m.isMine)));
  const operator=await open('operator');await operator.locator('[data-message-id="held"]').waitFor();await operator.locator('[data-message-id="hidden"]').waitFor();
  await capture(author,'author-held-hidden');await capture(observer,'observer-isolated');await capture(operator,'operator-private-messages');
+});
+
+test('author notices use policy wording per reason code and no per-message restriction note',async()=>{
+ const until=new Date(Date.now()+600000).toISOString(),combined='금지된 욕설 또는 링크가 포함되어 숨김 처리되었습니다.';
+ state.until.author=until;
+ // 현재 Backend처럼 욕설·링크에 같은 문장을 보내고, timeoutUntil은 요청자의 현재 제한을 모든 본인 메시지에 싣는다.
+ state.messages=[
+  message('profanity','author','HIDDEN',{moderationReasonCode:'PROFANITY_INCLUDED',moderationNotice:combined,timeoutUntil:until}),
+  message('link','author','HIDDEN',{moderationReasonCode:'LINK_NOT_ALLOWED',moderationNotice:combined,timeoutUntil:until}),
+  message('context','author','HIDDEN',{moderationReasonCode:'CONTEXT_PENDING',moderationNotice:'운영자 검토로 위반이 확정되어 숨김 처리되었습니다.',timeoutUntil:until})];
+ const page=await open();
+ const reason=id=>page.locator(`[data-message-id="${id}"] .yt-chat-reason`);
+ await reason('link').waitFor();
+ assert.equal(await reason('profanity').innerText(),'메시지에 금지된 욕설이 포함되어 숨김 처리되었습니다.');
+ assert.equal(await reason('link').innerText(),'이 방송에서는 링크 전송이 금지되어 있습니다.');
+ assert.equal(await reason('context').innerText(),'운영자 검토로 위반이 확정되어 숨김 처리되었습니다.');
+ assert.equal(await page.locator('.yt-chat-items').getByText('채팅 제한',{exact:false}).count(),0);
+ await page.locator('.chat-timeout-notice').waitFor();
 });
 
 test('defensive rendering excludes other viewers private messages even from a malformed response',async()=>{
