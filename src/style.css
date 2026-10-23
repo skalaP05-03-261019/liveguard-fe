@@ -841,10 +841,33 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .queue-note{font-size:12px;color:var(--text-2);margin:0 0 10px}
 
 /* 실시간 관제는 영상·채팅만, 결정 대기는 별도 페이지 */
-/* 채팅 칸은 결정 대기가 있던 때와 같은 너비·높이를 유지한다(오른쪽 칸만 비움) */
-.monitor-grid.chat-only{grid-template-areas:'stream .' 'chat .'}
+/* 채팅 칸은 결정 대기가 있던 때와 같은 너비·높이를 유지하고, 오른쪽 칸에 채팅 상세를 둔다 */
+.monitor-grid.chat-only{grid-template-areas:'stream detail' 'chat detail'}
 .queue-link{margin:-2px 0 -2px 6px;padding:0 10px;line-height:16px;border-radius:12px;background:#fff1c2;border:1px solid #e7c35c;color:#5c3d00;font-size:12px;font-weight:600}
 .queue-link:hover{background:#ffe7a0}
 .queue-page{max-width:980px}
 .queue-page .hitl-section{max-height:none;overflow:visible}
-@media(max-width:950px){.monitor-grid.chat-only{grid-template-areas:'stream' 'chat'}}
+@media(max-width:950px){.monitor-grid.chat-only{grid-template-areas:'stream' 'chat' 'detail'}}
+
+/* 채팅 상세 */
+.chat-detail{grid-area:detail;min-height:0;display:flex;flex-direction:column}
+.chat-detail-empty{margin:auto;padding:24px;max-width:340px;text-align:center;font-size:13px;color:var(--text-2);line-height:1.6}
+.chat-detail-body{overflow:auto;padding:14px 16px 16px;display:grid;gap:14px;align-content:start}
+.detail-message{padding:10px 12px;border-left:3px solid #8170cd;background:#f8f8fb;border-radius:0 8px 8px 0}
+.detail-message>div{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-2)}
+.detail-message>div b{color:var(--text);font-size:13px}
+.detail-message p{margin-top:4px;font-size:14px;overflow-wrap:anywhere}
+.detail-block{display:grid;gap:4px}
+.detail-block h3{font-size:13px;font-weight:600;color:var(--text-2)}
+.detail-route{font-size:14px;font-weight:500}
+.detail-block>small,.detail-note{color:var(--text-2);font-size:12px}
+.detail-state{margin-top:4px}
+.detail-reason{flex-basis:100%;line-height:1.5}
+.detail-wait{display:flex;align-items:center;gap:8px;font-size:13px;color:#7a4b00}
+.case-flow.compact li{grid-template-columns:72px minmax(0,1fr);font-size:12px}
+.case-flow.compact li time{grid-column:2;grid-row:1;justify-self:end}
+.case-flow.compact li span{grid-column:1 / -1}
+.detail-actions{display:flex;flex-wrap:wrap;gap:8px}
+.detail-actions button{height:34px;padding:0 14px;border-radius:17px;background:var(--chip);font-size:13px;font-weight:500}
+.detail-actions button.primary{background:var(--text);color:#fff}
+.chat-row[role=button]{cursor:pointer}

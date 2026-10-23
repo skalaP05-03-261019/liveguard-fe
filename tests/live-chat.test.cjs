@@ -594,6 +594,46 @@ test('mock chat archive links a moderated message to its case flow',async()=>{
  assert.match(await flow.locator('li').first().innerText(),new RegExp(text.slice(0,6).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
 });
 
+test('API chat detail follows the AI investigation of a selected chat in real time',async()=>{
+ const masked={messageId:'held-1',authorAlias:'U1',text:'held-1 원문',visibility:'HELD',sentAt:timestamp()};
+ state.messages=[message('pass-1','observer'),message('held-1','author','HELD')];
+ state.cases=[{caseId:'case-held',liveId:'live-1',version:1,confirmationStatus:'PENDING',handlingRoute:'CONTEXT_REVIEW',messages:[masked],targetMessageIds:['held-1'],confirmedFindings:[],findings:[],createdAt:timestamp(),violationCount:0}];
+ const page=await open('operator');await waitFor(()=>clients.size>=2);
+ const detail=page.locator('.chat-detail');
+ await page.locator('.chat-row[data-message-id="pass-1"]').click();
+ await detail.getByText('Backend 필터 통과',{exact:true}).waitFor();assert.equal(await detail.getByText('AI Agent 판단',{exact:true}).count(),0);
+ await page.locator('.chat-row[data-message-id="held-1"]').click();
+ emit('TOOL_START',{caseId:'case-held',tool:'get_context',callId:'c1'});
+ await detail.getByText('조사 중입니다. 결과가 나오면 자동으로 보입니다.',{exact:true}).waitFor();
+ // Agent 판정이 저장되고 문맥 검토가 만들어진다.
+ state.cases[0].findings=[{messageId:'held-1',verdict:'NEEDS_REVIEW',categories:['HARASSMENT'],policyIds:['CP-3.2'],reason:'대상이 분명하지 않습니다.',missingFacts:['특정 시청자를 겨냥했는지']}];
+ state.reviews=[{reviewId:'review-held',kind:'CONTEXT',liveId:'live-1',caseId:'case-held',status:'PENDING',version:1,createdAt:timestamp(),aiVerdict:'NEEDS_REVIEW',messages:[masked],targetMessageIds:['held-1'],findings:state.cases[0].findings,basisCaseIds:[],summary:'AI 제안을 확인하고 최종 결정해 주세요'}];
+ emit('TOOL_END',{caseId:'case-held',tool:'get_context',callId:'c1',status:'OK'});emit('CONTEXT_REVIEW_REQUIRED',{reviewId:'review-held',caseId:'case-held',aiVerdict:'NEEDS_REVIEW'});
+ await detail.getByText('AI 제안 · 판단 보류',{exact:true}).waitFor();
+ await detail.getByText('확인 필요: 특정 시청자를 겨냥했는지',{exact:true}).waitFor();
+ assert.equal(await detail.getByText('조사 중입니다.',{exact:false}).count(),0);
+ await detail.getByRole('button',{name:'결정하러 가기 →',exact:true}).click();
+ await page.locator('.queue-page .studio-review.open[data-review-id="review-held"]').waitFor();
+});
+
+test('mock chat detail shows the filter result, rule outcome and AI judgment without inventing one',async()=>{
+ const page=await openMockModerator();const detail=page.locator('.chat-detail');
+ await detail.getByText('채팅을 누르면',{exact:false}).waitFor();
+ await page.locator('.chat-row').filter({hasText:'오늘 몇 시까지 하세요?'}).click();
+ await detail.getByText('Backend 필터 통과',{exact:true}).waitFor();assert.equal(await detail.locator('.review-ai').count(),0);
+ await page.locator('.chat-row').filter({hasText:'시발 너 진짜 못하네'}).click();
+ await detail.getByText('Backend 규칙으로 바로 확정했습니다. AI 조사는 하지 않습니다.',{exact:true}).waitFor();assert.equal(await detail.locator('.review-ai').count(),0);
+ await page.locator('.chat-row').filter({hasText:'아 진짜 노잼이네 꺼져라'}).click();
+ await detail.getByText('AI 제안 · 위반 의심',{exact:true}).waitFor();
+ // 같은 채팅을 결정하면 패널도 결과를 따라간다.
+ await detail.getByRole('button',{name:'결정하러 가기 →',exact:true}).click();
+ const card=page.locator('.queue-page .studio-review.open');await card.getByLabel('결정 이유 (필수)').fill('감탄 표현으로 봅니다.');await decideCard(card,'정상 확정');
+ await gotoMonitor(page);await detail.getByText('정상 확정 · 공개',{exact:true}).waitFor();
+ // 채팅 칸은 영상 정보와 같은 왼쪽 열 그대로이고, 상세 패널은 그 오른쪽에 있다.
+ const chat=await page.locator('.chat-panel').boundingBox(),stream=await page.locator('.stream-panel').boundingBox(),side=await detail.boundingBox();
+ assert.equal(Math.round(chat.width),Math.round(stream.width));assert(side.x>chat.x+chat.width);
+});
+
 test('mock context review stays held on defer, then applies normal and violation decisions',async()=>{
  async function decide(label,reason){
   const page=await openMockModerator();await openDemo(page);await page.getByRole('button',{name:'공격 표현',exact:true}).click();

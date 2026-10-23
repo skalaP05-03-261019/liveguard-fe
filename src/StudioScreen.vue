@@ -245,6 +245,32 @@ const shownChats = computed(() => {
   return chatRows.value.filter(m => f.match(m) && (!q || m.text.includes(q) || m.authorAlias.includes(q)));
 });
 
+// 채팅 상세: 실시간 관제에서 채팅 한 줄을 누르면 오른쪽 칸에 처리 경로와 AI Agent 판단을 보여 준다.
+// AI Agent는 Backend가 문맥 검토·개인정보 조사로 보낸 채팅만 판단한다. 그 밖의 채팅은 Backend 필터 결과만 있고, 없는 AI 판단을 만들어 보여 주지 않는다.
+// 사건·검토·실시간 기록이 갱신되면 패널도 그대로 따라 바뀐다.
+const selectedId = ref<string | null>(null);
+function selectMessage(id: string) { selectedId.value = selectedId.value === id ? null : id; }
+const selected = computed(() => {
+  const id = selectedId.value; if (!id) return null;
+  const message = props.messages.find(m => m.messageId === id) ?? (props.archive ?? []).find(m => m.messageId === id) ?? null;
+  if (!message) return null;
+  const item = caseByMessage.value.get(id) ?? null;
+  const review = item ? props.reviews.find(r => r.kind === 'CONTEXT' && r.caseId === item.caseId) ?? null : null;
+  const ai = !!item && !isRule(item);
+  const finding = item?.findings?.[0] ?? review?.findings[0] ?? null;
+  const investigating = ai && !finding;
+  const route = !item
+    ? message.visibility === 'PUBLIC'
+      ? { title: 'Backend 필터 통과', detail: 'AI 조사 대상이 아닙니다. 그대로 공개된 채팅입니다.' }
+      : { title: '처리 중', detail: '사건이 만들어지는 중입니다. 잠시 뒤 다시 확인됩니다.' }
+    : isRule(item)
+      ? { title: item.handlingRoute ? routeLabels[item.handlingRoute] : '규칙 자동 확정', detail: 'Backend 규칙으로 바로 확정했습니다. AI 조사는 하지 않습니다.' }
+      : { title: item.handlingRoute ? routeLabels[item.handlingRoute] : 'AI 문맥 검토', detail: 'Backend가 AI Agent에게 판단을 맡긴 채팅입니다. 결정은 운영자가 합니다.' };
+  return { message, item, review, ai, finding, investigating, route, state: item ? caseStateOf(item) : null };
+});
+// 결정 대기 페이지에서 그 검토를 펼친 채로 연다.
+function openDecision(r: LiveReview) { queueTab.value = r.kind; openIds[r.kind] = r.reviewId; goto('reviews'); }
+
 // 시청자 관리: 사건·검토를 시청자 이름으로 묶는다. 무효가 된 검토는 빼고 보여 준다.
 const viewerRows = computed(() => groupByViewer(
   props.cases.map((c): ViewerCase => ({ caseId: c.caseId, name: nameOf(c.caseId), createdAt: iso(c.createdAt), text: targetText(c), confirmationStatus: c.confirmationStatus, findings: c.confirmedFindings.map(f => ({ findingId: f.findingId, category: f.category, status: f.status })), violationCount: c.violationCount ?? null, version: c.version })),
@@ -302,11 +328,27 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
               <div class="stream-panel card"><div class="stream-caption"><span class="yt-channel-avatar">🎮</span><div><b>{{mock ? '오늘도 게임하는 날! 같이 놀아요 🎮' : '오늘의 라이브'}}</b><small>{{channelName}} · <span class="live-badge">{{ended ? '방송 종료' : '● 실시간'}}</span></small></div></div></div>
               <div class="chat-panel card"><div class="panel-heading"><h2>실시간 채팅 <ChevronDown :size="17"/></h2><div class="panel-heading-end"><button v-if="feedOn !== null" class="icon-control" :class="{on: feedOn}" :title="feedOn ? '채팅 흐름 일시정지 (MOCK)' : '채팅 흐름 재생 (MOCK)'" :aria-pressed="feedOn" @click="emit('toggleFeed')"><Pause v-if="feedOn" :size="17"/><Play v-else :size="17"/></button><button class="blocked-toggle" :class="{on: filter==='private'}" :aria-pressed="filter==='private'" @click="filter = filter==='all' ? 'private' : 'all'" :title="filter==='all' ? '임시 비노출·숨김 채팅만 보기' : '전체 채팅 보기'">비공개 채팅 <b>{{privateCount}}</b></button></div></div>
                 <div class="scan-wrap"><span class="ai-scan" aria-hidden="true"/><div ref="chatRef" class="chat-list" @scroll.passive="onScroll">
-                  <div v-for="m in shownMessages" :key="m.messageId" :data-message-id="m.messageId" class="chat-row" :class="{held: m.visibility==='HELD', hidden: m.visibility==='HIDDEN'}"><span class="chat-avatar" :style="{background: avatarColor(m.authorAlias)}">{{m.authorAlias.slice(0,1)}}</span><span class="chat-line"><b>{{m.authorAlias}}</b><span class="chat-text">{{m.text}}</span></span><span v-if="m.visibility!=='PUBLIC'" class="state-pill" :class="m.visibility.toLowerCase()">{{visibilityLabels[m.visibility]}}</span><time class="chat-time">{{asTime(m.sentAt)}}</time></div>
+                  <div v-for="m in shownMessages" :key="m.messageId" :data-message-id="m.messageId" class="chat-row" :class="{held: m.visibility==='HELD', hidden: m.visibility==='HIDDEN', selected: selectedId===m.messageId}" role="button" tabindex="0" :aria-pressed="selectedId===m.messageId" @click="selectMessage(m.messageId)" @keydown.enter.prevent="selectMessage(m.messageId)" @keydown.space.prevent="selectMessage(m.messageId)"><span class="chat-avatar" :style="{background: avatarColor(m.authorAlias)}">{{m.authorAlias.slice(0,1)}}</span><span class="chat-line"><b>{{m.authorAlias}}</b><span class="chat-text">{{m.text}}</span></span><span v-if="m.visibility!=='PUBLIC'" class="state-pill" :class="m.visibility.toLowerCase()">{{visibilityLabels[m.visibility]}}</span><time class="chat-time">{{asTime(m.sentAt)}}</time></div>
                   <div v-if="!shownMessages.length" class="empty-block">표시할 채팅이 없습니다.</div></div>
                   <button v-if="unread" class="new-msg-pill" @click="toBottom()">새 메시지 {{unread}}개 <ChevronDown :size="15"/></button></div>
                 <div class="chat-footer"><div class="ai-notice"><ShieldCheck :size="15"/> 임시 비노출·숨김 채팅은 작성자와 담당 운영자에게만 보입니다.</div><details v-if="$slots.demo" class="demo-fold"><summary>목업 빠른 시연</summary><slot name="demo"/></details></div>
               </div>
+              <aside class="chat-detail card" aria-label="채팅 상세">
+                <div class="panel-heading"><h2>채팅 상세</h2><button v-if="selected" type="button" class="icon-control" title="닫기" aria-label="채팅 상세 닫기" @click="selectedId=null">✕</button></div>
+                <p v-if="!selected" class="chat-detail-empty">채팅을 누르면 그 채팅이 어떻게 처리됐는지, AI Agent가 어떻게 판단했는지 볼 수 있습니다.</p>
+                <div v-else class="chat-detail-body">
+                  <div class="detail-message"><div><b>{{selected.message.authorAlias}}</b><time>{{asTime(selected.message.sentAt)}}</time><span v-if="selected.message.visibility!=='PUBLIC'" class="state-pill" :class="selected.message.visibility.toLowerCase()">{{visibilityLabels[selected.message.visibility]}}</span></div><p>{{selected.message.text}}</p></div>
+                  <section class="detail-block"><h3>처리 경로</h3><p class="detail-route">{{selected.route.title}}</p><small>{{selected.route.detail}}</small><p v-if="selected.state" class="detail-state"><span class="case-state" :class="selected.state.tone">{{selected.state.label}}</span></p></section>
+                  <section v-if="selected.ai" class="detail-block" aria-live="polite"><h3>AI Agent 판단</h3>
+                    <p v-if="selected.investigating" class="detail-wait"><span class="pulse-dot"/>조사 중입니다. 결과가 나오면 자동으로 보입니다.</p>
+                    <template v-else-if="selected.finding"><div class="review-ai"><span class="verdict-badge" :class="verdictTone(selected.finding.verdict)">AI 제안 · {{verdictLabels[selected.finding.verdict]}}</span><code title="AI 판정 코드">{{selected.finding.verdict}}</code><span class="detail-reason">{{selected.finding.reason}}</span><small>정책 {{selected.finding.policyIds.join(', ') || '-'}}</small></div>
+                      <p v-if="selected.finding.missingFacts.length" class="review-missing">확인 필요: {{selected.finding.missingFacts.join(', ')}}</p>
+                      <small class="detail-note">AI 제안은 참고용입니다. 공개 여부는 운영자가 결정합니다.</small></template>
+                  </section>
+                  <section v-if="selected.item" class="detail-block"><h3>처리 흐름</h3><ol class="case-flow compact" aria-label="채팅 처리 흐름"><li v-for="(step, n) in flowOf(selected.item)" :key="n" :class="step.tone"><b>{{step.label}}</b><time>{{step.time ?? ''}}</time><span>{{step.detail}}</span></li></ol></section>
+                  <div class="detail-actions"><button v-if="selected.review && selected.review.status==='PENDING'" type="button" class="primary" @click="openDecision(selected.review)">결정하러 가기 →</button><button v-if="selected.item" type="button" @click="showFlow(selected.item.caseId)">사건 이력에서 보기</button></div>
+                </div>
+              </aside>
             </section>
             </template>
 
