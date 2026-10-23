@@ -508,6 +508,51 @@ test('API context card shows when the message was sent and earlier cases with th
  assert.equal((await repeats.innerText()).replace(/\s+/g,' '),'같은 시청자가 같은 문장을 1번 더 보냈습니다: 2026-10-22 22:39 위반 확정');
 });
 
+test('API case flow shows AI investigation from live events, basis reasons and the decision count',async()=>{
+ const masked=(id,text,visibility)=>({messageId:id,authorAlias:'U1',text,visibility,sentAt:timestamp()});
+ const finding=(id,verdict,reason)=>({messageId:id,verdict,categories:['HARASSMENT'],policyIds:['CP-3.2'],reason,missingFacts:[]});
+ state.messages=[message('rule-1','author','HIDDEN'),message('rule-2','author','HIDDEN'),message('ctx','author','HIDDEN'),message('held','author','HELD')];
+ const confirmedCase=(caseId,id,route,findings)=>({caseId,liveId:'live-1',version:2,confirmationStatus:'CONFIRMED_VIOLATION',handlingRoute:route,messages:[masked(id,id+' 원문','HIDDEN')],targetMessageIds:[id],confirmedFindings:[{findingId:'f-'+caseId,category:route==='CONTEXT_REVIEW'?'HARASSMENT':'PROFANITY',status:'CONFIRMED',confirmedAt:timestamp(),revokedAt:null}],findings,createdAt:timestamp(),violationCount:1});
+ state.cases=[confirmedCase('case-rule-1','rule-1','RULE_CONFIRMED',[]),confirmedCase('case-rule-2','rule-2','RULE_CONFIRMED',[]),confirmedCase('case-ctx','ctx','CONTEXT_REVIEW',[finding('ctx','VIOLATION','대상을 향한 공격입니다.')]),
+  {caseId:'case-held',liveId:'live-1',version:1,confirmationStatus:'PENDING',handlingRoute:'CONTEXT_REVIEW',messages:[masked('held','held 원문','HELD')],targetMessageIds:['held'],confirmedFindings:[],findings:[],createdAt:timestamp(),violationCount:3}];
+ state.reviews=[{reviewId:'review-ctx',kind:'CONTEXT',liveId:'live-1',caseId:'case-ctx',status:'DECIDED',version:2,createdAt:timestamp(),aiVerdict:'VIOLATION',messages:state.cases[2].messages,targetMessageIds:['ctx'],findings:state.cases[2].findings,basisCaseIds:[],summary:'AI 제안을 확인하고 최종 결정해 주세요'},
+  {reviewId:'review-kick',kind:'KICK',liveId:'live-1',caseId:'case-ctx',status:'PENDING',version:1,createdAt:timestamp(),aiVerdict:'VIOLATION',messages:[],targetMessageIds:['ctx'],findings:[],basisCaseIds:['case-rule-1','case-rule-2','case-ctx'],summary:'서로 다른 확정 사건 3건 — 방송 종료까지 차단 승인 요청'}];
+ const page=await open('operator');
+ const kick=page.locator('.studio-review.kick');await kick.waitFor();
+ const reasons=await kick.locator('.basis-reason').allInnerTexts();
+ assert.deepEqual(reasons,['규칙 자동 확정 · AI 조사 없음','규칙 자동 확정 · AI 조사 없음','AI 위반 의심 · 대상을 향한 공격입니다.']);
+ // 아직 결정되지 않은 사건의 AI 조사가 실시간으로 진행된다.
+ await waitFor(()=>clients.size>=2);
+ emit('TOOL_START',{caseId:'case-held',tool:'get_context',callId:'c1'});emit('TOOL_END',{caseId:'case-held',tool:'get_context',callId:'c1',status:'OK',elapsedMs:900});
+ await page.getByRole('navigation',{name:'운영자 메뉴'}).getByRole('button',{name:'사건 이력',exact:true}).click();
+ await page.locator('.case-row[data-case-id="case-held"]').click();
+ const flow=page.locator('.case-flow');await flow.waitFor();
+ const steps=await flow.locator('li').evaluateAll(items=>items.map(li=>li.querySelector('b').textContent+' / '+li.querySelector('span').textContent));
+ assert.equal(steps[0].startsWith('채팅 / held 원문'),true);
+ assert.match(steps.find(x=>x.startsWith('AI 조사')),/^AI 조사 \/ 조사 중$/);
+ assert.equal(steps.find(x=>x.startsWith('운영자 결정')),'운영자 결정 / 결정 대기');
+ await page.locator('.case-row[data-case-id="case-ctx"]').click();
+ const ctxSteps=await flow.locator('li').evaluateAll(items=>items.map(li=>li.querySelector('b').textContent+' / '+li.querySelector('span').textContent));
+ assert.equal(ctxSteps.find(x=>x.startsWith('AI 판정')),'AI 판정 / 위반 의심 (VIOLATION) · 대상을 향한 공격입니다. · 정책 CP-3.2');
+ assert.equal(ctxSteps.find(x=>x.startsWith('운영자 결정')),'운영자 결정 / 위반 확정');
+ assert.match(ctxSteps.at(-1),/^강퇴 심사 \/ 기준 사건 3건 중 하나 · 결정 대기/);
+ await page.locator('.case-row[data-case-id="case-rule-1"]').click();
+ const ruleSteps=await flow.locator('li').evaluateAll(items=>items.map(li=>li.querySelector('b').textContent+' / '+li.querySelector('span').textContent));
+ assert.equal(ruleSteps.find(x=>x.startsWith('AI 조사')),'AI 조사 / 없음 · Backend 규칙으로 바로 확정');
+ await page.getByRole('navigation',{name:'운영자 메뉴'}).getByRole('button',{name:'시청자 관리',exact:true}).click();
+ await page.getByRole('status').filter({hasText:'사람 결정 필요 1명'}).waitFor();
+});
+
+test('mock review card opens the case flow for that case',async()=>{
+ const page=await openMockModerator();
+ const card=page.locator('.studio-review.context').first();await card.waitFor();
+ const text=await card.locator('.review-target').innerText();
+ await card.getByRole('button',{name:'처리 흐름 보기 →',exact:true}).click();
+ const flow=page.locator('.case-flow');await flow.waitFor();
+ assert.match(await flow.locator('li').first().innerText(),new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
+ assert.match(await flow.innerText(),/결정 대기/);
+});
+
 test('mock context review stays held on defer, then applies normal and violation decisions',async()=>{
  async function decide(label,reason){
   const page=await openMockModerator();await page.getByRole('button',{name:'공격 표현',exact:true}).click();

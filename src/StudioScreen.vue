@@ -2,7 +2,7 @@
 // 운영자(스트리머) Studio 화면. 목업과 실제 API가 같은 화면을 쓴다(#12).
 // 화면은 API v1.0 모양의 데이터와 사용자 동작만 다룬다. API·SSE 연결은 LiveConsole.vue, 목업 판정은 mockLive.ts가 맡는다.
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
-import { AlertCircle, BookOpen, Bot, ChevronDown, ClipboardCheck, FileClock, History, LogOut, Menu, Pause, Play, Radio, RefreshCcw, ShieldCheck, Sparkles, Users } from 'lucide-vue-next';
+import { AlertCircle, BookOpen, Bot, ChevronDown, ChevronRight, ClipboardCheck, FileClock, History, LogOut, Menu, Pause, Play, Radio, RefreshCcw, ShieldCheck, Sparkles, Users } from 'lucide-vue-next';
 import ViewerManage from './ViewerManage.vue';
 import { groupByViewer, type ViewerCase, type ViewerFinding, type ViewerReview } from './viewerManage';
 import { avatarColor } from './avatar';
@@ -14,7 +14,7 @@ import {
 import { KICK_THRESHOLD, priorColumns, routeRows, sanctionFor, sanctionLabel, sanctionTable, type Sanction } from './sanction';
 import { filterDictionary } from './mock';
 
-export interface StudioLog { id: string; time: string; event: string; detail: string }
+export interface StudioLog { id: string; time: string; event: string; detail: string; caseId?: string; reviewId?: string }
 type Page = 'monitor' | 'viewers' | 'cases' | 'policy' | 'logs';
 
 const props = withDefaults(defineProps<{
@@ -123,6 +123,62 @@ function ruleAction(c: LiveCase) {
   return worst ? { label: sanctionLabel(worst), tone: worst.timeoutSec ? 'timeout' : 'hide' } : { label: '확인 중', tone: 'none' };
 }
 
+// 사건 하나의 처리 흐름: 채팅 → 사건 생성 → AI 조사 → AI 판정 → 운영자 결정 → 조치 (→ 강퇴 심사).
+// 서버 응답에 남는 정보(보낸 시각·사건 생성·AI 판정·확정 상태와 시각)는 항상 보인다.
+// AI 조사 시작·완료와 운영자 결정 시각은 실시간 이벤트에만 있어, 이 화면을 연 뒤의 일만 시각이 보인다(감사 로그 API 없음).
+type FlowTone = 'done' | 'wait' | 'skip';
+interface FlowStep { label: string; time: string | null; detail: string; tone: FlowTone }
+const isRule = (c: LiveCase) => c.handlingRoute === 'RULE_CONFIRMED' || c.handlingRoute === 'FLOOD_REVIEW';
+const toMs = (v: unknown) => Date.parse(iso(v));
+function flowOf(c: LiveCase): FlowStep[] {
+  const reviewIds = new Set(props.reviews.filter(r => r.caseId === c.caseId).map(r => r.reviewId));
+  const events = props.logs.filter(l => l.caseId === c.caseId || (!!l.reviewId && reviewIds.has(l.reviewId))).sort((a, b) => toMs(a.time) - toMs(b.time));
+  const first = (name: string) => events.find(l => l.event === name);
+  const last = (name: string) => [...events].reverse().find(l => l.event === name);
+  const at = (l?: StudioLog) => l ? asTime(l.time) : null;
+  const review = props.reviews.find(r => r.kind === 'CONTEXT' && r.caseId === c.caseId);
+  const finding = c.findings?.[0] ?? review?.findings[0];
+  const confirmed = c.confirmedFindings.map(f => toMs(f.confirmedAt)).filter(t => !Number.isNaN(t)).sort((a, b) => a - b)[0];
+  const revoked = c.confirmedFindings.map(f => toMs(f.revokedAt)).filter(t => !Number.isNaN(t)).sort((a, b) => b - a)[0];
+  const steps: FlowStep[] = [
+    { label: '채팅', time: asTime(sentAt(c) ?? c.createdAt), detail: targetText(c) ?? '원문 없음', tone: 'done' },
+    { label: '사건 생성', time: asTime(c.createdAt), detail: c.handlingRoute ? routeLabels[c.handlingRoute] : '-', tone: 'done' }
+  ];
+  if (isRule(c)) {
+    steps.push({ label: 'AI 조사', time: null, detail: '없음 · Backend 규칙으로 바로 확정', tone: 'skip' });
+    steps.push({ label: '운영자 결정', time: null, detail: '없음 · 규칙 확정은 사람이 결정하지 않습니다', tone: 'skip' });
+  } else {
+    const start = first('TOOL_START'), end = last('TOOL_END'), failed = last('TASK_FAILED');
+    if (failed && !finding) steps.push({ label: 'AI 조사', time: at(failed), detail: 'AI 조사 실패', tone: 'wait' });
+    else if (finding) steps.push({ label: 'AI 조사', time: at(end) ?? at(start), detail: start || end ? `시작 ${at(start) ?? '-'} → 완료 ${at(end) ?? '-'}` : '완료 (시각은 이 화면을 연 뒤의 기록만 보입니다)', tone: 'done' });
+    else steps.push({ label: 'AI 조사', time: at(start), detail: '조사 중', tone: 'wait' });
+    steps.push(finding
+      ? { label: 'AI 판정', time: null, detail: `${verdictLabels[finding.verdict]} (${finding.verdict}) · ${finding.reason}${finding.policyIds.length ? ` · 정책 ${finding.policyIds.join(', ')}` : ''}`, tone: 'done' }
+      : { label: 'AI 판정', time: null, detail: '판정 대기', tone: 'wait' });
+    const decided = last('REVIEW_DECIDED');
+    if (review?.status === 'PENDING' || c.confirmationStatus === 'PENDING') steps.push({ label: '운영자 결정', time: null, detail: decided ? `보류됨 (${at(decided)}) · 다시 결정 대기` : '결정 대기', tone: 'wait' });
+    else steps.push({ label: '운영자 결정', time: at(decided), detail: c.confirmationStatus === 'CONFIRMED_NORMAL' ? '정상 확정' : '위반 확정', tone: 'done' });
+  }
+  if (c.confirmationStatus === 'CONFIRMED_VIOLATION') steps.push({ label: '조치', time: confirmed ? asTime(confirmed) : null, detail: ruleAction(c).label, tone: 'done' });
+  else if (c.confirmationStatus === 'CONFIRMED_NORMAL') steps.push({ label: '조치', time: at(last('MESSAGE_RESTORED')), detail: '공개', tone: 'done' });
+  else if (c.confirmationStatus === 'CANCELLED') steps.push({ label: '조치', time: revoked ? asTime(revoked) : null, detail: '오판 취소 · 숨김 해제', tone: 'done' });
+  else steps.push({ label: '조치', time: null, detail: '임시 비노출 유지', tone: 'wait' });
+  for (const k of props.reviews.filter(r => r.kind === 'KICK' && r.basisCaseIds.includes(c.caseId))) {
+    const state = kickStateOf(k);
+    steps.push({ label: '강퇴 심사', time: asTime(k.createdAt), detail: `기준 사건 ${k.basisCaseIds.length}건 중 하나 · ${reviewStatusLabels[k.status] ?? k.status}${state ? ` · ${state}` : ''}`, tone: k.status === 'PENDING' ? 'wait' : 'done' });
+  }
+  return steps;
+}
+const openCase = ref<string | null>(null);
+function toggleCase(id: string) { openCase.value = openCase.value === id ? null : id; }
+function showFlow(caseId: string) { openCase.value = caseId; goto('cases'); }
+// 강퇴 카드의 기준 사건별 근거. 고정 요약 문구 대신 사건마다 AI 판단 이유를 보여 준다.
+function basisReason(c: LiveCase) {
+  if (isRule(c)) return '규칙 자동 확정 · AI 조사 없음';
+  const f = c.findings?.[0];
+  return f ? `AI ${verdictLabels[f.verdict]} · ${f.reason}` : 'AI 판단 정보 없음';
+}
+
 // 시청자 관리: 사건·검토를 시청자 이름으로 묶는다. 무효가 된 검토는 빼고 보여 준다.
 const viewerRows = computed(() => groupByViewer(
   props.cases.map((c): ViewerCase => ({ caseId: c.caseId, name: nameOf(c.caseId), createdAt: iso(c.createdAt), text: targetText(c), confirmationStatus: c.confirmationStatus, findings: c.confirmedFindings.map(f => ({ findingId: f.findingId, category: f.category, status: f.status })), violationCount: c.violationCount ?? null, version: c.version })),
@@ -199,11 +255,12 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
                       <label class="review-reason-label" :for="'reason-' + r.reviewId">결정 이유 (필수)</label><textarea :id="'reason-' + r.reviewId" v-model="reasons[r.reviewId]" rows="2" maxlength="500" placeholder="확인한 근거와 결정 이유를 입력하세요" :disabled="busy || ended"/>
                       <div class="review-actions"><button :disabled="busy || ended || !reasonOf(r.reviewId)" @click="decide(r, 'CONFIRM_NORMAL')">정상 확정</button><button class="primary" :disabled="busy || ended || !reasonOf(r.reviewId) || !categoriesOf(r).length" @click="decide(r, 'CONFIRM_VIOLATION')">위반 확정</button><button :disabled="busy || ended || !reasonOf(r.reviewId)" @click="decide(r, 'DEFER')">보류</button></div>
                       <small class="review-foot">정상 확정은 공개, 위반 확정은 숨김과 기준표의 채팅 제한, 보류는 임시 비노출을 유지합니다.</small>
+                      <button type="button" class="review-flow-link" @click="showFlow(r.caseId)">처리 흐름 보기 →</button>
                     </template>
                     <template v-else>
                       <p class="review-summary">{{r.summary}}</p>
                       <table class="sanction-log basis-log"><caption>기준 사건 {{r.basisCaseIds.length}}건</caption><thead><tr><th>시간</th><th>유형</th><th>메시지</th><th>상태</th></tr></thead><tbody>
-                        <tr v-for="b in basisCases(r)" :key="b.id" :data-case-id="b.id"><td class="log-time">{{b.item ? asTime(b.item.createdAt) : '-'}}</td><td class="log-cat">{{b.item ? activeCategories(b.item).map(categoryName).join('·') || '-' : '-'}}</td><td class="log-text">{{b.item ? targetText(b.item) ?? '원문 없음' : `사건 ${b.id.slice(0,8)}`}}</td><td>{{b.item ? confirmationLabels[b.item.confirmationStatus] : '확인 중'}}</td></tr></tbody></table>
+                        <tr v-for="b in basisCases(r)" :key="b.id" :data-case-id="b.id"><td class="log-time">{{b.item ? asTime(b.item.createdAt) : '-'}}</td><td class="log-cat">{{b.item ? activeCategories(b.item).map(categoryName).join('·') || '-' : '-'}}</td><td class="log-text">{{b.item ? targetText(b.item) ?? '원문 없음' : `사건 ${b.id.slice(0,8)}`}}<small v-if="b.item" class="basis-reason">{{basisReason(b.item)}}</small></td><td>{{b.item ? confirmationLabels[b.item.confirmationStatus] : '확인 중'}}</td></tr></tbody></table>
                       <label class="review-reason-label" :for="'reason-' + r.reviewId">운영자 판단 근거 (필수)</label><textarea :id="'reason-' + r.reviewId" v-model="reasons[r.reviewId]" rows="2" maxlength="500" placeholder="최종 결정의 근거를 입력하세요" :disabled="busy || ended"/>
                       <div class="review-actions"><button class="primary" :disabled="busy || ended || !reasonOf(r.reviewId)" @click="decide(r, 'APPROVE')">강퇴 승인</button><button :disabled="busy || ended || !reasonOf(r.reviewId)" @click="decide(r, 'REJECT')">강퇴 기각</button></div>
                       <small class="review-foot">승인 저장은 강퇴 완료가 아닙니다. 기준 사건을 다시 확인한 뒤 이번 방송 종료까지 입장·채팅이 제한됩니다. 기각하면 기존 숨김·채팅 제한은 유지됩니다.</small>
@@ -221,9 +278,10 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
 
             <ViewerManage v-else-if="page==='viewers'" :rows="viewerRows" :busy="busy || ended" :scope="mock ? '현재 방송(Mock 데이터)' : '현재 방송'" @decide="onViewerDecide" @revoke="onViewerRevoke"/>
 
-            <section v-else-if="page==='cases'" class="secondary-page card"><div class="secondary-heading"><div><h2><FileClock :size="24"/> 사건 이력</h2><p>현재 방송에서 생긴 사건의 처리 경로, AI 제안, 확정 상태입니다.</p></div><span>{{cases.length}}건</span></div>
-              <div class="table-scroll"><table class="data-table"><thead><tr><th>발생 시각</th><th>시청자</th><th>메시지 (마스킹)</th><th>처리 경로</th><th>AI 제안</th><th>확정 상태</th><th>확정 유형</th></tr></thead><tbody>
-                <tr v-for="c in casesByTime" :key="c.caseId"><td>{{asTime(c.createdAt)}}</td><td>{{nameOf(c.caseId)}}</td><td class="log-text">{{targetText(c) ?? '-'}}</td><td>{{c.handlingRoute ? routeLabels[c.handlingRoute] : '-'}}</td><td><span v-if="c.findings?.length" class="verdict-badge" :class="verdictTone(c.findings[0].verdict)">{{verdictLabels[c.findings[0].verdict]}}</span><span v-else class="vm-muted">-</span></td><td>{{confirmationLabels[c.confirmationStatus] ?? c.confirmationStatus}}</td><td>{{activeCategories(c).map(categoryName).join('·') || '-'}}</td></tr></tbody></table></div>
+            <section v-else-if="page==='cases'" class="secondary-page card"><div class="secondary-heading"><div><h2><FileClock :size="24"/> 사건 이력</h2><p>현재 방송에서 생긴 사건의 처리 경로, AI 제안, 확정 상태입니다. 행을 펼치면 사건 하나가 어떻게 처리됐는지 단계별로 볼 수 있습니다.</p></div><span>{{cases.length}}건</span></div>
+              <div class="table-scroll"><table class="data-table"><thead><tr><th class="vm-toggle-col"></th><th>발생 시각</th><th>시청자</th><th>메시지 (마스킹)</th><th>처리 경로</th><th>AI 제안</th><th>확정 상태</th><th>확정 유형</th></tr></thead><tbody>
+                <template v-for="c in casesByTime" :key="c.caseId"><tr class="case-row" :class="{open: openCase===c.caseId}" :data-case-id="c.caseId" @click="toggleCase(c.caseId)"><td class="vm-toggle-col"><button class="vm-expand" :aria-expanded="openCase===c.caseId" :aria-label="`${nameOf(c.caseId)} 사건 처리 흐름 ${openCase===c.caseId ? '닫기' : '보기'}`" @click.stop="toggleCase(c.caseId)"><ChevronDown v-if="openCase===c.caseId" :size="18"/><ChevronRight v-else :size="18"/></button></td><td>{{asTime(c.createdAt)}}</td><td>{{nameOf(c.caseId)}}</td><td class="log-text">{{targetText(c) ?? '-'}}</td><td>{{c.handlingRoute ? routeLabels[c.handlingRoute] : '-'}}</td><td><span v-if="c.findings?.length" class="verdict-badge" :class="verdictTone(c.findings[0].verdict)">{{verdictLabels[c.findings[0].verdict]}}</span><span v-else class="vm-muted">-</span></td><td>{{confirmationLabels[c.confirmationStatus] ?? c.confirmationStatus}}</td><td>{{activeCategories(c).map(categoryName).join('·') || '-'}}</td></tr>
+                <tr v-if="openCase===c.caseId" class="case-flow-row"><td colspan="8"><ol class="case-flow" aria-label="사건 처리 흐름"><li v-for="(step, n) in flowOf(c)" :key="n" :class="step.tone"><b>{{step.label}}</b><time>{{step.time ?? ''}}</time><span>{{step.detail}}</span></li></ol><small class="vm-muted">AI 조사 시작·완료와 운영자 결정 시각은 실시간 이벤트에만 있어, 이 화면을 연 뒤의 일만 보입니다. 새로고침하면 사라집니다.</small></td></tr></template></tbody></table></div>
               <p v-if="!cases.length" class="empty-block">아직 사건이 없습니다.</p>
               <h3 class="studio-subhead">검토 기록</h3>
               <div class="table-scroll"><table class="data-table"><thead><tr><th>요청 시각</th><th>종류</th><th>시청자</th><th>상태</th></tr></thead><tbody>

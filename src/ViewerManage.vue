@@ -26,6 +26,8 @@ const counts = computed(() => {
   return out;
 });
 const chips = computed(() => statusOrder.filter(s => counts.value[s] > 0));
+// 사람이 결정해야 하는 검토(강퇴 승인·문맥 검토)가 남은 시청자 수
+const needDecision = computed(() => props.rows.filter(row => row.reviews.some(r => r.status === 'PENDING')).length);
 const shown = computed(() => filter.value === 'ALL' ? props.rows : props.rows.filter(row => statusOf(row) === filter.value));
 const pendingOf = (row: ViewerRow) => row.reviews.filter(r => r.status === 'PENDING');
 const asTime = (v: string) => dateTimeText(v || null);
@@ -39,7 +41,7 @@ function revoke(item: ViewerCase, finding: ViewerFinding) { if (reasonOf(finding
   <section class="vm card" aria-label="시청자 관리">
     <header class="vm-head">
       <div><h2><Users :size="22"/> 시청자 관리</h2><p>{{scope}} 기준으로 제재를 받은 시청자를 한 줄씩 보여 줍니다. 조치는 오판 취소와 검토 결정만 할 수 있습니다.</p></div>
-      <span class="vm-total">{{rows.length}}명</span>
+      <span class="vm-head-end"><b v-if="needDecision" class="vm-need" role="status">사람 결정 필요 {{needDecision}}명</b><span class="vm-total">{{rows.length}}명</span></span>
     </header>
     <div class="vm-chips" role="group" aria-label="상태 필터">
       <button :class="{on: filter==='ALL'}" :aria-pressed="filter==='ALL'" @click="filter='ALL'">전체 <b>{{rows.length}}</b></button>

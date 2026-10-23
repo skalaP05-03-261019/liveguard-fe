@@ -8,7 +8,8 @@ import { KICK_THRESHOLD, KICK_WINDOW_MS, sanctionFor, timeoutText } from './sanc
 
 export interface MockMessage extends Message { ownerId: string }
 export interface MockCase extends LiveCase { userId: string; createdAt: string; timeoutUntil: string | null }
-export interface StudioLog { id: string; time: string; event: string; detail: string }
+// caseId·reviewId는 사건별 처리 흐름을 만들 때 쓴다.
+export interface StudioLog { id: string; time: string; event: string; detail: string; caseId?: string; reviewId?: string }
 export interface MockDecision { kind: LiveReview['kind']; value: string; reason: string; decidedAt: string }
 export type KickOutcome = 'SUCCEEDED' | 'FAILED' | 'UNKNOWN';
 export type SendResult = { ok: true; message: MockMessage; caseItem: MockCase | null } | { ok: false; code: 'KICKED' | 'TIMED_OUT'; until?: string };
@@ -84,8 +85,8 @@ export function createMockLive(users: MockUser[]) {
   });
   const aliasOf = (userId: string) => users.find(u => u.id === userId)?.alias ?? '시청자';
   const ownerOfCase = (caseId: string) => state.cases.find(c => c.caseId === caseId)?.userId;
-  function log(event: string, detail: string, at = Date.now()) {
-    state.logs.unshift({ id: uid(), time: iso(at), event, detail }); state.logs.splice(80);
+  function log(event: string, detail: string, at = Date.now(), ids: { caseId?: string; reviewId?: string } = {}) {
+    state.logs.unshift({ id: uid(), time: iso(at), event, detail, ...ids }); state.logs.splice(200);
   }
   const activeFindings = (c: LiveCase) => c.confirmedFindings.filter(f => f.status === 'CONFIRMED');
   const isConfirmed = (c: LiveCase) => c.confirmationStatus === 'CONFIRMED_VIOLATION' && activeFindings(c).length > 0;
@@ -128,7 +129,7 @@ export function createMockLive(users: MockUser[]) {
       for (const m of targets(c)) m.timeoutUntil = c.timeoutUntil;
     }
     c.violationCount = recentConfirmed(c.userId, at);
-    log('CASE_UPDATED', `${aliasOf(c.userId)} · ${categories.map(x => categoryLabels[x]).join('·')} 위반 확정${timeoutSec ? ` · 채팅 ${timeoutText(timeoutSec)} 제한` : ''}`, at);
+    log('CASE_UPDATED', `${aliasOf(c.userId)} · ${categories.map(x => categoryLabels[x]).join('·')} 위반 확정${timeoutSec ? ` · 채팅 ${timeoutText(timeoutSec)} 제한` : ''}`, at, { caseId: c.caseId });
     ensureKick(c, at);
   }
   // 정책 v3.1 MP-4.1: 최근 24시간의 서로 다른 확정 사건 3건.
@@ -145,7 +146,7 @@ export function createMockLive(users: MockUser[]) {
     const reviewId = uid();
     state.reviews.push({ reviewId, kind: 'KICK', liveId: LIVE_ID, caseId: trigger.caseId, status: 'PENDING', version: 1, createdAt: iso(at), aiVerdict: 'VIOLATION', messages: trigger.messages, targetMessageIds: trigger.targetMessageIds, findings: trigger.findings ?? [], basisCaseIds: eligible.slice(0, KICK_THRESHOLD).map(c => c.caseId), summary: KICK_SUMMARY });
     trigger.status = 'KICK_REVIEW_PENDING';
-    log('KICK_REVIEW_REQUIRED', `${aliasOf(userId)} · 확정 사건 ${KICK_THRESHOLD}건`, at);
+    log('KICK_REVIEW_REQUIRED', `${aliasOf(userId)} · 확정 사건 ${KICK_THRESHOLD}건`, at, { caseId: trigger.caseId, reviewId });
   }
   function send(user: MockUser, text: string, at = Date.now()): SendResult {
     if (state.kicks[user.id]) return { ok: false, code: 'KICKED' };
@@ -173,16 +174,17 @@ export function createMockLive(users: MockUser[]) {
     if (route === 'PASS') return { ok: true, message, caseItem: null };
     const c = reactive({ caseId: uid(), liveId: LIVE_ID, version: 1, confirmationStatus: 'PENDING', handlingRoute: route, messages: snapshot(user.id), targetMessageIds: [message.messageId], confirmedFindings: [], findings: [], createdAt: iso(at), violationCount: recentConfirmed(user.id, at), status: 'ANALYZING', userId: user.id, timeoutUntil: null }) as MockCase;
     state.cases.push(c);
-    log('CASE_CREATED', `${user.alias} · ${route}`, at);
+    log('CASE_CREATED', `${user.alias} · ${route}`, at, { caseId: c.caseId });
     if (route === 'FLOOD_REVIEW') { confirm(c, ['FLOOD'], at, false); state.floodMarks.push({ userId: user.id, text: normalized, caseId: c.caseId, lastSentAt: at }); }
     else if (route === 'RULE_CONFIRMED') confirm(c, ruleCategories, at, false);
     else {
-      log('TOOL_START', `${user.alias} · ${route === 'PII_INVESTIGATION' ? '개인정보 조사' : '문맥 조사'} (목업 Agent)`, at);
+      log('TOOL_START', `${user.alias} · ${route === 'PII_INVESTIGATION' ? '개인정보 조사' : '문맥 조사'} (목업 Agent)`, at, { caseId: c.caseId });
       const finding = mockAgent(message.messageId, route, tags, text);
       c.findings = [finding]; c.status = 'NEEDS_REVIEW';
-      log('TOOL_END', `${user.alias} · AI 제안 ${finding.verdict}`, at);
-      state.reviews.push({ reviewId: uid(), kind: 'CONTEXT', liveId: LIVE_ID, caseId: c.caseId, status: 'PENDING', version: 1, createdAt: iso(at), aiVerdict: finding.verdict, messages: c.messages, targetMessageIds: c.targetMessageIds, findings: c.findings, basisCaseIds: [], summary: CONTEXT_SUMMARY });
-      log('CONTEXT_REVIEW_REQUIRED', `${user.alias} · AI 제안 ${finding.verdict}`, at);
+      log('TOOL_END', `${user.alias} · AI 제안 ${finding.verdict}`, at, { caseId: c.caseId });
+      const reviewId = uid();
+      state.reviews.push({ reviewId, kind: 'CONTEXT', liveId: LIVE_ID, caseId: c.caseId, status: 'PENDING', version: 1, createdAt: iso(at), aiVerdict: finding.verdict, messages: c.messages, targetMessageIds: c.targetMessageIds, findings: c.findings, basisCaseIds: [], summary: CONTEXT_SUMMARY });
+      log('CONTEXT_REVIEW_REQUIRED', `${user.alias} · AI 제안 ${finding.verdict}`, at, { caseId: c.caseId, reviewId });
     }
     return { ok: true, message, caseItem: c };
   }
@@ -194,14 +196,14 @@ export function createMockLive(users: MockUser[]) {
     if (r.kind === 'CONTEXT' && value === 'CONFIRM_VIOLATION' && !categories.length) return { ok: false, message: '위반 유형을 하나 이상 선택해 주세요.' };
     state.decisions[reviewId] = { kind: r.kind, value, reason, decidedAt: iso(at) };
     r.version++;
-    log('REVIEW_DECIDED', `${aliasOf(c.userId)} · ${r.kind} ${value}`, at);
+    log('REVIEW_DECIDED', `${aliasOf(c.userId)} · ${r.kind} ${value}`, at, { caseId: c.caseId, reviewId });
     if (r.kind === 'CONTEXT') {
       if (value === 'DEFER') return { ok: true, message: '보류했습니다. 검토 대기에 남습니다. (MOCK)' };
       r.status = 'DECIDED';
       if (value === 'CONFIRM_NORMAL') {
         c.confirmationStatus = 'CONFIRMED_NORMAL'; c.status = 'NO_ACTION'; c.version++;
         for (const m of targets(c)) setVisibility(m, 'PUBLIC', c.handlingRoute ?? 'CONTEXT_REVIEW');
-        log('MESSAGE_RESTORED', `${aliasOf(c.userId)} · 정상 확정으로 공개`, at);
+        log('MESSAGE_RESTORED', `${aliasOf(c.userId)} · 정상 확정으로 공개`, at, { caseId: c.caseId });
         return { ok: true, message: '정상으로 확정해 메시지를 공개했습니다. (MOCK)' };
       }
       confirm(c, categories, at, true);
@@ -224,7 +226,7 @@ export function createMockLive(users: MockUser[]) {
     const userId = ownerOfCase(r.caseId)!;
     if (outcome === 'SUCCEEDED') {
       state.kicks[userId] = reviewId; state.kickProgress[reviewId] = '강퇴 적용 완료';
-      log('LIVE_ACCESS_BLOCKED', `${aliasOf(userId)} · 이번 방송 종료까지`, at); log('ACTION_APPLIED', 'KICK · SUCCEEDED · CONFIRMED', at);
+      log('LIVE_ACCESS_BLOCKED', `${aliasOf(userId)} · 이번 방송 종료까지`, at); log('ACTION_APPLIED', 'KICK · SUCCEEDED · CONFIRMED', at, { caseId: r.caseId, reviewId });
       return '강퇴가 모의 적용됐습니다. (MOCK)';
     }
     if (outcome === 'FAILED') { state.kickProgress[reviewId] = '강퇴 실행 실패 · 기존 제재 유지'; log('ACTION_FAILED', 'KICK · FAILED · CONFIRMED', at); return '강퇴 실행 실패를 모의 적용했습니다. 기존 제재는 유지됩니다. (MOCK)'; }
@@ -248,7 +250,7 @@ export function createMockLive(users: MockUser[]) {
       if (state.kicks[c.userId] === r.reviewId) { delete state.kicks[c.userId]; state.kickProgress[r.reviewId] = '근거 취소 · 강퇴 해제'; }
       else if (state.kickProgress[r.reviewId]) state.kickProgress[r.reviewId] = '근거 취소 · 강퇴하지 않음';
     }
-    log('CASE_UPDATED', `${aliasOf(c.userId)} · ${categoryLabels[f.category]} 오판 취소 · ${reason}`, at);
+    log('CASE_UPDATED', `${aliasOf(c.userId)} · ${categoryLabels[f.category]} 오판 취소 · ${reason}`, at, { caseId: c.caseId });
     return true;
   }
   // 초기 화면: fixture 채팅과 운영자 결정을 시간 순서대로 다시 넣는다.
@@ -269,7 +271,6 @@ export function createMockLive(users: MockUser[]) {
       } });
     }
     steps.sort((a, b) => a.at - b.at).forEach(s => s.run());
-    state.logs.splice(0);
     log('MOCK', '목업 방송 데이터를 불러왔습니다. 판정은 정책 v3.1 기준입니다.', now);
   }
   return { state, aliasOf, send, decide, finishKick, revoke, reset, log };

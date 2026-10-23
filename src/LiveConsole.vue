@@ -108,7 +108,7 @@ function connect(){
   try{
    const v=JSON.parse((e as MessageEvent).data);
    if(!v.eventId||seen.has(v.eventId))return;seen.add(v.eventId);if(seen.size>1000)seen.delete(seen.values().next().value!);
-   logs.value.unshift({id:v.eventId,time:v.occurredAt,event:e.type,detail:JSON.stringify(v.payload)});logs.value=logs.value.slice(0,60);
+   logs.value.unshift({id:v.eventId,time:v.occurredAt,event:e.type,detail:JSON.stringify(v.payload),caseId:v.payload?.caseId,reviewId:v.payload?.reviewId});logs.value=logs.value.slice(0,200);
    if(e.type==='LIVE_ENDED'){markEnded();return;}
    if(e.type==='LIVE_ACCESS_BLOCKED'&&!operator.value){blockAccess();return;}
    if(e.type==='MESSAGE_VISIBILITY_CHANGED'&&v.payload.visibility!=='PUBLIC'&&!operator.value){
