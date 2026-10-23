@@ -619,7 +619,7 @@ test('API chat detail follows the AI investigation of a selected chat in real ti
  // 판정이 아직 없으니 Agent 조사에서 멈추고, 그 뒤 단계는 거쳤다고 표시하지 않는다.
  nodes=await graphTones(detail);
  assert.equal(nodes.classify,'path');assert.equal(nodes.agent,'wait');
- assert.deepEqual(await detail.locator('.process-zone.on').evaluateAll(z=>z.map(x=>x.dataset.graphZone)),['held']);
+ assert.deepEqual(await detail.locator('.process-zone.on').evaluateAll(z=>z.map(x=>x.dataset.graphZone)),['agent']);
  assert.equal(nodes.public,'skip');assert.equal(nodes.rule,'skip');
  for(const id of ['research','verify','wait','decide','normal','violation'])assert.notEqual(nodes[id],'path',id);
  assert.equal((await graphTones(detail,'edge'))['classify-agent'],'path');
@@ -637,6 +637,12 @@ test('API chat detail follows the AI investigation of a selected chat in real ti
  for(const id of ['chat','classify','agent','research','verify'])assert.equal(nodes[id],'path',id);
  assert.equal(nodes.wait,'wait');assert.equal(nodes.apply,'skip');assert.notEqual(nodes.decide,'path');
  assert.equal(edges['verify-wait'],'path');assert.equal(edges['verify-apply'],'skip');
+ // 띠는 위에서부터 ① 통과 ② 숨김 ③ Agent 판단 ④ 운영자 결정, 띠 사이에는 선만 있고 화살표는 없다.
+ assert.deepEqual(await detail.locator('[data-graph-zone]').evaluateAll(z=>z.map(x=>x.dataset.graphZone)),['pass','hide','agent','operator']);
+ const bandTops=await detail.locator('[data-graph-zone] rect').evaluateAll(r=>r.map(x=>+x.getAttribute('y')));
+ assert.deepEqual([...bandTops].sort((x,y)=>x-y),bandTops);
+ assert.equal(await detail.locator('.process-separator').count(),4);assert.equal(await detail.locator('[data-graph-edge]').count(),12);
+ assert.deepEqual(await detail.locator('.process-zone.on').evaluateAll(z=>z.map(x=>x.dataset.graphZone)),['agent','operator']);
  await detail.locator('[data-graph-edge="verify-wait"]').getByText('문맥 검토',{exact:true}).waitFor();
  // 노드를 누르면 그래프 아래에 그 단계의 근거가 나온다. 내부 코드는 여기에서만 보인다.
  assert.equal(await detail.locator('.process-graph').getByText('NEEDS_REVIEW').count(),0);

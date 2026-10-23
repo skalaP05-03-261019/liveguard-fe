@@ -273,34 +273,35 @@ type GraphTone = 'path' | 'wait' | 'skip' | 'unknown';
 type GraphNodeId = 'chat' | 'classify' | 'public' | 'rule' | 'agent' | 'research' | 'verify' | 'apply' | 'wait' | 'decide' | 'normal' | 'violation';
 type GraphEdgeId = 'chat-classify' | 'classify-public' | 'classify-rule' | 'classify-agent' | 'agent-research' | 'research-verify' | 'verify-apply' | 'verify-wait' | 'wait-decide' | 'decide-normal' | 'decide-violation' | 'decide-defer';
 interface GraphNode { id: GraphNodeId; label: string; actor: string; shape: 'rect' | 'diamond'; x: number; y: number; w: number; h: number }
+// 위쪽은 접수·1차 분류, 그 아래는 ① 통과 ② 숨김 ③ Agent 판단 ④ 운영자 결정 띠. 띠 순서는 처리 순서가 아니다.
 const graphNodes: GraphNode[] = [
   { id: 'chat', label: '채팅 접수', actor: '시청자', shape: 'rect', x: 240, y: 40, w: 160, h: 50 },
   { id: 'classify', label: '백엔드 1차 분류', actor: 'Backend', shape: 'diamond', x: 240, y: 135, w: 200, h: 80 },
-  { id: 'public', label: '공개 유지', actor: 'Backend', shape: 'rect', x: 65, y: 235, w: 120, h: 50 },
-  { id: 'rule', label: '숨김·제재 처리', actor: 'Backend 규칙', shape: 'rect', x: 415, y: 235, w: 124, h: 50 },
-  { id: 'agent', label: 'Agent 조사', actor: 'AI Agent', shape: 'rect', x: 240, y: 235, w: 160, h: 50 },
-  { id: 'research', label: '문맥·정책 조사', actor: 'AI Agent', shape: 'rect', x: 240, y: 320, w: 160, h: 50 },
-  { id: 'verify', label: '판단·근거 검증', actor: 'Backend', shape: 'diamond', x: 240, y: 415, w: 200, h: 80 },
-  { id: 'apply', label: '백엔드 결과 반영', actor: 'Backend', shape: 'rect', x: 415, y: 520, w: 124, h: 50 },
-  { id: 'wait', label: '운영자 결정 대기', actor: '운영자', shape: 'rect', x: 240, y: 520, w: 160, h: 50 },
-  { id: 'decide', label: '운영자 결정', actor: '운영자', shape: 'diamond', x: 240, y: 615, w: 200, h: 80 },
-  { id: 'normal', label: '공개', actor: '정상 확정', shape: 'rect', x: 65, y: 710, w: 120, h: 50 },
-  { id: 'violation', label: '숨김·제재 적용', actor: '위반 확정', shape: 'rect', x: 415, y: 710, w: 124, h: 50 }
+  { id: 'public', label: '공개 유지', actor: 'Backend', shape: 'rect', x: 100, y: 240, w: 120, h: 50 },
+  { id: 'rule', label: '숨김·제재 처리', actor: 'Backend 규칙', shape: 'rect', x: 415, y: 324, w: 124, h: 50 },
+  { id: 'agent', label: 'Agent 조사', actor: 'AI Agent', shape: 'rect', x: 240, y: 408, w: 160, h: 50 },
+  { id: 'research', label: '문맥·정책 조사', actor: 'AI Agent', shape: 'rect', x: 240, y: 485, w: 160, h: 50 },
+  { id: 'verify', label: '판단·근거 검증', actor: 'Backend', shape: 'diamond', x: 240, y: 575, w: 200, h: 80 },
+  { id: 'apply', label: '백엔드 결과 반영', actor: 'Backend', shape: 'rect', x: 415, y: 650, w: 124, h: 50 },
+  { id: 'wait', label: '운영자 결정 대기', actor: '운영자', shape: 'rect', x: 240, y: 742, w: 160, h: 50 },
+  { id: 'decide', label: '운영자 결정', actor: '운영자', shape: 'diamond', x: 240, y: 832, w: 200, h: 80 },
+  { id: 'normal', label: '공개', actor: '정상 확정', shape: 'rect', x: 65, y: 925, w: 120, h: 50 },
+  { id: 'violation', label: '숨김·제재 적용', actor: '위반 확정', shape: 'rect', x: 415, y: 925, w: 124, h: 50 }
 ];
 // 화살표는 노드의 변·꼭짓점에 붙는다. label은 분기 조건이다.
 const graphEdges: { id: GraphEdgeId; points: [number, number][]; label?: string; lx?: number; ly?: number; anchor?: 'start' | 'end' }[] = [
   { id: 'chat-classify', points: [[240, 65], [240, 95]] },
-  { id: 'classify-public', points: [[140, 135], [65, 135], [65, 210]], label: '통과', lx: 102, ly: 127 },
-  { id: 'classify-rule', points: [[340, 135], [415, 135], [415, 210]], label: '규칙 위반 확정', lx: 380, ly: 127 },
-  { id: 'classify-agent', points: [[240, 175], [240, 210]], label: '추가 조사 필요', lx: 248, ly: 184, anchor: 'start' },
-  { id: 'agent-research', points: [[240, 260], [240, 295]] },
-  { id: 'research-verify', points: [[240, 345], [240, 375]] },
-  { id: 'verify-apply', points: [[340, 415], [415, 415], [415, 495]], label: '검증 완료', lx: 380, ly: 407 },
-  { id: 'verify-wait', points: [[240, 455], [240, 495]], label: '문맥 검토 · 추가 검토', lx: 248, ly: 480, anchor: 'start' },
-  { id: 'wait-decide', points: [[240, 545], [240, 575]] },
-  { id: 'decide-normal', points: [[240, 655], [240, 670], [65, 670], [65, 685]], label: '정상 확정', lx: 150, ly: 666 },
-  { id: 'decide-violation', points: [[340, 615], [415, 615], [415, 685]], label: '위반 확정', lx: 380, ly: 607 },
-  { id: 'decide-defer', points: [[140, 615], [105, 615], [105, 520], [160, 520]], label: '보류', lx: 99, ly: 572, anchor: 'end' }
+  { id: 'classify-public', points: [[140, 135], [100, 135], [100, 215]], label: '통과', lx: 120, ly: 127 },
+  { id: 'classify-rule', points: [[340, 135], [415, 135], [415, 299]], label: '규칙 위반 확정', lx: 380, ly: 127 },
+  { id: 'classify-agent', points: [[240, 175], [240, 383]], label: '추가 조사 필요', lx: 248, ly: 184, anchor: 'start' },
+  { id: 'agent-research', points: [[240, 433], [240, 460]] },
+  { id: 'research-verify', points: [[240, 510], [240, 535]] },
+  { id: 'verify-apply', points: [[340, 575], [415, 575], [415, 625]], label: '검증 완료', lx: 380, ly: 567 },
+  { id: 'verify-wait', points: [[240, 615], [240, 717]], label: '문맥 검토 · 추가 검토', lx: 232, ly: 660, anchor: 'end' },
+  { id: 'wait-decide', points: [[240, 767], [240, 792]] },
+  { id: 'decide-normal', points: [[240, 872], [240, 886], [65, 886], [65, 900]], label: '정상 확정', lx: 150, ly: 882 },
+  { id: 'decide-violation', points: [[340, 832], [415, 832], [415, 900]], label: '위반 확정', lx: 380, ly: 824 },
+  { id: 'decide-defer', points: [[140, 832], [105, 832], [105, 742], [160, 742]], label: '보류', lx: 99, ly: 790, anchor: 'end' }
 ];
 const edgePath = (pts: [number, number][]) => pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join(' ');
 const diamondPoints = (n: GraphNode) => `${n.x},${n.y - n.h / 2} ${n.x + n.w / 2},${n.y} ${n.x},${n.y + n.h / 2} ${n.x - n.w / 2},${n.y}`;
@@ -344,10 +345,13 @@ const graph = computed(() => {
 // 분기 조건 글자는 실제로 지난 분기일 때 그 이유로 바꿔 보여 준다.
 // 1차 분류로 갈라지는 세 영역. 이 채팅이 들어간 영역만 색을 채운다.
 type GraphZoneId = 'pass' | 'hide' | 'held';
-const graphZones: { id: GraphZoneId; label: string; d: string; lx: number; ly: number; anchor?: 'end' }[] = [
-  { id: 'pass', label: '통과 · PUBLIC', d: 'M4 186 H132 V282 H4 Z', lx: 10, ly: 277 },
-  { id: 'hide', label: '숨김 · HIDDEN', d: 'M348 186 H476 V282 H348 Z', lx: 470, ly: 277, anchor: 'end' },
-  { id: 'held', label: 'Agent 인계 · HELD', d: 'M140 186 H340 V290 H476 V746 H4 V290 H140 Z', lx: 10, ly: 306 }
+// 가로 전체 너비 띠 4개. 띠 사이에는 실선만 긋고 화살표는 넣지 않는다.
+type GraphBandId = 'pass' | 'hide' | 'agent' | 'operator';
+const graphBands: { id: GraphBandId; label: string; y: number; h: number }[] = [
+  { id: 'pass', label: '① 백엔드 통과', y: 188, h: 84 },
+  { id: 'hide', label: '② 백엔드 숨김', y: 272, h: 84 },
+  { id: 'agent', label: '③ Agent 판단', y: 356, h: 334 },
+  { id: 'operator', label: '④ 운영자 결정', y: 690, h: 272 }
 ];
 const graphZone = computed<GraphZoneId | null>(() => {
   const node = graph.value.node;
@@ -356,6 +360,13 @@ const graphZone = computed<GraphZoneId | null>(() => {
   if (node.agent === 'path' || node.agent === 'wait') return 'held';
   return null;
 });
+// 이 채팅이 들어간 띠만 색을 채운다. Agent에 넘어간 채팅은 운영자 결정 대기에 닿았을 때 ④도 채운다.
+const bandOn = (id: GraphBandId) => {
+  const zone = graphZone.value, wait = graph.value.node.wait;
+  if (id === 'pass' || id === 'hide') return zone === id;
+  if (id === 'agent') return zone === 'held';
+  return zone === 'held' && (wait === 'path' || wait === 'wait');
+};
 // 그래프 위 한 줄: 어떤 경로로 분류됐는지 바로 읽히게 한다.
 const graphZoneText = computed(() => {
   const item = selected.value?.item;
@@ -520,9 +531,10 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
                     <div class="graph-heading"><h3>판단 경로</h3><span class="graph-status-badge" :class="'status-' + selected.message.visibility.toLowerCase()" :title="`현재 메시지 상태 ${selected.message.visibility}`">현재 {{visibilityLabels[selected.message.visibility]}}</span></div>
                     <p class="graph-zone-line" :class="graphZone ? 'zone-' + graphZone : 'zone-none'" data-graph-zone-line><span>1차 분류 결과</span><b>{{graphZoneText}}</b></p>
                     <div class="decision-graph-scroll">
-                      <svg class="process-graph" viewBox="0 0 480 750" role="group" aria-label="처리 단계와 분기. 선택한 채팅이 실제로 거친 경로를 강조">
+                      <svg class="process-graph" viewBox="0 0 480 962" role="group" aria-label="처리 단계와 분기. 선택한 채팅이 실제로 거친 경로를 강조">
                         <g class="process-zones">
-                          <g v-for="z in graphZones" :key="z.id" class="process-zone" :class="['zone-' + z.id, {on: graphZone===z.id}]" :data-graph-zone="z.id"><path :d="z.d"/><text :x="z.lx" :y="z.ly" :style="z.anchor ? { textAnchor: z.anchor } : undefined">{{z.label}}</text></g>
+                          <g v-for="z in graphBands" :key="z.id" class="process-zone" :class="['zone-' + z.id, {on: bandOn(z.id)}]" :data-graph-zone="z.id"><rect x="0" :y="z.y" width="480" :height="z.h"/><text x="8" :y="z.y + 15">{{z.label}}</text></g>
+                          <line v-for="z in graphBands" :key="'line-' + z.id" class="process-separator" x1="0" x2="480" :y1="z.y" :y2="z.y"/>
                         </g>
                         <g class="process-edges">
                           <g v-for="e in graphEdges" :key="e.id" class="process-edge" :class="graph.edge[e.id]" :data-graph-edge="e.id">
