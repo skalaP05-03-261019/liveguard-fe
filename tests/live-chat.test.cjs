@@ -71,6 +71,7 @@ async function waitFor(check){
 async function openCard(card){if(!/\bopen\b/.test(await card.getAttribute('class')))await card.locator('.review-head').click();}
 async function openMore(card){await openCard(card);if(!(await card.locator('.review-more').evaluate(el=>el.open)))await card.locator('.review-more > summary').click();}
 async function decideCard(card,label){await openCard(card);await card.getByRole('radio',{name:label,exact:true}).check();await card.getByRole('button',{name:'제출',exact:true}).click();}
+async function showQueue(page,name){await page.getByRole('tablist',{name:'결정 대기 종류'}).getByRole('tab',{name:new RegExp('^'+name)}).click();}
 async function openDemo(page){const fold=page.locator('.demo-fold');if(!(await fold.evaluate(el=>el.open)))await fold.locator('summary').click();}
 async function capture(page,name){if(evidence){await fs.mkdir(evidence,{recursive:true});await page.screenshot({path:path.join(evidence,`${name}.png`),fullPage:true,animations:'disabled'});}}
 before(async()=>{
@@ -553,7 +554,7 @@ test('API case flow shows AI investigation from live events, basis reasons and t
 
 test('mock review card opens the case flow for that case',async()=>{
  const page=await openMockModerator();
- const card=page.locator('.studio-review.context').first();await card.waitFor();
+ await showQueue(page,'문맥 검토');const card=page.locator('.studio-review.context').first();await card.waitFor();
  await openMore(card);const text=await card.locator('.review-target').innerText();
  await card.getByRole('button',{name:'처리 흐름 보기 →',exact:true}).click();
  const flow=page.locator('.case-flow');await flow.waitFor();
@@ -595,7 +596,7 @@ test('mock context review stays held on defer, then applies normal and violation
   const page=await openMockModerator();await openDemo(page);await page.getByRole('button',{name:'공격 표현',exact:true}).click();
   const row=page.locator('.chat-row').filter({hasText:'너 같은 건 방송 접어라'});await row.waitFor();
   assert.match(await row.getAttribute('class'),/held/);
-  const card=page.locator('.studio-review').filter({hasText:'너 같은 건 방송 접어라'});await openCard(card);
+  await showQueue(page,'문맥 검토');const card=page.locator('.studio-review').filter({hasText:'너 같은 건 방송 접어라'});await openCard(card);
   await card.getByText('AI 제안 · 위반 의심',{exact:true}).waitFor();await card.getByText('정책 CP-3.2',{exact:true}).waitFor();
   await card.getByLabel('결정 이유 (필수)').fill(reason);
   await decideCard(card,label);
@@ -678,13 +679,19 @@ test('mock and API operators share the Studio screen and API decisions send the 
  assert.deepEqual(await menus(api),await menus(mock));
  assert.deepEqual(await menus(api),['실시간 관제','시청자 관리','사건 이력','채팅 기록','정책 근거']);
  for(const page of [api,mock]){
-  await page.locator('.section-head b').filter({hasText:'운영자 결정 대기'}).waitFor();
+  // 강퇴 승인과 문맥 검토는 탭으로 나뉜다. 강퇴 요청이 있으면 강퇴 탭이 먼저 보이고, 다른 탭에는 대기 표시가 붙는다.
+  const tabs=page.getByRole('tablist',{name:'결정 대기 종류'});
+  assert.deepEqual((await tabs.getByRole('tab').allInnerTexts()).map(x=>x.replace(/\s+/g,' ').trim()),['강퇴 승인 1','문맥 검토 1']);
+  assert.match(await tabs.getByRole('tab',{selected:true}).innerText(),/^강퇴 승인/);
+  assert.equal(await page.locator('.studio-review.context').count(),0);assert.equal(await tabs.locator('.tab-alert').count(),1);
+  await showQueue(page,'문맥 검토');assert.equal(await page.locator('.studio-review.kick').count(),0);assert.equal(await page.locator('.studio-review.context.open').count(),1);
+  await showQueue(page,'강퇴 승인');
   assert.equal(await page.locator('.auto-section').count(),0);
   assert.equal(await page.locator('.studio-review.kick tbody tr').count(),3);
  }
  assert.equal(await api.getByText('MOCK',{exact:false}).count(),0);assert.equal(await api.locator('.scenario-toolbar').count(),0);
  const card=api.locator('.studio-review[data-review-id="review-ctx"]');
- await openMore(card);await card.getByText('AI 제안 · 판단 보류',{exact:true}).waitFor();await card.getByText('확인 필요: 특정 시청자를 겨냥했는지',{exact:true}).waitFor();
+ await showQueue(api,'문맥 검토');await openMore(card);await card.getByText('AI 제안 · 판단 보류',{exact:true}).waitFor();await card.getByText('확인 필요: 특정 시청자를 겨냥했는지',{exact:true}).waitFor();
  await card.locator('.review-head b').filter({hasText:'author'}).waitFor();
  await card.getByLabel('결정 이유 (필수)').fill('대상이 분명한 괴롭힘입니다.');
  await decideCard(card,'위반 확정');
@@ -696,7 +703,7 @@ test('mock and API operators share the Studio screen and API decisions send the 
  await capture(api,'studio-api');await capture(mock,'studio-mock');
  // 강퇴: 승인 접수 → ACTION_APPLIED로 적용 완료 → 기준 사건 오판 취소로 검토가 무효가 되면 해제로 표시
  const kick=api.locator('.studio-review[data-review-id="review-kick"]');
- await openCard(kick);await kick.getByLabel('운영자 판단 근거 (필수)').fill('확정 사건 3건을 확인했습니다.');
+ await showQueue(api,'강퇴 승인');await openCard(kick);await kick.getByLabel('운영자 판단 근거 (필수)').fill('확정 사건 3건을 확인했습니다.');
  await decideCard(kick,'강퇴 승인');
  await waitFor(()=>state.decisions.length===2);assert.equal(state.decisions[1].path,'/api/kick-reviews/review-kick/decision');
  await api.getByRole('status').filter({hasText:'결정 접수 · 실행 결과 대기'}).first().waitFor();

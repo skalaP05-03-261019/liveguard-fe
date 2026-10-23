@@ -834,3 +834,8 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .chat-db-more{display:flex;justify-content:center;margin-top:12px}
 .chat-db-more button{height:36px;padding:0 16px;border-radius:18px;background:var(--chip);font-size:13px;font-weight:500}
 @media(max-width:590px){.review-head{flex-wrap:wrap}.review-head small{flex-basis:100%;margin-left:24px}}
+/* 결정 대기 탭: 강퇴 승인 / 문맥 검토 */
+.queue-tabs{margin:0 0 8px}
+.queue-tabs button{display:inline-flex;align-items:center;gap:6px;position:relative}
+.queue-tabs .tab-alert{width:7px;height:7px;border-radius:50%;background:var(--live)}
+.queue-note{font-size:12px;color:var(--text-2);margin:0 0 10px}

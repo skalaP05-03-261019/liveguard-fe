@@ -2,7 +2,7 @@
 // 운영자(스트리머) Studio 화면. 목업과 실제 API가 같은 화면을 쓴다(#12).
 // 화면은 API v1.0 모양의 데이터와 사용자 동작만 다룬다. API·SSE 연결은 LiveConsole.vue, 목업 판정은 mockLive.ts가 맡는다.
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
-import { AlertCircle, BookOpen, ChevronDown, ChevronRight, ClipboardCheck, FileClock, LogOut, Menu, MessagesSquare, Pause, Play, Radio, RefreshCcw, ShieldCheck, Sparkles, Users } from 'lucide-vue-next';
+import { AlertCircle, BookOpen, ChevronDown, ChevronRight, ClipboardCheck, FileClock, LogOut, Menu, MessagesSquare, Pause, Play, Radio, RefreshCcw, ShieldCheck, Sparkles, Users, UserX } from 'lucide-vue-next';
 import ViewerManage from './ViewerManage.vue';
 import { groupByViewer, type ViewerCase, type ViewerFinding, type ViewerReview } from './viewerManage';
 import { avatarColor } from './avatar';
@@ -95,10 +95,22 @@ const picked = reactive<Record<string, Category[]>>({});
 const categoriesOf = (r: LiveReview) => picked[r.reviewId] ?? [...new Set(r.findings.flatMap(f => f.categories))];
 function toggleCategory(r: LiveReview, c: Category, on: boolean) { const now = categoriesOf(r); picked[r.reviewId] = on ? [...new Set([...now, c])] : now.filter(x => x !== c); }
 const reasonOf = (id: string) => (reasons[id] ?? '').trim();
-// 결정 대기는 한 줄 목록으로 보여 주고, 고른 건 하나만 펼친다. 처음에는 맨 위(강퇴 → 오래 기다린 순) 건을 펼친다.
-const openId = ref<string | null>(null); // '' = 모두 접음
-const activeId = computed(() => openId.value === '' ? null : (pending.value.find(r => r.reviewId === openId.value) ?? pending.value[0])?.reviewId ?? null);
-function toggleReview(id: string) { openId.value = activeId.value === id ? '' : id; }
+// 결정 대기는 강퇴 승인과 문맥 검토를 따로 보여 준다(정책상 별개의 결정).
+// 영역마다 한 줄 목록이고, 고른 건 하나만 펼친다. 처음에는 영역의 맨 위(오래 기다린) 건을 펼친다.
+const queues = computed(() => [
+  { kind: 'KICK' as const, title: '강퇴 승인 대기', note: `유형과 관계없이 확정 위반 ${KICK_THRESHOLD}건이 쌓인 시청자입니다. 승인해도 기준 사건을 다시 확인한 뒤 실행됩니다.`, empty: '강퇴 승인 요청이 없습니다.', items: pending.value.filter(r => r.kind === 'KICK') },
+  { kind: 'CONTEXT' as const, title: '문맥 검토 대기', note: 'AI 제안은 참고용입니다. 공개 여부는 운영자가 결정합니다.', empty: '문맥 검토할 채팅이 없습니다.', items: pending.value.filter(r => r.kind === 'CONTEXT') }
+]);
+const openIds = reactive<Record<LiveReview['kind'], string | null>>({ KICK: null, CONTEXT: null }); // '' = 모두 접음
+function activeOf(kind: LiveReview['kind']) {
+  const items = pending.value.filter(r => r.kind === kind), id = openIds[kind];
+  return id === '' ? null : (items.find(r => r.reviewId === id) ?? items[0])?.reviewId ?? null;
+}
+const isOpen = (r: LiveReview) => activeOf(r.kind) === r.reviewId;
+// 두 대기열은 탭으로 나눈다. 처음에는 강퇴 요청이 있으면 강퇴 탭, 없으면 문맥 탭을 보여 주고, 그다음부터는 고른 탭을 유지한다.
+const queueTab = ref<LiveReview['kind'] | null>(null);
+const shownQueue = computed(() => { const kind = queueTab.value ?? (queues.value[0].items.length ? 'KICK' : 'CONTEXT'); return queues.value.find(q => q.kind === kind)!; });
+function toggleReview(r: LiveReview) { openIds[r.kind] = isOpen(r) ? '' : r.reviewId; }
 // 결정은 하나를 고른 뒤 제출한다. 위반 확정을 고를 때만 위반 유형을 고른다.
 const choice = reactive<Record<string, ContextDecision | KickDecision>>({});
 const contextChoices: { value: ContextDecision; label: string }[] = [{ value: 'CONFIRM_NORMAL', label: '정상 확정' }, { value: 'CONFIRM_VIOLATION', label: '위반 확정' }, { value: 'DEFER', label: '보류' }];
@@ -294,18 +306,20 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
                 <div class="chat-footer"><div class="ai-notice"><ShieldCheck :size="15"/> 임시 비노출·숨김 채팅은 작성자와 담당 운영자에게만 보입니다.</div><details v-if="$slots.demo" class="demo-fold"><summary>목업 빠른 시연</summary><slot name="demo"/></details></div>
               </div>
               <div class="work-panel card">
-                <section class="hitl-section decision-queue" aria-label="운영자 결정 대기">
-                  <header class="section-head"><span class="section-icon human"><ClipboardCheck :size="17"/></span><b>운영자 결정 대기</b><span class="pending-count">{{pending.length}}건</span><span class="section-note human-note">AI 제안은 참고용입니다. 공개·위반·강퇴는 운영자가 결정합니다.</span></header>
-                  <p v-if="!pending.length" class="section-empty">지금은 결정이 필요한 검토가 없습니다. 문맥 판단이 필요한 채팅이나 확정 위반 {{KICK_THRESHOLD}}건이 쌓이면 여기에 표시됩니다.</p>
-                  <article v-for="r in pending" :key="r.reviewId" class="studio-review" :class="[r.kind.toLowerCase(), {open: activeId===r.reviewId}]" :data-review-id="r.reviewId" :data-version="r.version">
-                    <button type="button" class="review-head" :aria-expanded="activeId===r.reviewId" @click="toggleReview(r.reviewId)">
-                      <ChevronDown v-if="activeId===r.reviewId" :size="16"/><ChevronRight v-else :size="16"/>
-                      <span class="review-kind" :class="r.kind.toLowerCase()">{{r.kind==='KICK' ? '강퇴 승인' : '문맥 검토'}}</span><b>{{nameOf(r.caseId)}}</b>
+                <section class="hitl-section decision-queue" :class="shownQueue.kind.toLowerCase()" aria-label="운영자 결정 대기">
+                  <header class="section-head"><span class="section-icon human"><ClipboardCheck :size="17"/></span><b>운영자 결정 대기</b><span class="pending-count">{{pending.length}}건</span></header>
+                  <div class="studio-tabs queue-tabs" role="tablist" aria-label="결정 대기 종류"><button v-for="q in queues" :key="q.kind" role="tab" :aria-selected="shownQueue.kind===q.kind" :class="{on: shownQueue.kind===q.kind}" @click="queueTab=q.kind"><UserX v-if="q.kind==='KICK'" :size="15"/><ClipboardCheck v-else :size="15"/>{{q.kind==='KICK' ? '강퇴 승인' : '문맥 검토'}} <b>{{q.items.length}}</b><i v-if="q.items.length && shownQueue.kind!==q.kind" class="tab-alert" aria-label="대기 중"/></button></div>
+                  <p class="queue-note">{{shownQueue.note}}</p>
+                  <p v-if="!shownQueue.items.length" class="section-empty">{{shownQueue.empty}}</p>
+                  <article v-for="r in shownQueue.items" :key="r.reviewId" class="studio-review" :class="[r.kind.toLowerCase(), {open: isOpen(r)}]" :data-review-id="r.reviewId" :data-version="r.version">
+                    <button type="button" class="review-head" :aria-expanded="isOpen(r)" @click="toggleReview(r)">
+                      <ChevronDown v-if="isOpen(r)" :size="16"/><ChevronRight v-else :size="16"/>
+                      <b>{{nameOf(r.caseId)}}</b>
                       <span class="review-excerpt">{{excerptOf(r)}}</span>
                       <span v-if="r.kind==='CONTEXT' && r.findings[0]" class="verdict-badge" :class="verdictTone(r.findings[0].verdict)">{{verdictLabels[r.findings[0].verdict]}}</span>
                       <small :title="r.kind==='CONTEXT' && sentAt(r) ? `메시지 보낸 시각 · 검토 요청 ${asTime(r.createdAt)} · 버전 ${r.version}` : `강퇴 승인 요청 시각 · 버전 ${r.version}`">{{asTime(r.kind==='CONTEXT' && sentAt(r) ? sentAt(r) : r.createdAt)}}</small>
                     </button>
-                    <div v-if="activeId===r.reviewId" class="review-body">
+                    <div v-if="isOpen(r)" class="review-body">
                       <template v-if="r.kind==='CONTEXT'">
                         <blockquote v-if="targetText(r)" class="review-target">{{targetText(r)}}</blockquote>
                         <div v-for="f in r.findings" :key="f.messageId" class="review-ai"><span class="verdict-badge" :class="verdictTone(f.verdict)">AI 제안 · {{verdictLabels[f.verdict]}}</span><code title="AI 판정 코드">{{f.verdict}}</code><span class="review-ai-reason">{{f.reason}}</span><small>정책 {{f.policyIds.join(', ') || '-'}}</small></div>
