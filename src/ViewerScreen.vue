@@ -4,7 +4,7 @@ import { Bell, CheckCircle2, ChevronDown, Ellipsis, Forward, LogOut, Menu, Mic, 
 import YtPlayer from './YtPlayer.vue';
 import ChatTimeoutNotice from './ChatTimeoutNotice.vue';
 import { timeoutEndText } from './chatTime';
-import { reasonLabels, visibilityLabels, type Message } from './contracts';
+import { authorNotice, visibilityLabels, type Message } from './contracts';
 import { avatarColor } from './avatar';
 
 // 화면은 데이터와 사용자 동작만 받는다. API/SSE와 목업 정책 판정은 각 호출자가 담당한다.
@@ -40,9 +40,8 @@ const chatDisabled = computed(() => props.busy || !props.ready || !props.hasLive
 const showTimeout = computed(() => props.timedOut && props.hasLive && !props.blocked && !props.ended);
 const visible = computed(() => props.blocked ? [] : props.messages.filter(m => !query.value || m.text.includes(query.value) || m.authorAlias.includes(query.value)).slice(-80));
 const asTime = (value: string) => new Date(value).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour12: false, hour: '2-digit', minute: '2-digit' });
-const reasonOf = (m: Message) => m.moderationNotice ?? (m.moderationReasonCode ? reasonLabels[m.moderationReasonCode] : m.visibility === 'HELD' ? '운영자 검토 중인 메시지입니다.' : null);
+const reasonOf = (m: Message) => authorNotice(m);
 const reviewing = (m: Message) => m.reviewStatus === 'PENDING' || m.visibility === 'HELD';
-const timeoutNote = (m: Message) => m.timeoutUntil && Date.parse(m.timeoutUntil) > props.clock ? `채팅 제한 ${timeoutEndText(m.timeoutUntil)} (한국 시간)까지` : null;
 function toBottom(smooth = true) {
   const el = chatRef.value; if (!el) return;
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -145,7 +144,7 @@ function dislike() { disliked.value = !disliked.value; if (disliked.value) liked
             <div ref="chatRef" class="yt-chat-items" @scroll.passive="onScroll">
               <div v-for="message in visible" :key="message.messageId" :data-message-id="message.messageId" class="yt-chat-row" :class="{myHidden: message.visibility!=='PUBLIC'}">
                 <span class="yt-chat-avatar" :style="{background: avatarColor(message.authorAlias)}">{{message.authorAlias.slice(0,1)}}</span>
-                <div class="yt-chat-body"><time>{{asTime(message.sentAt)}}</time><span class="yt-chat-author">{{message.authorAlias}}</span><span v-if="message.visibility==='PUBLIC'" class="yt-chat-text">{{message.text}}</span><span v-else class="yt-chat-text"><em>{{visibilityLabels[message.visibility]}}</em> {{message.text}}</span><small v-if="message.visibility!=='PUBLIC'">나와 운영자에게만 표시<b v-if="reviewing(message)" class="yt-review-badge">검토 중</b></small><span v-if="message.visibility!=='PUBLIC' && reasonOf(message)" class="yt-chat-reason">{{reasonOf(message)}}<template v-if="timeoutNote(message)"><br/>{{timeoutNote(message)}}</template></span></div>
+                <div class="yt-chat-body"><time>{{asTime(message.sentAt)}}</time><span class="yt-chat-author">{{message.authorAlias}}</span><span v-if="message.visibility==='PUBLIC'" class="yt-chat-text">{{message.text}}</span><span v-else class="yt-chat-text"><em>{{visibilityLabels[message.visibility]}}</em> {{message.text}}</span><small v-if="message.visibility!=='PUBLIC'">나와 운영자에게만 표시<b v-if="reviewing(message)" class="yt-review-badge">검토 중</b></small><span v-if="message.visibility!=='PUBLIC' && reasonOf(message)" class="yt-chat-reason">{{reasonOf(message)}}</span></div>
               </div>
               <p v-if="!visible.length" class="viewer-empty-chat">{{blocked ? '이용 제한으로 채팅을 표시하지 않습니다.' : query ? '검색 결과가 없습니다.' : '아직 채팅이 없습니다.'}}</p>
             </div>

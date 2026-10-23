@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { api } from '../api/client';
-import { ApiError, reasonLabels, type Category, type ContextDecision, type KickDecision, type Me, type Message } from '../contracts';
+import { ApiError, authorNotice, type Category, type ContextDecision, type KickDecision, type Me, type Message } from '../contracts';
 import { CHANNEL_ID, DEMO_USERS, demoMe, demoScenarios, feedChats, feedUsers, feedViolations, fixtureLines, mockUsers, userByAlias, type MockUser } from '../mock';
 import { createMockLive, type KickOutcome, type SendResult } from '../mockLive';
 import { timeoutText } from '../sanction';
@@ -39,7 +39,7 @@ export const useLiveGuard = defineStore('liveGuard', () => {
   const viewerLastReason = computed(() => {
     const own = [...viewerMessages.value].reverse().filter(m => m.visibility !== 'PUBLIC' && (m.moderationNotice || m.moderationReasonCode));
     const last = own.find(m => m.timeoutUntil && m.timeoutUntil === viewerTimeoutUntil.value) ?? own[0];
-    return last ? last.moderationNotice ?? (last.moderationReasonCode ? reasonLabels[last.moderationReasonCode] : null) : null;
+    return last ? authorNotice(last) : null;
   });
 
   function toast(text: string) { notice.value = text; if (notificationTimeout) clearTimeout(notificationTimeout); notificationTimeout = setTimeout(() => notice.value = '', 3500); }

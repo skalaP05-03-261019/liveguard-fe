@@ -46,11 +46,20 @@ export const visibilityLabels: Record<Visibility, string> = { PUBLIC: '공개', 
 // moderationNotice가 없을 때 쓰는 작성자 안내. 탐지 단어·개인정보 원문은 넣지 않는다(openapi.yaml Message).
 export const reasonLabels: Record<ModerationReasonCode, string> = {
   PROFANITY_INCLUDED: '메시지에 금지된 욕설이 포함되어 숨김 처리되었습니다.',
-  LINK_NOT_ALLOWED: '허용되지 않은 링크가 포함되어 숨김 처리되었습니다.',
+  // 정책(CONTRACTS) 문구. 악성·피싱으로 확인했다는 표현은 쓰지 않는다.
+  LINK_NOT_ALLOWED: '이 방송에서는 링크 전송이 금지되어 있습니다.',
   FLOOD_REPEATED: '동일 문장 반복으로 숨김 처리되었습니다.',
   CONTEXT_PENDING: '문맥 확인과 운영자 결정을 기다리고 있습니다.',
   PII_PENDING: '개인정보 노출 가능성을 확인하고 있습니다.'
 };
+// 작성자에게 보여 줄 숨김·검토 사유. 서버가 준 사유만 쓰고 임의로 만들지 않는다.
+// 규칙으로 바로 숨긴 욕설·링크는 사유 코드의 정책 문구를 쓴다. Backend가 두 경우를 한 문장("금지된 욕설 또는 링크가…")으로 보내기 때문이다.
+const RULE_CODES: ModerationReasonCode[] = ['PROFANITY_INCLUDED', 'LINK_NOT_ALLOWED'];
+export function authorNotice(m: Pick<Message, 'visibility' | 'moderationNotice' | 'moderationReasonCode'>): string | null {
+  const code = m.moderationReasonCode;
+  if (code && RULE_CODES.includes(code)) return reasonLabels[code];
+  return m.moderationNotice ?? (code ? reasonLabels[code] : null) ?? (m.visibility === 'HELD' ? '운영자 검토 중인 메시지입니다.' : null);
+}
 export const verdictLabels: Record<Verdict, string> = { VIOLATION: '위반 의심', NO_VIOLATION: '위반 아님', NEEDS_REVIEW: '판단 보류' };
 export const confirmationLabels: Record<ConfirmationStatus, string> = { PENDING: '확인 중', CONFIRMED_VIOLATION: '위반 확정', CONFIRMED_NORMAL: '정상 확정', CANCELLED: '취소됨' };
 export const routeLabels: Record<HandlingRoute, string> = { PASS: '통과', RULE_CONFIRMED: '규칙 자동 확정', CONTEXT_REVIEW: 'AI 문맥 검토', PII_INVESTIGATION: 'AI 개인정보 조사', FLOOD_REVIEW: '도배 자동 확정' };

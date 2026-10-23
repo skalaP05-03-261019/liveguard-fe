@@ -50,7 +50,7 @@
 | PUBLIC | 일반 채팅 표시 |
 | HELD | 작성자·담당 운영자에게 임시 비노출과 검토 중 표시 |
 | HIDDEN | 작성자·담당 운영자에게 숨김 상태 표시 |
-| 작성자 사유 | 서버 `moderationNotice` → `moderationReasonCode` 라벨 → HELD 일반 안내 순서로 표시. 임의의 위반 사유를 만들지 않음 |
+| 작성자 사유 | 규칙으로 바로 숨긴 욕설·링크(`PROFANITY_INCLUDED`·`LINK_NOT_ALLOWED`)는 사유 코드의 정책 문구, 그 밖에는 서버 `moderationNotice` → `moderationReasonCode` 라벨 → HELD 일반 안내 순서로 표시. 임의의 위반 사유를 만들지 않음. 채팅 제한 종료 시각은 메시지마다 붙이지 않고 입력부 제한 안내에서만 표시(#14) |
 | TIMEOUT | 입력부만 제한 안내창으로 교체. 다른 사람의 공개 채팅·실시간 수신·검색·스크롤 유지. 한국 시간 기준 종료 날짜·시각과 남은 시간(시간·분·초), 제공된 사유 표시, 영상 시청 유지 |
 | KICKED / LIVE_ACCESS_BLOCKED | 영상 대신 방송 종료까지의 제한 안내, 기존 채팅·입력 초안 제거, 입력 차단, SSE 종료 |
 | LIVE_ENDED | 방송 종료 안내, 플레이어 제거, 입력 차단, SSE 종료 |
@@ -139,6 +139,24 @@ VITE_USE_API=true npm run build
 | 다음 날까지의 TIMEOUT | [timeout-next-day.png](evidence/chat-ui/timeout-next-day.png) |
 | 강퇴 후 새로고침 | [kicked-restored.png](evidence/chat-ui/kicked-restored.png) |
 | 방송 종료 | [live-ended.png](evidence/chat-ui/live-ended.png) |
+
+## 실제 Backend·Agent 3세션 검증 (#14, 2026-10-23)
+
+infra Compose의 실제 Backend·AI Agent에 이 저장소의 API 모드 화면을 연결했다. 세션은 세 개를 서로 다른 브라우저로 열었다: 작성자(`viewer`), 다른 시청자(`demo-viewer-10`), 운영자(`moderator`). 시작 전에 방송을 새로 시작해 이전 기록이 섞이지 않게 했다.
+
+| 시나리오 | 작성자 화면 | 다른 시청자 화면 | 캡처 |
+| --- | --- | --- | --- |
+| 확정 욕설 | 숨김 + "메시지에 금지된 욕설이 포함되어 숨김 처리되었습니다." | 보이지 않음 | [02](evidence/chat-state-14/02-author-timeout-no-per-message-note.png) |
+| 같은 문장 3번 | 세 번째만 숨김 | 공개된 2건만 보임 | [02](evidence/chat-state-14/02-author-timeout-no-per-message-note.png) |
+| 공격 표현 → 정상 확정 | 검토 중 → 공개 | 검토 중에는 보이지 않다가 정상 확정 뒤 보임 | [01](evidence/chat-state-14/01-observer-after-normal.png) |
+| 공격 표현 → 위반 확정 | 숨김 + 입력부에 10분 채팅 제한 안내. 앞서 숨긴 욕설 메시지에는 제한 문구가 붙지 않음 | 보이지 않음 | [02](evidence/chat-state-14/02-author-timeout-no-per-message-note.png) |
+| 확정 3건 → 강퇴 승인 | 입장 제한 화면, 새로고침 뒤에도 유지 | - | [03](evidence/chat-state-14/03-author-kicked-after-reload.png) |
+| 링크 (다른 시청자가 보냄) | - | 숨김 + "이 방송에서는 링크 전송이 금지되어 있습니다." + 10분 제한 | [04](evidence/chat-state-14/04-observer-link-notice.png) |
+| 방송 종료 | - | 방송 종료 안내, 영상 제거, 입력 비활성화 | [05](evidence/chat-state-14/05-observer-live-ended.png) |
+
+**다른 시청자에게 비공개 원문이 가지 않는지**
+- 채팅 목록 응답: 다른 사람의 비공개 메시지 0건.
+- 실시간 이벤트(SSE) 원문을 따로 기록했다. 작성자의 숨김·검토 중 메시지는 원문이 한 번도 오지 않았다. 검토 중 메시지는 운영자가 정상 확정한 뒤에야 `MESSAGE_VISIBILITY_CHANGED`(원문 없음)와 `MESSAGE_RESTORED`(원문 포함)로 왔다.
 
 ## 실행 중인 Compose 반영
 
