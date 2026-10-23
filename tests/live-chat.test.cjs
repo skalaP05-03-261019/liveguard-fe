@@ -689,6 +689,56 @@ test('admin chat tracking shows the filter result, rule outcome and AI judgment 
  assert.equal(await look('.tracking-grid .chat-row.held'),await look('.tracking-grid .chat-row.hidden'));
 });
 
+test('policy v3.2: the policy page explains CP-3.3 and the mock shows v3.2',async()=>{
+ const page=await openMockModerator();
+ await page.locator('.sidebar-foot').getByText('목업 방송 · 정책 v3.2 판정',{exact:true}).waitFor();
+ await page.getByRole('navigation',{name:'운영자 메뉴'}).getByRole('button',{name:'정책 근거',exact:true}).click();
+ await page.getByText(/운영정책 v3\.2\(2026-10-23\) 기준/).waitFor();
+ const rules=page.locator('[data-policy-harassment]');
+ await rules.getByText('CP-3.3 집단 대상 비하·배제',{exact:false}).waitFor();
+ await rules.getByText(/대상 집단이 불명확하면 AI는 판단 보류/).waitFor();
+ await page.getByText(/전화번호·계좌번호\(하이픈 묶음 10자리 이상\)·이메일 형식/).waitFor();
+ assert.equal(await page.getByText('운영정책 v3.1',{exact:false}).count(),0);
+});
+
+test('mock follows the Backend v3.2 personal-data candidate rules (rules-v2)',async()=>{
+ const page=await openMockModerator();
+ const r=await page.evaluate(async()=>{const m=await import('/src/mockLive.ts');
+  const cases=['제 번호 010-1234-5678','010 1234 5678','02-123-4567 사무실','+82 10-1234-5678','후원은 123-456-789012','메일 a.b@mail.example','주문번호 1234567890123','2026-10-23 방송','https://user@site.example/x'];
+  return cases.map(t=>({t,tags:m.piiTags(t),masked:m.maskText(t)}));});
+ const byText=Object.fromEntries(r.map(x=>[x.t,x]));
+ assert.deepEqual(byText['제 번호 010-1234-5678'].tags,['PII_PHONE']);
+ assert.deepEqual(byText['010 1234 5678'].tags,['PII_PHONE']);
+ assert.deepEqual(byText['02-123-4567 사무실'].tags,['PII_PHONE']);
+ assert.deepEqual(byText['+82 10-1234-5678'].tags,['PII_PHONE']);
+ assert.deepEqual(byText['후원은 123-456-789012'].tags,['PII_ACCOUNT']);assert.equal(byText['후원은 123-456-789012'].masked,'후원은 [ACCOUNT]');
+ assert.deepEqual(byText['메일 a.b@mail.example'].tags,['PII_EMAIL']);
+ // 하이픈 없는 숫자 나열은 후보가 아니지만 가린다(AC-06). 날짜는 계좌가 아니다. 스킴 있는 주소 안의 @는 이메일이 아니다.
+ assert.deepEqual(byText['주문번호 1234567890123'].tags,[]);assert.equal(byText['주문번호 1234567890123'].masked,'주문번호 [ACCOUNT]');
+ assert.deepEqual(byText['2026-10-23 방송'].tags,[]);
+ assert.deepEqual(byText['https://user@site.example/x'].tags,[]);
+ // 계좌번호 채팅은 개인정보 조사로 임시 비노출된다.
+ await openDemo(page);await page.getByRole('button',{name:'계좌번호',exact:true}).click();
+ const row=page.locator('.chat-row').filter({hasText:'후원은 123-456-789012'});await row.waitFor();
+ assert.match(await row.getAttribute('class'),/held/);
+});
+
+test('mock CP-3.3 example: group exclusion goes to context review with an AI suggestion citing CP-3.3',async()=>{
+ const page=await openMockModerator();await openDemo(page);
+ await page.getByRole('button',{name:'집단 배제 (v3.2)',exact:true}).click();
+ const row=page.locator('.chat-row').filter({hasText:'○○ 출신은 다 꺼져라'});await row.waitFor();
+ assert.match(await row.getAttribute('class'),/held/);
+ await showQueue(page,'문맥 검토');
+ const card=page.locator('.studio-review').filter({hasText:'○○ 출신은 다 꺼져라'});await openCard(card);
+ const evidence=card.getByRole('region',{name:'AI 판단 근거'});
+ await evidence.getByText('CP-3.3',{exact:true}).waitFor();await evidence.getByText('괴롭힘',{exact:true}).waitFor();
+ await card.getByText('AI 제안 · 위반 의심',{exact:true}).waitFor();
+ // 시청자 관리의 누적 열은 v3.2 계약의 뜻(같은 방송의 다른 확정 사건 수)으로 표시한다.
+ await page.getByRole('navigation',{name:'운영자 메뉴'}).getByRole('button',{name:'시청자 관리',exact:true}).click();
+ await page.getByRole('columnheader',{name:'다른 확정 사건'}).waitFor();
+ assert.equal(await page.getByText('판정 시점 누적',{exact:true}).count(),0);
+});
+
 test('mock context review stays held on defer, then applies normal and violation decisions',async()=>{
  async function decide(label,reason){
   const page=await openMockModerator();await openDemo(page);await page.getByRole('button',{name:'공격 표현',exact:true}).click();

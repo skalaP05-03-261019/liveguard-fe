@@ -31,7 +31,7 @@
 | 스트리머 · 시청자 관리 | 현재 방송에서 제재받은 시청자별 상태·확정 위반·유형, 오판 취소, 검토 결정 | [이미지](docs/screenshots/viewer-manage.png) |
 | 스트리머 · 사건 이력 | 사건 / 검토 기록 탭, 상태별 거르기(결정 대기·위반 확정·규칙 자동 숨김·정상·취소), 행을 펼치면 사건 처리 흐름 | - |
 | 스트리머 · 채팅 기록 | 이번 방송의 모든 채팅(숨김·검토 중 포함) 검색·거르기, 연결된 사건과 처리 흐름 | - |
-| 스트리머 · 정책 근거 | v3.1 처리 경로·필터 사전·제재표·강퇴 심사 (읽기 전용) | - |
+| 스트리머 · 정책 근거 | v3.2 처리 경로·괴롭힘 기준(CP-3.3 포함)·필터 사전·제재표·강퇴 심사 (읽기 전용) | - |
 | 시스템 운영자 (목업) | 방송별 지표, 강퇴 승인 요청·실행 결과 | [이미지](docs/screenshots/system.png)   |
 
 * 캡처는 Mock 모드 화면입니다. 실제 API 모드도 같은 메뉴·카드 구성이며, MOCK 표기와 빠른 시연·모의 강퇴 결과 버튼만 없습니다.
@@ -46,7 +46,7 @@
 확정 위반 3건 (최근 24시간, 유형 무관) → 강퇴 승인 요청 → 운영자 승인 → 재검증 → 이번 방송 종료까지 입장·채팅 제한
 ```
 
-채팅 제한(10분·24시간)은 모두 자동이며 24시간 제한도 강퇴가 아닙니다. 강퇴는 승인 요청이 접수된 것과 실제 적용 완료(`ACTION_APPLIED`)를 구분합니다. 기준: 운영정책 v3.1 MP-2.1·MP-4.1~4.3.
+채팅 제한(10분·24시간)은 모두 자동이며 24시간 제한도 강퇴가 아닙니다. 강퇴는 승인 요청이 접수된 것과 실제 적용 완료(`ACTION_APPLIED`)를 구분합니다. 기준: 운영정책 v3.2 MP-2.1·MP-4.1~4.3(제재표·강퇴 기준은 v3.1과 같음).
 
 ## 2. 실행 방법
 
@@ -133,7 +133,7 @@ API 모드는 백엔드 v1.0(liveId) API를 씁니다. 백엔드·AI Agent까지
 
 | 값 | 이유 |
 | --- | --- |
-| `LIVEGUARD_POLICY_VERSION=v3.1`, `LIVEGUARD_TBD_FIXTURE_ENABLED=true` | 백엔드의 방송(liveId) 단위 관제를 켭니다. 없으면 사건에 liveId가 붙지 않아 시청자 관리가 비어 보입니다 |
+| `LIVEGUARD_POLICY_VERSION=v3.2` | 활성 정책 버전(Backend 기본값 v3.2, A-27). **Backend·Agent·RAG가 같은 값**이어야 합니다. 다르면 Agent 판정이 `STALE_VERSION`으로 거절되고 AI 판정 없는 검토(A-25)로 넘어갑니다. Backend는 이전 fixture 스위치(`LIVEGUARD_TBD_FIXTURE_ENABLED`)로 경로를 나누지 않습니다 |
 | (`LIVEGUARD_V1_UI`) | 더 이상 필요 없습니다. API 모드 빌드는 항상 liveId 콘솔입니다 |
 | `AGENT_DELIVERY_ENABLED=true` | 백엔드가 AI Agent에 판정을 맡깁니다 |
 | `AGENT_CHECKPOINT_DB_URL`, `RAG_DB_URL` | `postgresql://liveguard:<DB 비밀번호>@db:5432/liveguard` 형식. 안내 문구를 그대로 두면 Agent가 시작하지 못합니다 |
@@ -174,7 +174,7 @@ docker compose run --rm --no-deps rag-mcp python -m app.rag_mcp.index
 | `localhost:3000` 연결 거부 (`ERR_CONNECTION_REFUSED`) | 다른 Postgres 컨테이너가 5433 포트를 쓰고 있으면 infra 컨테이너가 `Created`에서 멈춥니다. 그 컨테이너를 멈추고 `docker compose up -d` |
 | agent가 계속 재시작 | `AGENT_CHECKPOINT_DB_URL`·`RAG_DB_URL`이 잘못됨 (안내 문구가 그대로 있거나 비밀번호 특수문자를 URL 인코딩하지 않음). `docker compose logs agent`로 확인 |
 | 5173 화면이 Mock으로 뜸 | 다른 폴더의 개발 서버가 5173을 쓰고 있거나 환경 변수 없이 실행됨. 그 서버를 끄고 위 명령으로 다시 실행 |
-| 시청자 관리가 비어 있음 | 백엔드에 `LIVEGUARD_TBD_FIXTURE_ENABLED=true`, `LIVEGUARD_POLICY_VERSION=v3.1`이 없음 |
+| 문맥 검토가 모두 "AI 결과 없음"으로 열림 | Backend와 Agent의 `LIVEGUARD_POLICY_VERSION`이 다름(예: Backend v3.2, Agent v3.1). 같은 값으로 맞추고 Agent에 v3.2 정책 색인이 있는지 확인 |
 
 ### Docker로 실행
 
@@ -233,8 +233,8 @@ src/
 ├── stores/liveGuard.ts     # 로그인·세션, 목업 방송 상태
 ├── api/client.ts           # REST API 클라이언트 (v1.0 liveId)
 ├── contracts.ts            # API v1.0 타입·라벨
-├── sanction.ts             # 정책 v3.1 제재 기준표·강퇴 기준·처리 경로
-├── mockLive.ts             # 목업 판정 (Backend 처리 경로·v3.1 재현, API 모양의 사건·검토 생성)
+├── sanction.ts             # 정책 v3.2 제재 기준표·강퇴 기준·처리 경로
+├── mockLive.ts             # 목업 판정 (Backend 처리 경로·v3.2 재현, API 모양의 사건·검토 생성)
 ├── mock.ts / systemMock.ts # 시연 데이터·필터 사전 사본
 └── style.css               # 공통 스타일
 docs/
@@ -257,7 +257,7 @@ nginx.conf.template         # 화면 제공·/api 프록시·SSE 설정 (BACKEND
 
 * **데이터 모델:** [Backend `docs/erd.md`](https://github.com/skalaP05-03-261019/liveguard-be/blob/main/docs/erd.md)
 
-* **운영 정책:** [Backend `docs/policy/POLICY.md`](https://github.com/skalaP05-03-261019/liveguard-be/blob/main/docs/policy/POLICY.md) (v3.1, 구현 기준) / 프론트 제재 기준 `src/sanction.ts`
+* **운영 정책:** [Backend `docs/policy/POLICY.md`](https://github.com/skalaP05-03-261019/liveguard-be/blob/main/docs/policy/POLICY.md) (v3.2, 구현 기준) / 프론트 제재 기준 `src/sanction.ts`
 
 * **Agent 저장소:** [liveguard-agent](https://github.com/skalaP05-03-261019/liveguard-agent)
 

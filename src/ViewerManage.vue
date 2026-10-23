@@ -51,7 +51,7 @@ function revoke(item: ViewerCase, finding: ViewerFinding) { if (reasonOf(finding
     <div v-if="!rows.length" class="empty-block">아직 제재를 받은 시청자가 없습니다.</div>
     <div v-else class="table-scroll">
       <table class="data-table vm-table">
-        <thead><tr><th class="vm-toggle-col"></th><th>시청자</th><th>상태</th><th>확정 위반</th><th>유형</th><th>최근 위반</th><th title="판정 당시 최근 24시간 누적 위반 사건 수. 실시간 값이 아닙니다.">판정 시점 누적</th></tr></thead>
+        <thead><tr><th class="vm-toggle-col"></th><th>시청자</th><th>상태</th><th>확정 위반</th><th>유형</th><th>최근 위반</th><th title="이번 방송에서 이 시청자의 다른 확정 위반 사건 수(현재 사건 제외, 조회 시점 기준). 강퇴 집계(최근 24시간)와 다릅니다.">다른 확정 사건</th></tr></thead>
         <tbody>
           <template v-for="row in shown" :key="row.name">
             <tr class="vm-row" :class="{open: open===row.name}" @click="toggle(row.name)">

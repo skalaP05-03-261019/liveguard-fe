@@ -1021,3 +1021,4 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .tracking-grid .chat-panel{grid-area:chat;min-height:0}
 .tracking-channel{margin-left:6px;font-size:12px;font-weight:500;color:var(--text-2)}
 @media(max-width:950px){.tracking-grid{grid-template-columns:1fr;grid-template-areas:'chat' 'detail';height:auto}.tracking-grid .chat-panel{min-height:360px;max-height:60vh}}
+.policy-new{display:inline-block;margin-left:4px;padding:0 6px;border-radius:4px;background:#e8f0fe;color:#1a56b8;font-size:11px;font-weight:600;vertical-align:1px}

@@ -24,7 +24,7 @@ export const useLiveGuard = defineStore('liveGuard', () => {
   let clockTimer: ReturnType<typeof setInterval> | undefined;
   let notificationTimeout: ReturnType<typeof setTimeout> | undefined;
 
-  // 목업 방송: 정책 v3.1 판정과 API v1.0 모양의 사건·검토(mockLive.ts)
+  // 목업 방송: 정책 v3.2 판정과 API v1.0 모양의 사건·검토(mockLive.ts)
   const mock = createMockLive(mockUsers);
   const viewer = computed(() => DEMO_USERS.find(u => u.id === viewerId.value) ?? DEMO_USERS[0]);
   const viewerAlias = computed(() => demo ? viewer.value.alias : me.value?.nickname ?? '시청자');

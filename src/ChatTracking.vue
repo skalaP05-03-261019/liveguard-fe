@@ -92,20 +92,20 @@ type FlowActor = 'backend' | 'agent' | 'human';
 type FlowNodeId = 'input' | 'classify' | 'public' | 'rule' | 'agent' | 'policy' | 'verify' | 'wait' | 'sanction' | 'normal' | 'kickReview' | 'kick';
 type FlowState = 'path' | 'wait' | 'skip' | 'unknown';
 interface FlowNode { id: FlowNodeId; title: string; sub: string; actor: FlowActor; tag: string; icon: Component; col: 0 | 1 | 2; top: number; role: string }
-// 단계와 역할은 정책 v3.1(POLICY.md §1·§3·§5·§6·§8)과 Backend 구현(LiveModerationService.judgment)을 따른다.
+// 단계와 역할은 정책 v3.2(POLICY.md §1·§3·§5·§6·§8)과 Backend 구현(LiveModerationService.judgment)을 따른다.
 const flowNodes: FlowNode[] = [
   { id: 'input', title: '채팅 접수', sub: '메시지 접수', actor: 'backend', tag: 'INPUT', icon: MessageSquare, col: 1, top: 4, role: '시청자 메시지를 접수하고 방송·작성자 정보를 연결합니다.' },
-  { id: 'classify', title: '백엔드 1차 분류', sub: 'PASS · HOLD · FLOOD', actor: 'backend', tag: 'BACKEND', icon: Split, col: 1, top: 84, role: '정규화한 문장을 사전과 규칙으로 검사해 처리 경로(통과·규칙 확정·문맥 검토·개인정보 조사·도배)를 정합니다. 일반 시청자에게 원문을 먼저 공개하지 않습니다. (v3.1 §3)' },
-  { id: 'public', title: '공개 유지', sub: 'PASS · Agent 미호출', actor: 'backend', tag: 'PASS', icon: Eye, col: 0, top: 184, role: '조사 신호가 없어 공개합니다. Agent는 호출하지 않습니다. (v3.1 §3)' },
-  { id: 'rule', title: '규칙 확정', sub: '명확한 욕설 · 링크 · 도배', actor: 'backend', tag: 'BACKEND', icon: ScrollText, col: 1, top: 184, role: '명확한 욕설과 링크는 BE 규칙으로 위반을 확정합니다. 도배는 10초 안 같은 문장 세 번째부터입니다. AI 조사는 없습니다. (v3.1 §1·§2·§7)' },
-  { id: 'agent', title: '문맥·개인정보 조사', sub: '가린 대화 · 작성자 이력', actor: 'agent', tag: 'AGENT · 01', icon: Search, col: 2, top: 184, role: 'BE가 고른 후보만 조사합니다. 가린 주변 채팅과 작성자 이력을 불러옵니다. 제재는 하지 않습니다. (v3.1 §1, SP-4.1)' },
-  { id: 'policy', title: '정책 대조 · AI 판정', sub: '위반 · 위반 아님 · 판단 보류', actor: 'agent', tag: 'AGENT · 02', icon: BookOpen, col: 2, top: 264, role: '조사 결과를 정책 v3.1 조항에 대조해 판정(VIOLATION·NO_VIOLATION·NEEDS_REVIEW)과 근거를 냅니다. AI 판정은 제안입니다. (v3.1 §5)' },
-  { id: 'verify', title: '근거·정책 검증', sub: '경로별 결과 반영', actor: 'backend', tag: 'BACKEND', icon: ShieldCheck, col: 2, top: 344, role: 'BE가 판정의 근거 형식과 정책 ID를 검증하고 경로별로 넘깁니다. 문맥 후보와 판단 보류는 운영자 결정, 개인정보 정상은 가림 해제입니다. (v3.1 §5)' },
-  { id: 'wait', title: '운영자 결정 대기', sub: '정상 · 위반 · 보류', actor: 'human', tag: 'HUMAN', icon: UserCheck, col: 2, top: 434, role: '운영자가 AI 결과와 다르게 판단할 수 있습니다. 보류는 공개 승인이 아니며, 운영자 확인 없이 자동 공개하지 않습니다. (v3.1 §5)' },
-  { id: 'sanction', title: '숨김 · 제재 적용', sub: '유형별 제재표', actor: 'backend', tag: 'BACKEND', icon: EyeOff, col: 1, top: 524, role: '확정 위반을 숨기고 같은 유형의 이전 확정 수로 채팅 제한을 정합니다. 여러 유형이면 가장 긴 제한 하나만 적용합니다. (v3.1 §6, MP-2.1)' },
-  { id: 'normal', title: '공개 · 가림 해제', sub: '정상 확정 · 개인정보 정상', actor: 'backend', tag: 'RESTORE', icon: Eye, col: 2, top: 524, role: '이 사건의 가림 원인만 풉니다. 다른 유효한 숨김이나 가림이 있으면 공개하지 않습니다. (v3.1 §4·§5)' },
-  { id: 'kickReview', title: '강퇴 승인 요청', sub: '24시간 확정 통합 3건', actor: 'human', tag: 'HUMAN', icon: UserX, col: 1, top: 614, role: '같은 시청자·같은 방송의 최근 24시간 확정 사건이 유형 통합 3건이면 강퇴 승인을 따로 요청합니다. 자동 집행하지 않습니다. (v3.1 §8, MP-4.1)' },
-  { id: 'kick', title: '강퇴 실행', sub: '재검증 후 방송 종료까지', actor: 'backend', tag: 'APPROVED', icon: Ban, col: 1, top: 704, role: '승인한 기준 사건을 재검증한 뒤 실행합니다. 이 방송이 끝날 때까지 재입장과 채팅을 막습니다. 실패해도 기존 가림은 풀지 않습니다. (v3.1 §9·§10)' }
+  { id: 'classify', title: '백엔드 1차 분류', sub: 'PASS · HOLD · FLOOD', actor: 'backend', tag: 'BACKEND', icon: Split, col: 1, top: 84, role: '정규화한 문장을 사전과 규칙으로 검사해 처리 경로(통과·규칙 확정·문맥 검토·개인정보 조사·도배)를 정합니다. 일반 시청자에게 원문을 먼저 공개하지 않습니다. (v3.2 §3)' },
+  { id: 'public', title: '공개 유지', sub: 'PASS · Agent 미호출', actor: 'backend', tag: 'PASS', icon: Eye, col: 0, top: 184, role: '조사 신호가 없어 공개합니다. Agent는 호출하지 않습니다. (v3.2 §3)' },
+  { id: 'rule', title: '규칙 확정', sub: '명확한 욕설 · 링크 · 도배', actor: 'backend', tag: 'BACKEND', icon: ScrollText, col: 1, top: 184, role: '명확한 욕설과 링크는 BE 규칙으로 위반을 확정합니다. 도배는 10초 안 같은 문장 세 번째부터입니다. AI 조사는 없습니다. (v3.2 §1·§2·§7)' },
+  { id: 'agent', title: '문맥·개인정보 조사', sub: '가린 대화 · 작성자 이력', actor: 'agent', tag: 'AGENT · 01', icon: Search, col: 2, top: 184, role: 'BE가 고른 후보만 조사합니다. 가린 주변 채팅과 작성자 이력을 불러옵니다. 제재는 하지 않습니다. (v3.2 §1, SP-4.1)' },
+  { id: 'policy', title: '정책 대조 · AI 판정', sub: '위반 · 위반 아님 · 판단 보류', actor: 'agent', tag: 'AGENT · 02', icon: BookOpen, col: 2, top: 264, role: '조사 결과를 정책 v3.2 조항에 대조해 판정(VIOLATION·NO_VIOLATION·NEEDS_REVIEW)과 근거를 냅니다. AI 판정은 제안입니다. (v3.2 §5)' },
+  { id: 'verify', title: '근거·정책 검증', sub: '경로별 결과 반영', actor: 'backend', tag: 'BACKEND', icon: ShieldCheck, col: 2, top: 344, role: 'BE가 판정의 근거 형식과 정책 ID를 검증하고 경로별로 넘깁니다. 문맥 후보와 판단 보류는 운영자 결정, 개인정보 정상은 가림 해제입니다. (v3.2 §5)' },
+  { id: 'wait', title: '운영자 결정 대기', sub: '정상 · 위반 · 보류', actor: 'human', tag: 'HUMAN', icon: UserCheck, col: 2, top: 434, role: '운영자가 AI 결과와 다르게 판단할 수 있습니다. 보류는 공개 승인이 아니며, 운영자 확인 없이 자동 공개하지 않습니다. (v3.2 §5)' },
+  { id: 'sanction', title: '숨김 · 제재 적용', sub: '유형별 제재표', actor: 'backend', tag: 'BACKEND', icon: EyeOff, col: 1, top: 524, role: '확정 위반을 숨기고 같은 유형의 이전 확정 수로 채팅 제한을 정합니다. 여러 유형이면 가장 긴 제한 하나만 적용합니다. (v3.2 §6, MP-2.1)' },
+  { id: 'normal', title: '공개 · 가림 해제', sub: '정상 확정 · 개인정보 정상', actor: 'backend', tag: 'RESTORE', icon: Eye, col: 2, top: 524, role: '이 사건의 가림 원인만 풉니다. 다른 유효한 숨김이나 가림이 있으면 공개하지 않습니다. (v3.2 §4·§5)' },
+  { id: 'kickReview', title: '강퇴 승인 요청', sub: '24시간 확정 통합 3건', actor: 'human', tag: 'HUMAN', icon: UserX, col: 1, top: 614, role: '같은 시청자·같은 방송의 최근 24시간 확정 사건이 유형 통합 3건이면 강퇴 승인을 따로 요청합니다. 자동 집행하지 않습니다. (v3.2 §8, MP-4.1)' },
+  { id: 'kick', title: '강퇴 실행', sub: '재검증 후 방송 종료까지', actor: 'backend', tag: 'APPROVED', icon: Ban, col: 1, top: 704, role: '승인한 기준 사건을 재검증한 뒤 실행합니다. 이 방송이 끝날 때까지 재입장과 채팅을 막습니다. 실패해도 기존 가림은 풀지 않습니다. (v3.2 §9·§10)' }
 ];
 const flowEdgeDefs: [FlowNodeId, FlowNodeId, string][] = [
   ['input', 'classify', ''], ['classify', 'public', '통과'], ['classify', 'rule', '규칙 확정'], ['classify', 'agent', '조사 후보'],
@@ -269,7 +269,7 @@ const evidence = computed(() => {
         '접수', pass ? '공개' : ai ? '임시 비노출' : '위반 확정', pass ? '백엔드가 바로 공개합니다.' : ai ? '백엔드가 임시 비노출로 바꾸고 Agent 조사를 요청합니다.' : '판단·실행 모두 백엔드입니다. Agent는 호출하지 않습니다.', routeCode);
       break;
     }
-    case 'public': add('Agent 미호출'); fill('조사 신호가 없어 공개합니다.', '접수', '공개', '백엔드가 공개합니다.', 'PASS · v3.1 §3'); break;
+    case 'public': add('Agent 미호출'); fill('조사 신호가 없어 공개합니다.', '접수', '공개', '백엔드가 공개합니다.', 'PASS · v3.2 §3'); break;
     case 'rule':
       add(cats && `위반 유형 ${cats}`); add(confirmedAt ? `확정 시각 ${asTime(confirmedAt)}` : null);
       fill(routeCode === 'FLOOD_REVIEW' ? '10초 안 같은 문장 세 번째부터 도배로 확정합니다.' : '명확한 욕설·링크 규칙과 일치해 위반으로 확정합니다. 인용·설명이어도 욕설은 적용합니다.', '접수', '위반 확정', '판단·실행 모두 백엔드 · Agent 호출 없음', routeCode); break;
@@ -285,7 +285,7 @@ const evidence = computed(() => {
       for (const m of finding?.missingFacts ?? []) add(`확인 필요: ${m}`);
       base.tools = trace?.agent?.tools.filter(t => t.name === 'search_policy' || t.name === 'get_policy_section') ?? [];
       base.reasoning = trace?.agent?.reasoning ?? []; base.answer = trace?.agent?.answer ?? null;
-      fill(finding?.reason ?? n.role, '임시 비노출', '판정 제안', 'Agent는 판정과 근거만 냅니다. 제재·공개는 하지 않습니다.', finding?.policyIds.join(', ') || 'v3.1 §5'); break;
+      fill(finding?.reason ?? n.role, '임시 비노출', '판정 제안', 'Agent는 판정과 근거만 냅니다. 제재·공개는 하지 않습니다.', finding?.policyIds.join(', ') || 'v3.2 §5'); break;
     case 'verify': {
       const pii = item?.handlingRoute === 'PII_INVESTIGATION';
       add(finding && `받은 판정 ${verdictLabels[finding.verdict]} (${finding.verdict})`);
@@ -295,7 +295,7 @@ const evidence = computed(() => {
       const next = review ? '운영자 결정 대기' : item?.confirmationStatus === 'CONFIRMED_NORMAL' ? '가림 해제' : item?.confirmationStatus === 'CONFIRMED_VIOLATION' ? '위반 확정' : '검증 중';
       add(`결과: ${next}`);
       fill(pii ? '개인정보 경로: 정상이면 가림을 풀고, 판단 보류면 운영자 검토로 넘깁니다. 위반은 실제 개인정보 근거가 검증될 때만 확정합니다.' : '문맥 경로: AI 판정과 상관없이 운영자 결정으로 넘깁니다. AI 정상 판단만으로 공개하지 않습니다.',
-        '임시 비노출', next, '백엔드가 검증하고 넘깁니다.', 'v3.1 §5'); break;
+        '임시 비노출', next, '백엔드가 검증하고 넘깁니다.', 'v3.2 §5'); break;
     }
     case 'wait': {
       add(review && `결정 요청 ${asTime(review.createdAt)}`);
@@ -303,25 +303,25 @@ const evidence = computed(() => {
       if (review && (review.status === 'PENDING' ? review.version > 1 : review.version > 2)) add('보류 기록 있음 · 같은 검토로 다시 결정 대기');
       for (const s of step('운영자 결정')) add(`${asTime(s.at)} ${s.detail}`);
       const decided = item?.confirmationStatus === 'CONFIRMED_NORMAL' ? '정상 확정' : item?.confirmationStatus === 'CONFIRMED_VIOLATION' || item?.confirmationStatus === 'CANCELLED' ? '위반 확정' : '결정 대기';
-      fill('AI 제안은 참고용입니다. 운영자가 정상·위반·보류를 결정할 때까지 공개하지 않습니다. 보류는 공개 승인이 아닙니다.', '임시 비노출', decided, '운영자가 결정합니다. 위반 확정 전에는 확정 이력에 넣지 않습니다.', 'v3.1 §5'); break;
+      fill('AI 제안은 참고용입니다. 운영자가 정상·위반·보류를 결정할 때까지 공개하지 않습니다. 보류는 공개 승인이 아닙니다.', '임시 비노출', decided, '운영자가 결정합니다. 위반 확정 전에는 확정 이력에 넣지 않습니다.', 'v3.2 §5'); break;
     }
     case 'sanction': {
       const byOperator = !!item && !isRule(item);
       add(cats && `위반 유형 ${cats}`); add(hidden && `조치 ${hidden}`); add(confirmedAt ? `확정 시각 ${asTime(confirmedAt)}` : null);
       add(revoked && `오판 취소 ${asTime(revoked.revokedAt)}`);
       fill(byOperator ? '운영자가 위반으로 확정해 숨기고 기준표의 제재를 적용합니다.' : '규칙 확정에 따라 숨기고 기준표의 제재를 적용합니다.',
-        byOperator ? '임시 비노출' : '위반 확정', hidden, `판단: ${byOperator ? (review ? '운영자' : 'Agent · 백엔드 검증') : '백엔드 규칙'} · 실행: 백엔드`, 'v3.1 §6 제재표 (MP-2.1)'); break;
+        byOperator ? '임시 비노출' : '위반 확정', hidden, `판단: ${byOperator ? (review ? '운영자' : 'Agent · 백엔드 검증') : '백엔드 규칙'} · 실행: 백엔드`, 'v3.2 §6 제재표 (MP-2.1)'); break;
     }
     case 'normal':
       add(at('MESSAGE_RESTORED', true) && `공개 시각 ${at('MESSAGE_RESTORED', true)}`);
       for (const s of step('운영자 결정')) add(`${asTime(s.at)} ${s.detail}`);
-      fill(review ? '운영자가 정상으로 확정해 다시 공개합니다.' : '개인정보 정상 판정을 백엔드가 검증해 가림을 풉니다.', '임시 비노출', '공개', review ? '결정: 운영자 · 공개 실행: 백엔드' : '판단: Agent · 검증·해제: 백엔드', 'v3.1 §4·§5'); break;
+      fill(review ? '운영자가 정상으로 확정해 다시 공개합니다.' : '개인정보 정상 판정을 백엔드가 검증해 가림을 풉니다.', '임시 비노출', '공개', review ? '결정: 운영자 · 공개 실행: 백엔드' : '판단: Agent · 검증·해제: 백엔드', 'v3.2 §4·§5'); break;
     case 'kickReview': {
       const k = kickReviewOf(item);
       add(k && `요청 시각 ${asTime(k.createdAt)}`); add(k && `기준 사건 ${k.basisCaseIds.length}건`); add(k && `상태 ${reviewStatusLabels[k.status] ?? k.status}`); add(k && kickStateOf(k));
-      fill(n.role, '확정 통합 3건', !k ? '-' : k.status === 'PENDING' ? '승인 대기' : reviewStatusLabels[k.status] ?? k.status, '운영자가 승인·기각합니다. 기각해도 기존 숨김과 제한은 유지합니다.', 'v3.1 §8 (MP-4.1)'); break;
+      fill(n.role, '확정 통합 3건', !k ? '-' : k.status === 'PENDING' ? '승인 대기' : reviewStatusLabels[k.status] ?? k.status, '운영자가 승인·기각합니다. 기각해도 기존 숨김과 제한은 유지합니다.', 'v3.2 §8 (MP-4.1)'); break;
     }
-    case 'kick': { const k = kickReviewOf(item); add(k && kickStateOf(k)); fill(n.role, '승인', '강퇴 적용', '승인: 운영자 · 재검증·실행: 백엔드', 'v3.1 §9·§10'); break; }
+    case 'kick': { const k = kickReviewOf(item); add(k && kickStateOf(k)); fill(n.role, '승인', '강퇴 적용', '승인: 운영자 · 재검증·실행: 백엔드', 'v3.2 §9·§10'); break; }
   }
   return base;
 });
