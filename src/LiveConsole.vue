@@ -54,6 +54,18 @@ async function resolveNames(){
  }
  for(const t of missing())tried.add(t);
 }
+// 채팅 기록 페이지: 운영자용 채팅 조회를 100건씩 이전 페이지로 넘기며 불러온다.
+const archive=ref<Message[]>([]),archiveCursor=ref<string|null>(null),archiveMore=ref(false),archiveLoading=ref(false);
+async function loadArchive(reset:boolean){
+ if(!live.value||archiveLoading.value)return;const id=live.value.liveId;archiveLoading.value=true;
+ try{
+  const page=await api.liveMessagesPage(id,reset?undefined:archiveCursor.value??undefined);if(live.value?.liveId!==id)return;
+  const base=reset?[]:archive.value,known=new Set(base.map(m=>m.messageId));
+  archive.value=[...base,...page.items.filter(m=>!known.has(m.messageId))];for(const m of page.items)names.value[m.messageId]=m.authorAlias;
+  archiveCursor.value=page.nextCursor;archiveMore.value=!!page.nextCursor;
+ }catch(e){fail(e);}finally{archiveLoading.value=false;}
+}
+function onPage(p:string){if(p==='viewers')resolveNames().catch(fail);if(p==='chats')loadArchive(true);}
 const caseNames=computed(()=>Object.fromEntries(caseHistory.value.flatMap(c=>{const n=nameOf(c.targetMessageIds[0]);return n?[[c.caseId,n]]:[];})));
 let generation=0;let refreshSequence=0;
 const seen=new Set<string>();let streams:EventSource[]=[];let timer:ReturnType<typeof setInterval>|undefined;let clockTimer:ReturnType<typeof setInterval>|undefined;let loadingLive=false;
@@ -70,7 +82,7 @@ async function sessionValid(){
  const previous=store.me?.userId;
  const current=await api.me();
  if(current.userId!==previous){
-  generation++;disconnect();resetAccess();messages.value=[];reviews.value=[];caseHistory.value=[];logs.value=[];live.value=null;names.value={};kickProgress.value={};tried.clear();seen.clear();outgoing=null;text.value='';
+  generation++;disconnect();resetAccess();messages.value=[];reviews.value=[];caseHistory.value=[];logs.value=[];live.value=null;names.value={};archive.value=[];archiveMore.value=false;kickProgress.value={};tried.clear();seen.clear();outgoing=null;text.value='';
   await store.syncIdentity(current);
   notice.value='다른 창에서 로그인 계정이 변경되어 화면을 갱신했습니다. 역할별 데모는 서로 다른 호스트나 브라우저 프로필을 사용하세요.';
   await load();return false;
@@ -108,7 +120,7 @@ function connect(){
   try{
    const v=JSON.parse((e as MessageEvent).data);
    if(!v.eventId||seen.has(v.eventId))return;seen.add(v.eventId);if(seen.size>1000)seen.delete(seen.values().next().value!);
-   logs.value.unshift({id:v.eventId,time:v.occurredAt,event:e.type,detail:JSON.stringify(v.payload)});logs.value=logs.value.slice(0,60);
+   logs.value.unshift({id:v.eventId,time:v.occurredAt,event:e.type,detail:JSON.stringify(v.payload),caseId:v.payload?.caseId,reviewId:v.payload?.reviewId});logs.value=logs.value.slice(0,200);
    if(e.type==='LIVE_ENDED'){markEnded();return;}
    if(e.type==='LIVE_ACCESS_BLOCKED'&&!operator.value){blockAccess();return;}
    if(e.type==='MESSAGE_VISIBILITY_CHANGED'&&v.payload.visibility!=='PUBLIC'&&!operator.value){
@@ -147,7 +159,7 @@ async function load(){
  loadingLive=true;const expected=generation;const channel=store.channelId;
  try{
   const current=await api.currentLive(channel);if(expected!==generation||store.channelId!==channel)return;
-  if(current.liveId!==live.value?.liveId){generation++;disconnect();resetAccess();messages.value=[];reviews.value=[];caseHistory.value=[];logs.value=[];names.value={};kickProgress.value={};tried.clear();seen.clear();text.value='';outgoing=null;notice.value='';}
+  if(current.liveId!==live.value?.liveId){generation++;disconnect();resetAccess();messages.value=[];reviews.value=[];caseHistory.value=[];logs.value=[];names.value={};archive.value=[];archiveMore.value=false;kickProgress.value={};tried.clear();seen.clear();text.value='';outgoing=null;notice.value='';}
   live.value=current;ended.value=!!current.endedAt;
   if(ended.value){markEnded();return;}
   if(await refresh()){error.value='';if(!streams.length)connect();}
@@ -201,8 +213,8 @@ onBeforeUnmount(()=>{generation++;disconnect();window.removeEventListener('focus
 </script>
 <template>
  <ViewerScreen v-if="!operator&&!admin" v-model:draft="text" :messages="visibleMessages" :nickname="store.me?.nickname??'시청자'" :scope-key="`${store.me?.userId}:${live?.liveId??''}`" :clock="clock" :ready="accessReady" :loading="loading" :has-live="!!live" :blocked="blocked" :ended="ended" :busy="busy" :timed-out="timedOut" :timeout-until="timeoutUntil" :timeout-reason="timeoutReason" :started-at="live?.startedAt" :online="online" :error="error" :notice="notice" @send="send" @logout="store.logout()" @refresh="load"/>
- <StudioScreen v-else-if="operator" :nickname="store.me?.nickname??'운영자'" :live="live" :ended="ended" :loading="loading" :online="online" :messages="visibleMessages" :reviews="reviews" :cases="caseHistory" :case-names="caseNames" :logs="logs" :kick-progress="kickProgress" :busy="busy" :error="error" :notice="notice"
-  @decide="decide" @revoke="revoke" @refresh="load" @start="start" @end="end" @logout="store.logout()" @page="p=>{if(p==='viewers')resolveNames().catch(fail);}"/>
+ <StudioScreen v-else-if="operator" :nickname="store.me?.nickname??'운영자'" :live="live" :ended="ended" :loading="loading" :online="online" :messages="visibleMessages" :reviews="reviews" :cases="caseHistory" :case-names="caseNames" :logs="logs" :kick-progress="kickProgress" :archive="archive" :archive-more="archiveMore" :archive-loading="archiveLoading" :busy="busy" :error="error" :notice="notice"
+  @decide="decide" @revoke="revoke" @refresh="load" @start="start" @end="end" @logout="store.logout()" @page="onPage" @load-older="loadArchive(false)"/>
  <div v-else class="v1-shell">
   <header class="v1-top"><span class="yt-logo"><span class="yt-logo-mark"><ShieldCheck :size="16"/></span><b>LIVE:GUARD</b></span><b>시스템 운영자</b><span class="v1-me">{{store.me?.nickname}}</span><button @click="store.logout()"><LogOut :size="15"/> 로그아웃</button></header>
   <main class="v1-main"><section class="v1-card"><h2>등록된 역할로 접근했습니다</h2><p>이 계정에는 담당 방송이 없습니다. 방송 검토는 담당 운영자 계정으로 확인하세요.</p><p>여러 방송의 통합 지표 API가 없어 이 화면에는 Mock 집계를 표시하지 않습니다.</p></section></main>
