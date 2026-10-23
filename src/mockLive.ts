@@ -308,7 +308,7 @@ export function createMockLive(users: MockUser[]) {
     state.decisions[reviewId] = { kind: r.kind, value, reason, decidedAt: iso(at) };
     r.version++;
     log('REVIEW_DECIDED', `${aliasOf(c.userId)} · ${r.kind} ${value}`, at, { caseId: c.caseId, reviewId });
-    if (r.kind === 'CONTEXT') addStep(c.targetMessageIds, at, '운영자 결정', `${value === 'CONFIRM_NORMAL' ? '정상 확정 → 공개' : value === 'CONFIRM_VIOLATION' ? '위반 확정' : '보류 → 다시 결정 대기'} · 이유: ${reason}`, value);
+    if (r.kind === 'CONTEXT') addStep(c.targetMessageIds, at, '운영자 결정', `${value === 'CONFIRM_NORMAL' ? '정상 확정 → 공개' : value === 'CONFIRM_VIOLATION' ? '위반 확정' : '보류 → 다시 결정 대기'}${reason ? ` · 이유: ${reason}` : ''}`, value);
     if (r.kind === 'CONTEXT') {
       if (value === 'DEFER') return { ok: true, message: '보류했습니다. 검토 대기에 남습니다. (MOCK)' };
       r.status = 'DECIDED';
@@ -380,7 +380,7 @@ export function createMockLive(users: MockUser[]) {
       const d = line.decide;
       if (d) steps.push({ at: now - d.minutesAgo * 60_000, run: () => {
         const r = state.reviews.find(x => x.kind === 'CONTEXT' && x.targetMessageIds.includes(sent?.messageId ?? ''));
-        if (r) decide(r.reviewId, d.value, d.reason, d.categories, now - d.minutesAgo * 60_000);
+        if (r) decide(r.reviewId, d.value, '', d.categories, now - d.minutesAgo * 60_000);
       } });
     }
     steps.sort((a, b) => a.at - b.at).forEach(s => s.run());

@@ -47,7 +47,7 @@ export const filterExamples: { key: 'hide' | 'held' | 'pass'; title: string; not
 ];
 
 // 초기 화면: 지난 채팅을 목업 판정에 시간 순서대로 다시 넣는다. decide는 그 메시지의 문맥 검토에 운영자가 내린 결정이다.
-export interface FixtureLine { alias: string; text: string; minutesAgo: number; repeat?: number; decide?: { value: 'CONFIRM_NORMAL' | 'CONFIRM_VIOLATION'; categories?: Category[]; reason: string; minutesAgo: number } }
+export interface FixtureLine { alias: string; text: string; minutesAgo: number; repeat?: number; decide?: { value: 'CONFIRM_NORMAL' | 'CONFIRM_VIOLATION'; categories?: Category[]; minutesAgo: number } }
 export const fixtureLines: FixtureLine[] = [
   { alias: '치킨러버', text: '방송 켜자마자 들어왔어요 ㅎㅎ', minutesAgo: 24 },
   { alias: '고인물', text: '오늘 패치 내용 보셨어요?', minutesAgo: 23 },
@@ -60,7 +60,7 @@ export const fixtureLines: FixtureLine[] = [
   { alias: '고인물', text: '그 무기 말고 활 쓰세요', minutesAgo: 16 },
   { alias: '이벤트봇', text: '구독자 이벤트! free-item.example 에서 아이템 받아가세요', minutesAgo: 15 },
   { alias: '뉴비123', text: '저도 해보고 싶어지네요', minutesAgo: 14 },
-  { alias: '새벽감성', text: '와 방금 컨트롤 미쳤다', minutesAgo: 13, decide: { value: 'CONFIRM_NORMAL', reason: '플레이를 칭찬하는 감탄 표현입니다.', minutesAgo: 12.5 } },
+  { alias: '새벽감성', text: '와 방금 컨트롤 미쳤다', minutesAgo: 13, decide: { value: 'CONFIRM_NORMAL', minutesAgo: 12.5 } },
   { alias: '버럭이', text: '아 진짜 노잼이네 꺼져라', minutesAgo: 12 },
   { alias: '게임소녀', text: '보스 패턴 바뀐 것 같아요', minutesAgo: 11 },
   { alias: '정보왕', text: '결제 오류는 고객센터 help@game-corp.example 로 문의하면 돼요', minutesAgo: 10 },
@@ -70,7 +70,7 @@ export const fixtureLines: FixtureLine[] = [
   { alias: '김하늘', text: '오늘도 화이팅하세요! 💜', minutesAgo: 6 },
   { alias: '별빛시청자', text: '오늘 무슨 게임 하시나요?', minutesAgo: 5 },
   { alias: '어둠의유저', text: '시발 너 진짜 못하네', minutesAgo: 4 },
-  { alias: '어둠의유저', text: '꺼져 계속 따라다닐 거야', minutesAgo: 3, decide: { value: 'CONFIRM_VIOLATION', categories: ['HARASSMENT'], reason: '같은 시청자를 계속 따라다니겠다는 표적 괴롭힘입니다.', minutesAgo: 1 } },
+  { alias: '어둠의유저', text: '꺼져 계속 따라다닐 거야', minutesAgo: 3, decide: { value: 'CONFIRM_VIOLATION', categories: ['HARASSMENT'], minutesAgo: 1 } },
   { alias: '게임소녀', text: '우와 보스 클리어!!', minutesAgo: 2.5 },
   { alias: '어둠의유저', text: '공식 이벤트 페이지 bit.ly/free-skin 에서 로그인하세요', minutesAgo: 2 }
 ];

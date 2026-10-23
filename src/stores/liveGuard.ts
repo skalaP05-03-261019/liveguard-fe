@@ -131,7 +131,6 @@ export const useLiveGuard = defineStore('liveGuard', () => {
     if (last) { if (last.ok && last.message.visibility === 'PUBLIC') toast(`${sc.alias} · 공개 (MOCK)`); else announce(last, sc.alias); }
   }
   function decide(reviewId: string, value: ContextDecision | KickDecision, reason: string, categories: Category[] = []) {
-    if (!reason.trim()) { error.value = '결정 이유를 입력해 주세요.'; return false; }
     const r = mock.decide(reviewId, value, reason.trim(), categories);
     if (r.ok) error.value = ''; else error.value = r.message;
     toast(r.message);

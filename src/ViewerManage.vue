@@ -33,7 +33,8 @@ const pendingOf = (row: ViewerRow) => row.reviews.filter(r => r.status === 'PEND
 const asTime = (v: string) => dateTimeText(v || null);
 const reasonOf = (id: string) => (reasons[id] ?? '').trim();
 function toggle(name: string) { open.value = open.value === name ? null : name; revoking.value = null; }
-function decide(review: ViewerReview, value: string) { if (reasonOf(review.reviewId)) emit('decide', review, value, reasonOf(review.reviewId)); }
+// 결정 사유는 받지 않는다(Backend A-26). 오판 취소 사유는 그대로 필수다.
+function decide(review: ViewerReview, value: string) { emit('decide', review, value, ''); }
 function revoke(item: ViewerCase, finding: ViewerFinding) { if (reasonOf(finding.findingId)) { emit('revoke', item, finding, reasonOf(finding.findingId)); revoking.value = null; } }
 </script>
 
@@ -81,17 +82,16 @@ function revoke(item: ViewerCase, finding: ViewerFinding) { if (reasonOf(finding
                 </ol>
                 <div v-for="r in pendingOf(row)" :key="r.reviewId" class="vm-review">
                   <div class="vm-review-head"><b>{{r.kind==='KICK' ? '강퇴 승인 대기' : '문맥 검토 대기'}}</b><span class="vm-muted">{{asTime(r.createdAt)}} · {{r.summary}}</span></div>
-                  <textarea v-model="reasons[r.reviewId]" rows="2" maxlength="500" placeholder="판단 근거 (필수)" :aria-label="`${row.name} 판단 근거`"/>
                   <div class="vm-actions">
                     <template v-if="r.kind==='KICK'">
-                      <button class="vm-btn primary" :disabled="busy || !reasonOf(r.reviewId)" @click="decide(r, 'APPROVE')">강퇴 승인</button>
-                      <button class="vm-btn" :disabled="busy || !reasonOf(r.reviewId)" @click="decide(r, 'REJECT')">기각</button>
+                      <button class="vm-btn primary" :disabled="busy" @click="decide(r, 'APPROVE')">강퇴 승인</button>
+                      <button class="vm-btn" :disabled="busy" @click="decide(r, 'REJECT')">기각</button>
                       <small>승인 저장은 강퇴 완료가 아닙니다. 재검증을 통과하면 이번 방송 종료까지 입장이 제한됩니다.</small>
                     </template>
                     <template v-else>
-                      <button class="vm-btn" :disabled="busy || !reasonOf(r.reviewId)" @click="decide(r, 'CONFIRM_NORMAL')">정상 확정</button>
-                      <button class="vm-btn primary" :disabled="busy || !reasonOf(r.reviewId)" @click="decide(r, 'CONFIRM_VIOLATION')">위반 확정</button>
-                      <button class="vm-btn" :disabled="busy || !reasonOf(r.reviewId)" @click="decide(r, 'DEFER')">보류</button>
+                      <button class="vm-btn" :disabled="busy" @click="decide(r, 'CONFIRM_NORMAL')">정상 확정</button>
+                      <button class="vm-btn primary" :disabled="busy" @click="decide(r, 'CONFIRM_VIOLATION')">위반 확정</button>
+                      <button class="vm-btn" :disabled="busy" @click="decide(r, 'DEFER')">보류</button>
                     </template>
                   </div>
                 </div>
