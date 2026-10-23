@@ -71,7 +71,10 @@ async function waitFor(check){
 async function openCard(card){if(!/\bopen\b/.test(await card.getAttribute('class')))await card.locator('.review-head').click();}
 async function openMore(card){await openCard(card);if(!(await card.locator('.review-more').evaluate(el=>el.open)))await card.locator('.review-more > summary').click();}
 async function decideCard(card,label){await openCard(card);await card.getByRole('radio',{name:label,exact:true}).check();await card.getByRole('button',{name:'제출',exact:true}).click();}
-async function showQueue(page,name){await page.getByRole('tablist',{name:'결정 대기 종류'}).getByRole('tab',{name:new RegExp('^'+name)}).click();}
+// 결정 대기는 별도 페이지다.
+async function gotoQueue(page){await page.getByRole('navigation',{name:'운영자 메뉴'}).getByRole('button',{name:/^결정 대기/}).click();await page.locator('.queue-page').waitFor();}
+async function gotoMonitor(page){await page.getByRole('navigation',{name:'운영자 메뉴'}).getByRole('button',{name:'실시간 관제',exact:true}).click();}
+async function showQueue(page,name){if(!(await page.locator('.queue-page').count()))await gotoQueue(page);await page.getByRole('tablist',{name:'결정 대기 종류'}).getByRole('tab',{name:new RegExp('^'+name)}).click();}
 async function openDemo(page){const fold=page.locator('.demo-fold');if(!(await fold.evaluate(el=>el.open)))await fold.locator('summary').click();}
 async function capture(page,name){if(evidence){await fs.mkdir(evidence,{recursive:true});await page.screenshot({path:path.join(evidence,`${name}.png`),fullPage:true,animations:'disabled'});}}
 before(async()=>{
@@ -445,7 +448,7 @@ test('API operator on a stale review gets STALE_VERSION, sees the notice and rel
  state.reviews=[{reviewId:'review-ctx',kind:'CONTEXT',liveId:'live-1',caseId:'case-ctx',status:'PENDING',version:1,createdAt:timestamp(),aiVerdict:'NO_VIOLATION',messages:state.cases[0].messages,targetMessageIds:['held-1'],findings:[{messageId:'held-1',verdict:'NO_VIOLATION',categories:[],policyIds:['CP-2.2'],reason:'감탄 표현입니다.',missingFacts:[]}],basisCaseIds:[],summary:'AI 제안을 확인하고 최종 결정해 주세요'}];
  const first=await open('operator'),second=await open('operator');
  const card=p=>p.locator('.studio-review[data-review-id="review-ctx"]');
- await card(first).waitFor();await card(second).waitFor();
+ await gotoQueue(first);await gotoQueue(second);await card(first).waitFor();await card(second).waitFor();
  // 두 번째 화면은 첫 번째 운영자의 보류를 아직 모르는 상태로 둔다.
  const stale={};await second.route(/\/api\/reviews\?/,async route=>{const u=route.request().url();if(!stale[u]){const r=await route.fetch();stale[u]=await r.text();}await route.fulfill({status:200,contentType:'application/json',body:stale[u]});});
  await second.getByRole('button',{name:'새로고침',exact:true}).click();await waitFor(()=>Object.keys(stale).length===2);
@@ -469,7 +472,7 @@ test('API kick rejection is accepted without blocking the viewer and keeps exist
  state.cases=[1,2,3].map(n=>({caseId:'case-'+n,liveId:'live-1',version:2,confirmationStatus:'CONFIRMED_VIOLATION',handlingRoute:'RULE_CONFIRMED',messages:[masked('old-'+n,'욕설 '+n)],targetMessageIds:['old-'+n],confirmedFindings:[{findingId:'finding-'+n,category:'PROFANITY',status:'CONFIRMED',confirmedAt:timestamp(),revokedAt:null}],findings:[],createdAt:timestamp(),violationCount:n}));
  state.reviews=[{reviewId:'review-kick',kind:'KICK',liveId:'live-1',caseId:'case-3',status:'PENDING',version:1,createdAt:timestamp(),aiVerdict:'VIOLATION',messages:[],targetMessageIds:['old-3'],findings:[],basisCaseIds:['case-1','case-2','case-3'],summary:'서로 다른 확정 사건 3건 — 방송 종료까지 차단 승인 요청'}];
  const operator=await open('operator'),viewer=await open('author');
- const kick=operator.locator('.studio-review.kick');await kick.waitFor();
+ await gotoQueue(operator);const kick=operator.locator('.studio-review.kick');await kick.waitFor();
  await kick.getByLabel('운영자 판단 근거 (필수)').fill('이번 방송에서는 강퇴하지 않습니다.');
  await decideCard(kick,'강퇴 기각');
  await waitFor(()=>state.decisions.length===1);
@@ -511,7 +514,7 @@ test('API context card shows when the message was sent and earlier cases with th
   {caseId:'case-other',liveId:'live-1',version:1,confirmationStatus:'PENDING',handlingRoute:'CONTEXT_REVIEW',messages:[sent('other','2026-10-22T13:41:00Z','HELD')],targetMessageIds:['other'],confirmedFindings:[],findings:[],createdAt:'2026-10-22T13:41:10Z',violationCount:0}];
  state.reviews=[{reviewId:'review-again',kind:'CONTEXT',liveId:'live-1',caseId:'case-again',status:'PENDING',version:1,createdAt:'2026-10-22T13:40:13Z',aiVerdict:'VIOLATION',messages:state.cases[1].messages,targetMessageIds:['again'],findings:[],basisCaseIds:[],summary:'AI 제안을 확인하고 최종 결정해 주세요'}];
  const page=await open('operator');
- const card=page.locator('.studio-review[data-review-id="review-again"]');await card.waitFor();
+ await gotoQueue(page);const card=page.locator('.studio-review[data-review-id="review-again"]');await card.waitFor();
  assert.equal(await card.locator('.review-head small').innerText(),'2026-10-22 22:40');
  await openMore(card);const repeats=card.locator('.review-repeats');await repeats.waitFor();
  assert.equal((await repeats.innerText()).replace(/\s+/g,' '),'같은 시청자가 같은 문장을 1번 더 보냈습니다: 2026-10-22 22:39 위반 확정');
@@ -527,7 +530,7 @@ test('API case flow shows AI investigation from live events, basis reasons and t
  state.reviews=[{reviewId:'review-ctx',kind:'CONTEXT',liveId:'live-1',caseId:'case-ctx',status:'DECIDED',version:2,createdAt:timestamp(),aiVerdict:'VIOLATION',messages:state.cases[2].messages,targetMessageIds:['ctx'],findings:state.cases[2].findings,basisCaseIds:[],summary:'AI 제안을 확인하고 최종 결정해 주세요'},
   {reviewId:'review-kick',kind:'KICK',liveId:'live-1',caseId:'case-ctx',status:'PENDING',version:1,createdAt:timestamp(),aiVerdict:'VIOLATION',messages:[],targetMessageIds:['ctx'],findings:[],basisCaseIds:['case-rule-1','case-rule-2','case-ctx'],summary:'서로 다른 확정 사건 3건 — 방송 종료까지 차단 승인 요청'}];
  const page=await open('operator');
- const kick=page.locator('.studio-review.kick');await kick.waitFor();
+ await gotoQueue(page);const kick=page.locator('.studio-review.kick');await kick.waitFor();
  const reasons=await kick.locator('.basis-reason').allInnerTexts();
  assert.deepEqual(reasons,['규칙 자동 확정 · AI 조사 없음','규칙 자동 확정 · AI 조사 없음','AI 위반 의심 · 대상을 향한 공격입니다.']);
  // 아직 결정되지 않은 사건의 AI 조사가 실시간으로 진행된다.
@@ -599,21 +602,22 @@ test('mock context review stays held on defer, then applies normal and violation
   await showQueue(page,'문맥 검토');const card=page.locator('.studio-review').filter({hasText:'너 같은 건 방송 접어라'});await openCard(card);
   await card.getByText('AI 제안 · 위반 의심',{exact:true}).waitFor();await card.getByText('정책 CP-3.2',{exact:true}).waitFor();
   await card.getByLabel('결정 이유 (필수)').fill(reason);
-  await decideCard(card,label);
-  return {page,row,card};
+  await decideCard(card,label);await page.waitForTimeout(200);const remaining=await card.count();
+  await gotoMonitor(page);
+  return {page,row,card,remaining};
  }
  const deferred=await decide('보류','아직 맥락을 더 확인해야 합니다.');
  await deferred.page.getByText('보류했습니다. 검토 대기에 남습니다. (MOCK)',{exact:true}).waitFor();
- assert.match(await deferred.row.getAttribute('class'),/held/);assert.equal(await deferred.card.count(),1);
+ assert.match(await deferred.row.getAttribute('class'),/held/);assert.equal(deferred.remaining,1);
  const normal=await decide('정상 확정','위반 근거가 충분하지 않아 정상으로 확정합니다.');
  await waitFor(async()=>!(await normal.row.getAttribute('class')).includes('held'));
- assert.doesNotMatch(await normal.row.getAttribute('class'),/hidden/);assert.equal(await normal.card.count(),0);
+ assert.doesNotMatch(await normal.row.getAttribute('class'),/hidden/);assert.equal(normal.remaining,0);
  const violation=await decide('위반 확정','대상에 대한 공격 표현으로 판단했습니다.');
  await waitFor(async()=>(await violation.row.getAttribute('class')).includes('hidden'));
 });
 
 test('mock 24-hour timeout is automatic and the kick review lists its three basis cases',async()=>{
- const page=await openMockModerator();
+ const page=await openMockModerator();await gotoQueue(page);
  const card=page.locator('.studio-review.kick');await card.waitFor();
  assert.equal(await card.locator('tbody tr').count(),3);
  assert.equal(await card.locator('.review-excerpt').innerText(),'확정 사건 3건');
@@ -624,7 +628,7 @@ test('mock 24-hour timeout is automatic and the kick review lists its three basi
 });
 
 test('mock kick approval is explicitly simulated and blocks that viewer for the live session',async()=>{
- const page=await openMockModerator();
+ const page=await openMockModerator();await gotoQueue(page);
  const reason=page.getByLabel('운영자 판단 근거 (필수)');await reason.fill('세 건의 확정 사건을 검토했습니다.');
  await decideCard(page.locator('.studio-review.kick'),'강퇴 승인');
  await page.getByRole('status').filter({hasText:'결정 접수 · 실행 결과 대기'}).first().waitFor();
@@ -652,7 +656,7 @@ test('mock kick failure and unknown outcomes never apply a viewer ban',async()=>
   {button:'모의 적용 실패',status:'강퇴 실행 실패 · 기존 제재 유지'},
   {button:'결과 미확인 시뮬레이션',status:'실행 결과 확인 중 · 실패로 단정하지 않음'}
  ]){
-  const page=await openMockModerator();
+  const page=await openMockModerator();await gotoQueue(page);
   await page.getByLabel('운영자 판단 근거 (필수)').fill('기준 사건 검토 완료');
   await decideCard(page.locator('.studio-review.kick'),'강퇴 승인');
   await page.getByRole('button',{name:outcome.button,exact:true}).click();
@@ -677,9 +681,10 @@ test('mock and API operators share the Studio screen and API decisions send the 
  const api=await open('operator'),mock=await openMockModerator();
  const menus=page=>page.getByRole('navigation',{name:'운영자 메뉴'}).locator('button span').allInnerTexts();
  assert.deepEqual(await menus(api),await menus(mock));
- assert.deepEqual(await menus(api),['실시간 관제','시청자 관리','사건 이력','채팅 기록','정책 근거']);
+ assert.deepEqual(await menus(api),['실시간 관제','결정 대기','시청자 관리','사건 이력','채팅 기록','정책 근거']);
  for(const page of [api,mock]){
   // 강퇴 승인과 문맥 검토는 탭으로 나뉜다. 강퇴 요청이 있으면 강퇴 탭이 먼저 보이고, 다른 탭에는 대기 표시가 붙는다.
+  assert.equal(await page.locator('.studio-review').count(),0);await gotoQueue(page);
   const tabs=page.getByRole('tablist',{name:'결정 대기 종류'});
   assert.deepEqual((await tabs.getByRole('tab').allInnerTexts()).map(x=>x.replace(/\s+/g,' ').trim()),['강퇴 승인 1','문맥 검토 1']);
   assert.match(await tabs.getByRole('tab',{selected:true}).innerText(),/^강퇴 승인/);

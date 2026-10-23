@@ -15,7 +15,7 @@ import { KICK_THRESHOLD, priorColumns, routeRows, sanctionFor, sanctionLabel, sa
 import { filterDictionary } from './mock';
 
 export interface StudioLog { id: string; time: string; event: string; detail: string; caseId?: string; reviewId?: string }
-type Page = 'monitor' | 'viewers' | 'cases' | 'chats' | 'policy';
+type Page = 'monitor' | 'reviews' | 'viewers' | 'cases' | 'chats' | 'policy';
 
 const props = withDefaults(defineProps<{
   mock?: boolean; nickname: string; channelName?: string;
@@ -37,7 +37,7 @@ const emit = defineEmits<{
 }>();
 
 const page = ref<Page>('monitor');
-const pageTitles: Record<Page, string> = { monitor: '실시간 관제', viewers: '시청자 관리', cases: '사건 이력', chats: '채팅 기록', policy: '정책 근거' };
+const pageTitles: Record<Page, string> = { monitor: '실시간 관제', reviews: '결정 대기', viewers: '시청자 관리', cases: '사건 이력', chats: '채팅 기록', policy: '정책 근거' };
 function goto(p: Page) { page.value = p; navOpen.value = false; emit('page', p); }
 
 // 메뉴: 넓은 화면에서는 왼쪽에 고정하고 ☰로 접고 편다. 좁은 화면에서는 ☰로 여닫는 서랍이다.
@@ -276,7 +276,8 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
       <aside id="operator-nav" class="sidebar" :class="{open: !wide && navOpen, docked: wide && !navCollapsed}" :aria-hidden="!navVisible" :inert="!navVisible">
         <div class="sidebar-channel"><span class="yt-channel-avatar big">🎮</span><b>채널 콘텐츠 관제</b><small>{{channelName}}</small></div>
         <nav class="side-nav" aria-label="운영자 메뉴">
-          <button :class="{active: page==='monitor'}" :aria-current="page==='monitor' ? 'page' : undefined" @click="goto('monitor')"><Radio :size="20"/><span>실시간 관제</span><b v-if="pending.length" class="side-count">{{pending.length}}</b></button>
+          <button :class="{active: page==='monitor'}" :aria-current="page==='monitor' ? 'page' : undefined" @click="goto('monitor')"><Radio :size="20"/><span>실시간 관제</span></button>
+          <button :class="{active: page==='reviews'}" :aria-current="page==='reviews' ? 'page' : undefined" @click="goto('reviews')"><ClipboardCheck :size="20"/><span>결정 대기</span><b v-if="pending.length" class="side-count">{{pending.length}}</b></button>
           <button :class="{active: page==='viewers'}" :aria-current="page==='viewers' ? 'page' : undefined" @click="goto('viewers')"><Users :size="20"/><span>시청자 관리</span></button>
           <button :class="{active: page==='cases'}" :aria-current="page==='cases' ? 'page' : undefined" @click="goto('cases')"><FileClock :size="20"/><span>사건 이력</span></button>
  <button :class="{active: page==='chats'}" :aria-current="page==='chats' ? 'page' : undefined" @click="goto('chats')"><MessagesSquare :size="20"/><span>채팅 기록</span></button>
@@ -294,9 +295,10 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
 
           <section v-if="!live && !loading" class="card secondary-page studio-empty"><Radio :size="30"/><h2>진행 중인 방송이 없습니다</h2><p>방송을 시작하면 시청자 채팅과 AI 조사 결과를 확인할 수 있습니다.</p></section>
           <template v-else-if="live">
-            <p class="studio-live-line"><span :class="ended ? 'ended' : 'on'">{{ended ? '종료' : '● LIVE'}}</span> 방송 {{live.liveId.slice(0,8)}} · {{asTime(live.startedAt)}} 시작<template v-if="ended"> · 방송이 종료되어 결정할 수 없습니다</template></p>
+            <p class="studio-live-line"><span :class="ended ? 'ended' : 'on'">{{ended ? '종료' : '● LIVE'}}</span> 방송 {{live.liveId.slice(0,8)}} · {{asTime(live.startedAt)}} 시작<template v-if="ended"> · 방송이 종료되어 결정할 수 없습니다</template><button v-if="pending.length && page!=='reviews'" type="button" class="queue-link" :title="`강퇴 승인 ${queues[0].items.length} · 문맥 검토 ${queues[1].items.length}`" @click="goto('reviews')">결정 대기 {{pending.length}}건 →</button></p>
 
-            <section v-if="page==='monitor'" class="monitor-grid">
+            <template v-if="page==='monitor'">
+            <section class="monitor-grid chat-only">
               <div class="stream-panel card"><div class="stream-caption"><span class="yt-channel-avatar">🎮</span><div><b>{{mock ? '오늘도 게임하는 날! 같이 놀아요 🎮' : '오늘의 라이브'}}</b><small>{{channelName}} · <span class="live-badge">{{ended ? '방송 종료' : '● 실시간'}}</span></small></div></div></div>
               <div class="chat-panel card"><div class="panel-heading"><h2>실시간 채팅 <ChevronDown :size="17"/></h2><div class="panel-heading-end"><button v-if="feedOn !== null" class="icon-control" :class="{on: feedOn}" :title="feedOn ? '채팅 흐름 일시정지 (MOCK)' : '채팅 흐름 재생 (MOCK)'" :aria-pressed="feedOn" @click="emit('toggleFeed')"><Pause v-if="feedOn" :size="17"/><Play v-else :size="17"/></button><button class="blocked-toggle" :class="{on: filter==='private'}" :aria-pressed="filter==='private'" @click="filter = filter==='all' ? 'private' : 'all'" :title="filter==='all' ? '임시 비노출·숨김 채팅만 보기' : '전체 채팅 보기'">비공개 채팅 <b>{{privateCount}}</b></button></div></div>
                 <div class="scan-wrap"><span class="ai-scan" aria-hidden="true"/><div ref="chatRef" class="chat-list" @scroll.passive="onScroll">
@@ -305,7 +307,10 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
                   <button v-if="unread" class="new-msg-pill" @click="toBottom()">새 메시지 {{unread}}개 <ChevronDown :size="15"/></button></div>
                 <div class="chat-footer"><div class="ai-notice"><ShieldCheck :size="15"/> 임시 비노출·숨김 채팅은 작성자와 담당 운영자에게만 보입니다.</div><details v-if="$slots.demo" class="demo-fold"><summary>목업 빠른 시연</summary><slot name="demo"/></details></div>
               </div>
-              <div class="work-panel card">
+            </section>
+            </template>
+
+            <section v-else-if="page==='reviews'" class="queue-page">
                 <section class="hitl-section decision-queue" :class="shownQueue.kind.toLowerCase()" aria-label="운영자 결정 대기">
                   <header class="section-head"><span class="section-icon human"><ClipboardCheck :size="17"/></span><b>운영자 결정 대기</b><span class="pending-count">{{pending.length}}건</span></header>
                   <div class="studio-tabs queue-tabs" role="tablist" aria-label="결정 대기 종류"><button v-for="q in queues" :key="q.kind" role="tab" :aria-selected="shownQueue.kind===q.kind" :class="{on: shownQueue.kind===q.kind}" @click="queueTab=q.kind"><UserX v-if="q.kind==='KICK'" :size="15"/><ClipboardCheck v-else :size="15"/>{{q.kind==='KICK' ? '강퇴 승인' : '문맥 검토'}} <b>{{q.items.length}}</b><i v-if="q.items.length && shownQueue.kind!==q.kind" class="tab-alert" aria-label="대기 중"/></button></div>
@@ -350,7 +355,6 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
                     </div>
                   </article>
                 </section>
-              </div>
             </section>
 
             <ViewerManage v-else-if="page==='viewers'" :rows="viewerRows" :busy="busy || ended" :scope="mock ? '현재 방송(Mock 데이터)' : '현재 방송'" @decide="onViewerDecide" @revoke="onViewerRevoke"/>
