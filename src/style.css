@@ -864,6 +864,33 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .detail-state{margin-top:4px}
 .detail-reason{flex-basis:100%;line-height:1.5}
 .detail-wait{display:flex;align-items:center;gap:8px;font-size:13px;color:#7a4b00}
+.graph-section{gap:8px}
+.graph-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.graph-heading h3{margin:0;font-size:13px;font-weight:600;color:var(--text-2)}
+.graph-status-badge{flex:0 0 auto;padding:4px 8px;border:1px solid #cbd2da;border-radius:4px;background:#f0f3f7;color:#344255;font-size:10px;font-weight:650}
+.graph-status-badge.status-public{background:#edf3f8}.graph-status-badge.status-held{background:#fff3cb;border-color:#c29113;color:#674b00}.graph-status-badge.status-hidden{background:#f7e9e8;border-color:#bf7770;color:#85342d}
+.decision-graph-scroll{max-height:540px;overflow:auto;border:1px solid var(--line);border-radius:6px;background:#fafbfc}
+.process-graph{display:block;width:100%;height:auto;min-width:360px;font-family:inherit}
+.process-edges .edge-line{fill:none;stroke:#c3cad3;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.process-edges .edge-head{fill:#a5afbb;stroke:none}
+.process-edge text{font-size:10px;fill:#657181;text-anchor:middle;paint-order:stroke;stroke:#fafbfc;stroke-width:4px;stroke-linejoin:round}
+.process-edge.path .edge-line{stroke:#1558a6;stroke-width:3.2}.process-edge.path .edge-head{fill:#1558a6}
+.process-edge.wait .edge-line{stroke:#c38b10;stroke-width:2.6;stroke-dasharray:5 3}.process-edge.wait .edge-head{fill:#c38b10}
+.process-edge.skip .edge-line{stroke:#d9dee5;stroke-width:1.35}.process-edge.skip .edge-head{fill:#d9dee5}.process-edge.unknown .edge-line{stroke:#cbd2da;stroke-dasharray:3 4}
+.process-edge.skip text,.process-edge.unknown text{fill:#a0a8b2}
+.process-node{cursor:pointer;outline:none}
+.process-node rect,.process-node polygon{fill:#fff;stroke:#c6ced8;stroke-width:1.5;transition:fill .12s ease,stroke .12s ease}
+.process-node text{font-size:12px;font-weight:650;fill:#3f4854;pointer-events:none}
+.process-node text .node-sub{font-size:9px;font-weight:450;fill:#6b7582}
+.process-node.path rect,.process-node.path polygon{fill:#e7f0ff;stroke:#1558a6;stroke-width:2.8}.process-node.path text{fill:#12467f}.process-node.path text .node-sub{fill:#275b91}
+.process-node.wait rect,.process-node.wait polygon{fill:#fff3c8;stroke:#c18a0b;stroke-width:2.2}.process-node.wait text{fill:#694c00}
+.process-node.skip rect,.process-node.skip polygon{fill:#f0f2f5;stroke:#d4d9df;stroke-width:1.2}.process-node.skip text{fill:#929aa5}
+.process-node.unknown rect,.process-node.unknown polygon{fill:#fff;stroke:#cbd2da;stroke-dasharray:4 3}.process-node.unknown text{fill:#8b939e}
+.process-node.chosen rect,.process-node.chosen polygon,.process-node:focus rect,.process-node:focus polygon{stroke:#0d3f73;stroke-width:3.6}.process-node.chosen{filter:drop-shadow(0 1px 2px #8999aa)}
+.graph-legend{display:flex;flex-wrap:wrap;gap:8px 12px;color:var(--text-2);font-size:10px}
+.graph-legend span{display:flex;align-items:center;gap:4px}.graph-legend i{width:8px;height:8px;border:1px solid #cbd2da;border-radius:2px;background:#fff}.graph-legend i.path{background:#e7f0ff;border-color:#1558a6}.graph-legend i.wait{background:#fff3c8;border-color:#c18a0b}.graph-legend i.skip{background:#f0f2f5}.graph-legend i.unknown{border-style:dashed}
+.graph-step-detail{padding:8px 10px;border-left:3px solid #1558a6;background:#f2f6fb;border-radius:0 4px 4px 0}
+.graph-step-detail b{font-size:11px}.graph-step-detail p{margin-top:3px;font-size:11px;line-height:1.45;overflow-wrap:anywhere;color:#3f4852}
 .case-flow.compact li{grid-template-columns:72px minmax(0,1fr);font-size:12px}
 .case-flow.compact li time{grid-column:2;grid-row:1;justify-self:end}
 .case-flow.compact li span{grid-column:1 / -1}
@@ -871,3 +898,8 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .detail-actions button{height:34px;padding:0 14px;border-radius:17px;background:var(--chip);font-size:13px;font-weight:500}
 .detail-actions button.primary{background:var(--text);color:#fff}
 .chat-row[role=button]{cursor:pointer}
+@media(max-width:950px){.decision-graph-scroll{max-height:460px}.process-graph{min-width:400px}.process-node text{font-size:13px}.process-node text .node-sub{font-size:10px}}
+.graph-step-detail b small{font-weight:400;color:var(--text-2)}
+.graph-step-detail dl{display:grid;grid-template-columns:72px minmax(0,1fr);gap:3px 8px;margin:6px 0 0;font-size:11px}
+.graph-step-detail dt{color:var(--text-2)}
+.graph-step-detail dd{margin:0;overflow-wrap:anywhere;color:#2d3540}

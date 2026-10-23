@@ -249,7 +249,7 @@ const shownChats = computed(() => {
 // AI Agent는 Backend가 문맥 검토·개인정보 조사로 보낸 채팅만 판단한다. 그 밖의 채팅은 Backend 필터 결과만 있고, 없는 AI 판단을 만들어 보여 주지 않는다.
 // 사건·검토·실시간 기록이 갱신되면 패널도 그대로 따라 바뀐다.
 const selectedId = ref<string | null>(null);
-function selectMessage(id: string) { selectedId.value = selectedId.value === id ? null : id; }
+function selectMessage(id: string) { selectedId.value = selectedId.value === id ? null : id; graphChosen.value = null; }
 const selected = computed(() => {
   const id = selectedId.value; if (!id) return null;
   const message = props.messages.find(m => m.messageId === id) ?? (props.archive ?? []).find(m => m.messageId === id) ?? null;
@@ -260,13 +260,155 @@ const selected = computed(() => {
   const finding = item?.findings?.[0] ?? review?.findings[0] ?? null;
   const investigating = ai && !finding;
   const route = !item
-    ? message.visibility === 'PUBLIC'
-      ? { title: 'Backend 필터 통과', detail: 'AI 조사 대상이 아닙니다. 그대로 공개된 채팅입니다.' }
-      : { title: '처리 중', detail: '사건이 만들어지는 중입니다. 잠시 뒤 다시 확인됩니다.' }
+    ? { title: '서버 경로 기록 없음', detail: '사건 응답에 처리 경로가 없습니다. 공개 여부만으로 통과 경로라고 추정하지 않습니다.' }
     : isRule(item)
       ? { title: item.handlingRoute ? routeLabels[item.handlingRoute] : '규칙 자동 확정', detail: 'Backend 규칙으로 바로 확정했습니다. AI 조사는 하지 않습니다.' }
       : { title: item.handlingRoute ? routeLabels[item.handlingRoute] : 'AI 문맥 검토', detail: 'Backend가 AI Agent에게 판단을 맡긴 채팅입니다. 결정은 운영자가 합니다.' };
   return { message, item, review, ai, finding, investigating, route, state: item ? caseStateOf(item) : null };
+});
+// 판단 경로 그래프: 처리 단계는 둥근 사각형, 판단 분기는 마름모로 그리고 실제 노드끼리 화살표로 잇는다.
+// 강조는 서버 기록으로만 정한다. path = 실제로 거침, wait = 지금 대기, skip = 거치지 않은 다른 분기, unknown = 기록이 없어 알 수 없음.
+// 아직 기록이 없는 다음 단계는 완료로 칠하지 않는다.
+type GraphTone = 'path' | 'wait' | 'skip' | 'unknown';
+type GraphNodeId = 'chat' | 'classify' | 'public' | 'rule' | 'agent' | 'research' | 'verify' | 'apply' | 'wait' | 'decide' | 'normal' | 'violation';
+type GraphEdgeId = 'chat-classify' | 'classify-public' | 'classify-rule' | 'classify-agent' | 'agent-research' | 'research-verify' | 'verify-apply' | 'verify-wait' | 'wait-decide' | 'decide-normal' | 'decide-violation' | 'decide-defer';
+interface GraphNode { id: GraphNodeId; label: string; actor: string; shape: 'rect' | 'diamond'; x: number; y: number; w: number; h: number }
+const graphNodes: GraphNode[] = [
+  { id: 'chat', label: '채팅 접수', actor: '시청자', shape: 'rect', x: 300, y: 40, w: 170, h: 46 },
+  { id: 'classify', label: '백엔드 1차 분류', actor: 'Backend', shape: 'diamond', x: 300, y: 130, w: 190, h: 72 },
+  { id: 'public', label: '공개 유지', actor: 'Backend', shape: 'rect', x: 95, y: 230, w: 150, h: 46 },
+  { id: 'rule', label: '숨김·제재 처리', actor: 'Backend 규칙', shape: 'rect', x: 505, y: 230, w: 150, h: 46 },
+  { id: 'agent', label: 'Agent 조사', actor: 'AI Agent', shape: 'rect', x: 300, y: 230, w: 170, h: 46 },
+  { id: 'research', label: '문맥·정책 조사', actor: 'AI Agent', shape: 'rect', x: 300, y: 310, w: 170, h: 46 },
+  { id: 'verify', label: '판단·근거 검증', actor: 'Backend', shape: 'diamond', x: 300, y: 400, w: 190, h: 72 },
+  { id: 'apply', label: '백엔드 결과 반영', actor: 'Backend', shape: 'rect', x: 515, y: 400, w: 130, h: 46 },
+  { id: 'wait', label: '운영자 결정 대기', actor: '운영자', shape: 'rect', x: 300, y: 500, w: 170, h: 46 },
+  { id: 'decide', label: '운영자 결정', actor: '운영자', shape: 'diamond', x: 300, y: 590, w: 190, h: 72 },
+  { id: 'normal', label: '공개', actor: '정상 확정', shape: 'rect', x: 110, y: 680, w: 150, h: 46 },
+  { id: 'violation', label: '숨김·제재 적용', actor: '위반 확정', shape: 'rect', x: 490, y: 680, w: 150, h: 46 }
+];
+// 화살표는 노드의 변·꼭짓점에 붙는다. label은 분기 조건이다.
+const graphEdges: { id: GraphEdgeId; points: [number, number][]; label?: string; lx?: number; ly?: number; anchor?: 'start' | 'end' }[] = [
+  { id: 'chat-classify', points: [[300, 63], [300, 92]] },
+  { id: 'classify-public', points: [[205, 130], [95, 130], [95, 205]], label: '통과', lx: 150, ly: 122 },
+  { id: 'classify-rule', points: [[395, 130], [505, 130], [505, 205]], label: '규칙 위반 확정', lx: 452, ly: 122 },
+  { id: 'classify-agent', points: [[300, 166], [300, 205]], label: '추가 조사 필요', lx: 308, ly: 190, anchor: 'start' },
+  { id: 'agent-research', points: [[300, 253], [300, 285]] },
+  { id: 'research-verify', points: [[300, 333], [300, 362]] },
+  { id: 'verify-apply', points: [[395, 400], [448, 400]], label: '검증 완료', lx: 421, ly: 391 },
+  { id: 'verify-wait', points: [[300, 436], [300, 475]], label: '문맥 검토 · 추가 검토', lx: 308, ly: 460, anchor: 'start' },
+  { id: 'wait-decide', points: [[300, 523], [300, 552]] },
+  { id: 'decide-normal', points: [[300, 626], [300, 642], [110, 642], [110, 655]], label: '정상 확정', lx: 200, ly: 642 },
+  { id: 'decide-violation', points: [[395, 590], [490, 590], [490, 655]], label: '위반 확정', lx: 445, ly: 582 },
+  { id: 'decide-defer', points: [[205, 590], [150, 590], [150, 500], [213, 500]], label: '보류', lx: 142, ly: 548, anchor: 'end' }
+];
+const edgePath = (pts: [number, number][]) => pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join(' ');
+const diamondPoints = (n: GraphNode) => `${n.x},${n.y - n.h / 2} ${n.x + n.w / 2},${n.y} ${n.x},${n.y + n.h / 2} ${n.x - n.w / 2},${n.y}`;
+const graphChosen = ref<GraphNodeId | null>(null);
+const graph = computed(() => {
+  const sel = selected.value;
+  const node = Object.fromEntries(graphNodes.map(n => [n.id, 'unknown'])) as Record<GraphNodeId, GraphTone>;
+  const edge = Object.fromEntries(graphEdges.map(e => [e.id, 'unknown'])) as Record<GraphEdgeId, GraphTone>;
+  if (!sel) return { node, edge };
+  node.chat = 'path';
+  const item = sel.item, route = item?.handlingRoute;
+  // 사건 응답에 처리 경로가 없으면 분류부터는 알 수 없다. 공개 상태만으로 통과라고 추정하지 않는다.
+  if (!item || !route) return { node, edge };
+  for (const k of Object.keys(node) as GraphNodeId[]) if (k !== 'chat') node[k] = 'skip';
+  for (const k of Object.keys(edge) as GraphEdgeId[]) edge[k] = 'skip';
+  const on = (...ids: (GraphNodeId | GraphEdgeId)[]) => { for (const id of ids) { if (id in node) node[id as GraphNodeId] = 'path'; else edge[id as GraphEdgeId] = 'path'; } };
+  const later = (...ids: GraphNodeId[]) => { for (const id of ids) node[id] = 'unknown'; };
+  on('chat-classify', 'classify');
+  if (route === 'PASS') { on('classify-public', 'public'); return { node, edge }; }
+  const confirmed = item.confirmedFindings.length > 0;
+  if (isRule(item)) { on('classify-rule'); node.rule = confirmed ? 'path' : 'wait'; return { node, edge }; }
+  on('classify-agent');
+  const finding = sel.finding, review = sel.review;
+  if (!finding) { node.agent = 'wait'; later('research', 'verify', 'wait', 'decide'); return { node, edge }; }
+  on('agent', 'agent-research', 'research', 'research-verify', 'verify');
+  if (review) {
+    on('verify-wait');
+    // 보류는 같은 검토의 버전만 올린다. 대기 중 버전 2 이상 = 보류 기록, 결정 뒤 버전 3 이상 = 보류 후 결정.
+    const deferred = review.status === 'PENDING' ? review.version > 1 : review.version > 2;
+    if (deferred) on('wait-decide', 'decide', 'decide-defer');
+    if (review.status === 'PENDING') { node.wait = 'wait'; if (!deferred) later('decide'); return { node, edge }; }
+    on('wait', 'wait-decide', 'decide');
+    if (item.confirmationStatus === 'CONFIRMED_NORMAL') on('decide-normal', 'normal');
+    else if (item.confirmationStatus === 'CONFIRMED_VIOLATION' || item.confirmationStatus === 'CANCELLED') on('decide-violation', 'violation');
+    return { node, edge };
+  }
+  if (confirmed) { on('verify-apply', 'apply'); return { node, edge }; }
+  node.verify = 'wait'; later('wait', 'decide');
+  return { node, edge };
+});
+// 분기 조건 글자는 실제로 지난 분기일 때 그 이유로 바꿔 보여 준다.
+function edgeLabel(id: GraphEdgeId, fallback?: string) {
+  const route = selected.value?.item?.handlingRoute;
+  if (id === 'verify-wait' && graph.value.edge[id] === 'path') return route === 'PII_INVESTIGATION' ? '추가 검토 필요' : '문맥 검토';
+  if (id === 'classify-rule' && graph.value.edge[id] === 'path' && route === 'FLOOD_REVIEW') return '도배 확정';
+  return fallback;
+}
+// 기본으로 보여 줄 노드: 지금 대기 중인 노드, 없으면 마지막으로 거친 노드
+const graphFocus = computed<GraphNodeId>(() => {
+  if (graphChosen.value) return graphChosen.value;
+  const order = graphNodes.map(n => n.id);
+  return order.find(id => graph.value.node[id] === 'wait') ?? [...order].reverse().find(id => graph.value.node[id] === 'path') ?? 'chat';
+});
+const toneText: Record<GraphTone, string> = { path: '거친 단계', wait: '지금 대기', skip: '거치지 않음', unknown: '기록 없음' };
+// 노드를 누르면 그래프 아래에 그 단계의 서버 기록을 보여 준다. 내부 코드는 여기에만 둔다.
+const graphDetail = computed(() => {
+  const sel = selected.value, id = graphFocus.value, tone = graph.value.node[id];
+  const n = graphNodes.find(x => x.id === id)!;
+  const rows: { k: string; v: string }[] = [];
+  const out = { title: n.label, actor: n.actor, tone, rows, note: '' };
+  if (!sel) return out;
+  if (tone === 'skip') { out.note = '이 채팅은 이 단계를 거치지 않았습니다.'; return out; }
+  if (tone === 'unknown') { out.note = '서버에 이 단계의 기록이 아직 없습니다. 추정해서 채우지 않습니다.'; return out; }
+  const item = sel.item, review = sel.review, finding = sel.finding;
+  const reviewIds = new Set(props.reviews.filter(r => item && r.caseId === item.caseId).map(r => r.reviewId));
+  const events = props.logs.filter(l => item && (l.caseId === item.caseId || (!!l.reviewId && reviewIds.has(l.reviewId)))).sort((a, b) => toMs(a.time) - toMs(b.time));
+  const at = (name: string, last = false) => { const l = last ? [...events].reverse().find(x => x.event === name) : events.find(x => x.event === name); return l ? asTime(l.time) : null; };
+  const confirmedAt = item?.confirmedFindings.map(f => toMs(f.confirmedAt)).filter(t => !Number.isNaN(t)).sort((a, b) => a - b)[0];
+  const revoked = item?.confirmedFindings.find(f => f.revokedAt);
+  const add = (k: string, v: string | null | undefined) => { if (v) rows.push({ k, v }); };
+  switch (id) {
+    case 'chat': add('보낸 시각', asTime(sel.message.sentAt)); add('작성자', sel.message.authorAlias); add('메시지', sel.message.text); break;
+    case 'classify':
+      if (!item?.handlingRoute) { out.note = '사건 응답에 처리 경로가 없습니다. 공개 여부만으로 통과 경로라고 추정하지 않습니다.'; break; }
+      add('처리 시각', asTime(item.createdAt)); add('분류 결과', `${routeLabels[item.handlingRoute]} (${item.handlingRoute})`); break;
+    case 'public': add('상태', '공개 유지'); break;
+    case 'rule': case 'apply': case 'violation':
+      add('확정 시각', confirmedAt ? asTime(confirmedAt) : null);
+      add('위반 유형', item ? activeCategories(item).map(categoryName).join('·') || item.confirmedFindings.map(f => categoryName(f.category)).join('·') : null);
+      add('조치', item && item.confirmationStatus !== 'CANCELLED' ? ruleAction(item).label : null);
+      add('상태 변경', revoked ? `${asTime(revoked.revokedAt)} 오판 취소 · 숨김 해제` : null);
+      break;
+    case 'agent':
+      add('조사 시작', at('TOOL_START')); add('조사 완료', at('TOOL_END', true)); add('조사 실패', at('TASK_FAILED', true));
+      if (!rows.length) out.note = tone === 'wait' ? 'AI Agent가 조사하고 있습니다. 결과가 나오면 자동으로 바뀝니다.' : '조사 시각은 이 화면을 연 뒤의 실시간 기록만 보입니다.';
+      break;
+    case 'research':
+      add('판단 근거', finding?.reason); add('적용 정책', finding?.policyIds.join(', ') || null); add('확인 필요', finding?.missingFacts.join(', ') || null); break;
+    case 'verify':
+      add('AI 제안', finding ? `${verdictLabels[finding.verdict]} (${finding.verdict})` : null);
+      add('검토 요청', review ? asTime(review.createdAt) : null);
+      add('처리 경로', item?.handlingRoute ? `${routeLabels[item.handlingRoute]} (${item.handlingRoute})` : null);
+      if (tone === 'wait') out.note = 'Backend가 AI 판단과 근거를 확인하고 있습니다.';
+      break;
+    case 'wait':
+      add('대기 시작', review ? asTime(review.createdAt) : null);
+      add('AI 제안', finding ? `${verdictLabels[finding.verdict]} (${finding.verdict})` : null);
+      add('검토 상태', review ? `${reviewStatusLabels[review.status] ?? review.status} · 버전 ${review.version}` : null);
+      if (tone === 'wait') out.note = '운영자가 결정할 때까지 공개하지 않습니다.';
+      break;
+    case 'decide':
+      add('결정 시각', at('REVIEW_DECIDED', true));
+      add('결과', item?.confirmationStatus === 'CONFIRMED_NORMAL' ? '정상 확정' : item?.confirmationStatus === 'CONFIRMED_VIOLATION' || item?.confirmationStatus === 'CANCELLED' ? '위반 확정' : review && review.version > 1 ? '보류 (같은 검토로 다시 대기)' : null);
+      if (!at('REVIEW_DECIDED', true)) out.note = '결정 시각은 이 화면을 연 뒤의 실시간 기록만 보입니다.';
+      break;
+    case 'normal': add('공개 시각', at('MESSAGE_RESTORED', true)); add('상태', '정상 확정 · 공개'); break;
+  }
+  return out;
 });
 // 결정 대기 페이지에서 그 검토를 펼친 채로 연다.
 function openDecision(r: LiveReview) { queueTab.value = r.kind; openIds[r.kind] = r.reviewId; goto('reviews'); }
@@ -339,13 +481,35 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
                 <div v-else class="chat-detail-body">
                   <div class="detail-message"><div><b>{{selected.message.authorAlias}}</b><time>{{asTime(selected.message.sentAt)}}</time><span v-if="selected.message.visibility!=='PUBLIC'" class="state-pill" :class="selected.message.visibility.toLowerCase()">{{visibilityLabels[selected.message.visibility]}}</span></div><p>{{selected.message.text}}</p></div>
                   <section class="detail-block"><h3>처리 경로</h3><p class="detail-route">{{selected.route.title}}</p><small>{{selected.route.detail}}</small><p v-if="selected.state" class="detail-state"><span class="case-state" :class="selected.state.tone">{{selected.state.label}}</span></p></section>
-                  <section v-if="selected.ai" class="detail-block" aria-live="polite"><h3>AI Agent 판단</h3>
+                  <section class="detail-block graph-section" aria-label="판단 경로">
+                    <div class="graph-heading"><h3>판단 경로</h3><span class="graph-status-badge" :class="'status-' + selected.message.visibility.toLowerCase()" :title="`현재 메시지 상태 ${selected.message.visibility}`">현재 {{visibilityLabels[selected.message.visibility]}}</span></div>
+                    <div class="decision-graph-scroll">
+                      <svg class="process-graph" viewBox="0 0 600 712" role="group" aria-label="처리 단계와 분기. 선택한 채팅이 실제로 거친 경로를 강조">
+                        <g class="process-edges">
+                          <g v-for="e in graphEdges" :key="e.id" class="process-edge" :class="graph.edge[e.id]" :data-graph-edge="e.id">
+                            <marker :id="'arrow-' + e.id" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path class="edge-head" d="M0 0 L10 5 L0 10 z"/></marker>
+                            <path class="edge-line" :d="edgePath(e.points)" :marker-end="`url(#arrow-${e.id})`"/>
+                            <text v-if="e.label" :x="e.lx" :y="e.ly" :style="e.anchor ? { textAnchor: e.anchor } : undefined">{{edgeLabel(e.id, e.label)}}</text>
+                          </g>
+                        </g>
+                        <g v-for="n in graphNodes" :key="n.id" class="process-node" :class="[graph.node[n.id], {chosen: graphFocus===n.id}]" :data-graph-node="n.id" role="button" tabindex="0" :aria-label="`${n.label} · ${n.actor} · ${toneText[graph.node[n.id]]}`" :aria-pressed="graphFocus===n.id" @click="graphChosen=n.id" @keydown.enter.prevent="graphChosen=n.id" @keydown.space.prevent="graphChosen=n.id">
+                          <rect v-if="n.shape==='rect'" :x="n.x - n.w / 2" :y="n.y - n.h / 2" :width="n.w" :height="n.h" rx="12"/>
+                          <polygon v-else :points="diamondPoints(n)"/>
+                          <text :x="n.x" :y="n.y - 3" text-anchor="middle"><tspan :x="n.x">{{n.label}}</tspan><tspan class="node-sub" :x="n.x" dy="14">{{n.actor}}</tspan></text>
+                        </g>
+                      </svg>
+                    </div>
+                    <div class="graph-legend"><span><i class="path"/> 거친 경로</span><span><i class="wait"/> 지금 대기</span><span><i class="skip"/> 거치지 않음</span><span><i class="unknown"/> 기록 없음</span></div>
+                    <div class="graph-step-detail" aria-live="polite"><b>{{graphDetail.title}} <small>· {{graphDetail.actor}} · {{toneText[graphDetail.tone]}}</small></b>
+                      <dl v-if="graphDetail.rows.length"><template v-for="row in graphDetail.rows" :key="row.k"><dt>{{row.k}}</dt><dd>{{row.v}}</dd></template></dl>
+                      <p v-if="graphDetail.note">{{graphDetail.note}}</p></div>
+                  </section>
+                  <section v-if="selected.ai" class="detail-block" aria-live="polite"><h3>AI Agent 판단 근거</h3>
                     <p v-if="selected.investigating" class="detail-wait"><span class="pulse-dot"/>조사 중입니다. 결과가 나오면 자동으로 보입니다.</p>
                     <template v-else-if="selected.finding"><div class="review-ai"><span class="verdict-badge" :class="verdictTone(selected.finding.verdict)">AI 제안 · {{verdictLabels[selected.finding.verdict]}}</span><code title="AI 판정 코드">{{selected.finding.verdict}}</code><span class="detail-reason">{{selected.finding.reason}}</span><small>정책 {{selected.finding.policyIds.join(', ') || '-'}}</small></div>
                       <p v-if="selected.finding.missingFacts.length" class="review-missing">확인 필요: {{selected.finding.missingFacts.join(', ')}}</p>
                       <small class="detail-note">AI 제안은 참고용입니다. 공개 여부는 운영자가 결정합니다.</small></template>
                   </section>
-                  <section v-if="selected.item" class="detail-block"><h3>처리 흐름</h3><ol class="case-flow compact" aria-label="채팅 처리 흐름"><li v-for="(step, n) in flowOf(selected.item)" :key="n" :class="step.tone"><b>{{step.label}}</b><time>{{step.time ?? ''}}</time><span>{{step.detail}}</span></li></ol></section>
                   <div class="detail-actions"><button v-if="selected.review && selected.review.status==='PENDING'" type="button" class="primary" @click="openDecision(selected.review)">결정하러 가기 →</button><button v-if="selected.item" type="button" @click="showFlow(selected.item.caseId)">사건 이력에서 보기</button></div>
                 </div>
               </aside>
