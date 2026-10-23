@@ -21,3 +21,9 @@ export function dateTimeText(value: string | number | null | undefined): string 
   const part = Object.fromEntries(dateTimeParts.formatToParts(time).map(x => [x.type, x.value]));
   return `${part.year}-${part.month}-${part.day} ${part.hour}:${part.minute}`;
 }
+
+// 실시간 채팅 목록의 시각. 시:분만(HH:mm, 한국 시간) 보인다. 예) 14:27
+export function clockText(value: string | number | null | undefined): string {
+  const full = dateTimeText(value);
+  return full === '-' ? '-' : full.slice(11);
+}

@@ -63,6 +63,7 @@ export const fixtureLines: FixtureLine[] = [
   { alias: '새벽감성', text: '와 방금 컨트롤 미쳤다', minutesAgo: 13, decide: { value: 'CONFIRM_NORMAL', reason: '플레이를 칭찬하는 감탄 표현입니다.', minutesAgo: 12.5 } },
   { alias: '버럭이', text: '아 진짜 노잼이네 꺼져라', minutesAgo: 12 },
   { alias: '게임소녀', text: '보스 패턴 바뀐 것 같아요', minutesAgo: 11 },
+  { alias: '정보왕', text: '결제 오류는 고객센터 help@game-corp.example 로 문의하면 돼요', minutesAgo: 10 },
   { alias: '김하늘', text: '오늘 텐션 최고네요 👍', minutesAgo: 9 },
   { alias: '고인물', text: '다음 맵은 왼쪽 길이 빨라요', minutesAgo: 8 },
   { alias: '치킨러버', text: '치킨 왔다! 같이 먹어요 ㅋㅋ', minutesAgo: 7 },
@@ -83,6 +84,7 @@ export const demoScenarios: { key: string; label: string; alias: string; text: s
   { key: 'attack', label: '공격 표현', alias: '시비왕', text: '너 같은 건 방송 접어라' },
   { key: 'impersonation', label: '공식 사칭', alias: '가짜운영자', text: '공식 운영자입니다. 계정 인증하려면 비밀번호를 보내 주세요' },
   { key: 'pii', label: '개인정보', alias: '오픈톡', text: '제 번호 010-1234-5678로 연락 주세요' },
+  { key: 'pii-public', label: '개인정보 정상 (AI 판단)', alias: '정보왕', text: '결제 오류는 고객센터 help@game-corp.example 로 문의하면 돼요' },
   { key: 'false-positive', label: '문맥 오탐', alias: '새벽감성', text: '와 이번 한타 미쳤다 ㅋㅋ' }
 ];
 

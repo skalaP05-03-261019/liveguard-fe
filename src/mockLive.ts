@@ -12,6 +12,11 @@ export interface MockCase extends LiveCase { userId: string; createdAt: string; 
 export interface StudioLog { id: string; time: string; event: string; detail: string; caseId?: string; reviewId?: string }
 export interface MockDecision { kind: LiveReview['kind']; value: string; reason: string; decidedAt: string }
 export type KickOutcome = 'SUCCEEDED' | 'FAILED' | 'UNKNOWN';
+// 목업 전용 처리 기록. 실제 Backend에는 채팅별 처리 기록 API가 없고, 실제 Agent는 판단 과정을 내보내지 않는다
+// (agent/app/check_investigation.py: 원문·이유·도구 내용·내부 추론을 보내지 않음). 시연에서 "이런 기록이 있다면"을 보여 주는 용도다.
+export interface TraceStep { at: string; title: string; detail: string; code?: string }
+export interface AgentToolCall { name: string; input: string; output: string }
+export interface MockTrace { messageId: string; route: HandlingRoute; backend: TraceStep[]; agent: { tools: AgentToolCall[]; reasoning: string[]; answer: Finding } | null }
 export type SendResult = { ok: true; message: MockMessage; caseItem: MockCase | null } | { ok: false; code: 'KICKED' | 'TIMED_OUT'; until?: string };
 
 // BE가 검토 카드에 넣는 고정 요약 문구(LiveModerationService.reviewCard)
@@ -53,6 +58,80 @@ export function classify(text: string, sameTextCount: number): Classified {
   if (attack || (official && credential)) return { route: 'CONTEXT_REVIEW', tags, ruleCategories };
   return { route: 'PASS', tags, ruleCategories };
 }
+const PUBLIC_CONTACT = /고객센터|대표번호|공식 문의처/;
+const PHONE = /01[016789][- .]?[0-9]{3,4}[- .]?[0-9]{4}/, MAIL = /[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/;
+const found = (list: string[], value: string) => list.filter(w => value.includes(normalize(w)));
+// 사전 검사에서 걸린 단어. 처리 기록과 목업 Agent의 판단 과정에 쓴다.
+function dictHits(text: string, same: number) {
+  const n = normalize(text), d = filterDictionary, out: string[] = [];
+  const exceptions = found(d.profanityExceptions, n);
+  const profanity = found(d.certainProfanity, exceptions.reduce((t, e) => t.split(normalize(e)).join(' '), n));
+  const add = (label: string, words: string[]) => { if (words.length) out.push(`${label} '${words.join("', '")}'`); };
+  add('확정 욕설', profanity); add('욕설 예외 단어(세지 않음)', exceptions); add('공격 표현', found(d.attack, n));
+  add('공식 자칭', found(d.officialClaim, n)); add('계정 정보 요구', found(d.credential, n));
+  if (hasLink(text)) out.push('링크 주소');
+  if (PHONE.test(text)) out.push('전화번호 형식');
+  if (MAIL.test(text)) out.push('이메일 형식');
+  if (same >= 3) out.push(`같은 문장 ${same}번 (10초 안)`);
+  return out;
+}
+const routeText: Record<HandlingRoute, string> = {
+  PASS: '사전에 걸린 단어가 없어 통과 → 공개',
+  RULE_CONFIRMED: '확정 욕설·링크 → 규칙으로 바로 확정. AI 조사 없음',
+  FLOOD_REVIEW: '같은 문장 반복 → 도배로 바로 확정. AI 조사 없음',
+  PII_INVESTIGATION: '개인정보 형식 → 임시 비노출 후 AI Agent 조사',
+  CONTEXT_REVIEW: '공격 표현·사칭 의심 → 임시 비노출 후 AI Agent 조사'
+};
+// policy-v3.1.md 조항 제목
+const policyTitles: Record<string, string> = { 'CP-2.2': '문맥 판단의 오탐 예외', 'CP-3.1': '인신공격의 판단 범위', 'CP-3.2': '괴롭힘 (HARASSMENT)', 'CP-5.2': '사칭 (PHISHING)', 'SP-3.1': '개인정보 노출 (PII_EXPOSURE)' };
+const policyText = (id: string) => `${id} ${policyTitles[id] ?? ''}`.trim();
+// 목업 Agent의 도구 호출과 판단 과정. 도구 이름은 실제 Agent(business MCP·RAG MCP)와 같다.
+function mockAgentTrace(route: HandlingRoute, text: string, finding: Finding, contextSize: number, priorConfirmed: number): NonNullable<MockTrace['agent']> {
+  const n = normalize(text), d = filterDictionary, policy = finding.policyIds[0] ?? '';
+  const attack = found(d.attack, n)[0], official = found(d.officialClaim, n)[0], credential = found(d.credential, n)[0];
+  const phishing = finding.categories.includes('PHISHING');
+  const publicContact = route === 'PII_INVESTIGATION' && finding.verdict === 'NO_VIOLATION';
+  const query = publicContact ? '회사의 공개 연락처도 개인정보 노출인지' : route === 'PII_INVESTIGATION' ? '채팅에 전화번호나 이메일을 올린 경우'
+    : phishing ? '운영자를 자칭하며 계정 정보를 요구하는 채팅'
+    : finding.verdict === 'NO_VIOLATION' ? '감탄으로 쓰인 공격 단어의 오탐 예외' : '특정 대상에게 떠나라고 요구하는 표현';
+  const candidates = route === 'PII_INVESTIGATION' ? ['SP-3.1'] : phishing ? ['CP-5.2'] : ['CP-3.2', 'CP-2.2', 'CP-3.1'];
+  const tools: AgentToolCall[] = [
+    { name: 'get_chat_context', input: '대상 메시지 + 최근 채팅', output: `대상 U1 1건, 주변 ${Math.max(0, contextSize - 1)}개 (전화번호·이메일·링크 가림)` },
+    { name: 'get_user_history', input: 'U1 · 이번 방송', output: `확정 위반 ${priorConfirmed}건` },
+    { name: 'search_policy', input: `"${query}" · 정책 v3.1`, output: candidates.map(policyText).join(' / ') },
+    ...(policy ? [{ name: 'get_policy_section', input: policy, output: `${policyText(policy)} 원문 확인` }] : [])
+  ];
+  const reasoning = publicContact ? [
+    `대상 메시지에 ${MAIL.test(text) ? '이메일' : '전화번호'} 형식이 있습니다. 문맥 기록에는 ${MAIL.test(text) ? '[EMAIL]' : '[PHONE]'}로 가려져 있습니다.`,
+    "'고객센터'와 함께 쓰여 개인이 아닌 게임사의 공개 문의처로 안내하고 있습니다.",
+    'SP-3.1은 실제 개인정보 노출을 막습니다. 회사가 공개한 문의처는 개인정보 노출로 보지 않습니다.',
+    '위반 아님으로 판정합니다. 개인정보 경로라 백엔드가 검증하면 운영자 검토 없이 공개됩니다.'
+  ] : route === 'PII_INVESTIGATION' ? [
+    `대상 메시지에 ${MAIL.test(text) ? '이메일' : '전화번호'} 형식이 있습니다. 문맥 기록에는 ${MAIL.test(text) ? '[EMAIL]' : '[PHONE]'}로 가려져 있습니다.`,
+    '주변 채팅에서 이 연락처가 작성자 본인 것인지, 다른 사람 것인지 드러나지 않습니다.',
+    'SP-3.1은 다른 사람의 연락처를 드러내는 것을 막습니다. 본인 연락처인지는 채팅만으로 확인할 수 없습니다.',
+    '근거가 부족하므로 위반으로 단정하지 않고 판단 보류로 넘깁니다. 확인할 사실을 함께 적습니다.'
+  ] : phishing ? [
+    `'${official}'(공식 자칭)과 '${credential}'(계정 정보 요구)가 한 메시지에 함께 있습니다.`,
+    '작성자 U1은 이 채널의 운영자가 아닌 일반 시청자입니다.',
+    'CP-5.2 사칭에 해당합니다. 계정 탈취로 이어질 수 있습니다.',
+    '위반(피싱·사칭)으로 제안합니다. 근거 정책 CP-5.2.'
+  ] : finding.verdict === 'NO_VIOLATION' ? [
+    `공격 표현 '${attack}'이 들어 있습니다.`,
+    '같은 문장이 플레이 장면에 대한 반응(컨트롤·한타 등)입니다.',
+    '특정 시청자나 방송인을 겨냥하지 않았습니다. CP-2.2 문맥 판단의 오탐 예외에 해당합니다.',
+    '위반 아님으로 제안합니다. 공개 여부는 운영자가 정합니다.'
+  ] : [
+    `공격 표현 '${attack}'이 들어 있습니다.`,
+    '앞뒤 채팅에서 감탄이나 인용으로 쓰인 흔적이 없습니다.',
+    '방송인 또는 다른 시청자에게 떠나라고 요구하거나 위협합니다. CP-3.2 괴롭힘에 해당합니다.',
+    '위반(괴롭힘)으로 제안합니다. 근거 정책 CP-3.2.'
+  ];
+  return { tools, reasoning, answer: finding };
+}
+const verifyText = (f: Finding) => f.verdict === 'VIOLATION' ? `위반 제안에 정책 ID(${f.policyIds.join(', ')})가 있음 → 형식 검사 통과`
+  : f.verdict === 'NEEDS_REVIEW' ? `판단 보류에 확인 필요 사실 ${f.missingFacts.length}개가 있음 → 형식 검사 통과`
+  : `위반 아님 제안 · 정책 ${f.policyIds.join(', ') || '-'} → 형식 검사 통과`;
 // 이미 가린 [URL:host] 안의 도메인은 다시 가리지 않는다.
 const MASK_DOMAIN = /(?<![\p{L}\p{N}@.\-:[])((?:[\p{L}\p{N}](?:[\p{L}\p{N}-]*[\p{L}\p{N}])?\.)+[A-Za-z]{2,63})(?![\p{L}\p{N}-])[^\s\]]*/gu;
 // Backend PiiMasker 일부: 문맥 메시지에서 이메일·전화번호·주소를 가린다.
@@ -62,6 +141,8 @@ export function maskText(text: string) {
 }
 // 목업 Agent. 실제 모델을 부르지 않고 경로와 표현으로 정한 제안을 붙인다. 계약상 VIOLATION은 정책 ID, NEEDS_REVIEW는 확인 필요 사실이 있어야 한다.
 function mockAgent(messageId: string, route: HandlingRoute, tags: string[], text: string): Finding {
+  // 게임사 고객센터처럼 개인이 아닌 공개 연락처는 위반 아님으로 판정한다. 개인정보 경로라 BE 검증 뒤 운영자 없이 공개된다(v3.1 §5).
+  if (route === 'PII_INVESTIGATION' && PUBLIC_CONTACT.test(text)) return { messageId, verdict: 'NO_VIOLATION', categories: [], policyIds: ['SP-3.1'], reason: '(목업 Agent) 개인이 아닌 게임사 고객센터의 공개 연락처입니다. 개인정보 노출이 아닙니다.', missingFacts: [] };
   if (route === 'PII_INVESTIGATION') return { messageId, verdict: 'NEEDS_REVIEW', categories: ['PII_EXPOSURE'], policyIds: ['SP-3.1'], reason: '(목업 Agent) 연락처 형식이 있지만 실제 개인정보인지 확인할 근거가 없습니다.', missingFacts: ['본인 또는 타인의 실제 연락처인지'] };
   if (tags.includes('OFFICIAL_CLAIM') && tags.includes('CREDENTIAL_REQUEST')) return { messageId, verdict: 'VIOLATION', categories: ['PHISHING'], policyIds: ['CP-5.2'], reason: '(목업 Agent) 공식 운영자를 자칭하며 계정 정보를 요구합니다.', missingFacts: [] };
   if (/컨트롤|한타|플레이|실력|노래|대박|ㅋㅋ/.test(text)) return { messageId, verdict: 'NO_VIOLATION', categories: [], policyIds: ['CP-2.2'], reason: '(목업 Agent) 감탄 표현으로 쓰였고 특정 대상을 공격하지 않습니다.', missingFacts: [] };
@@ -80,7 +161,7 @@ export function createMockLive(users: MockUser[]) {
     live: { liveId: LIVE_ID, channelId: CHANNEL_ID, startedAt: iso(Date.now() - 3_600_000), endedAt: null } as Live,
     messages: [] as MockMessage[], cases: [] as MockCase[], reviews: [] as LiveReview[],
     decisions: {} as Record<string, MockDecision>, timeouts: {} as Record<string, string>, kicks: {} as Record<string, string>,
-    kickProgress: {} as Record<string, string>, logs: [] as StudioLog[],
+    kickProgress: {} as Record<string, string>, logs: [] as StudioLog[], traces: {} as Record<string, MockTrace>,
     floodMarks: [] as { userId: string; text: string; caseId: string; lastSentAt: number }[]
   });
   const aliasOf = (userId: string) => users.find(u => u.id === userId)?.alias ?? '시청자';
@@ -92,6 +173,9 @@ export function createMockLive(users: MockUser[]) {
   const isConfirmed = (c: LiveCase) => c.confirmationStatus === 'CONFIRMED_VIOLATION' && activeFindings(c).length > 0;
   const confirmedAt = (c: LiveCase) => Math.max(...activeFindings(c).map(f => Date.parse(String(f.confirmedAt))));
   const targets = (c: LiveCase) => state.messages.filter(m => c.targetMessageIds.includes(m.messageId));
+  function addStep(messageIds: string[], at: number, title: string, detail: string, code?: string) {
+    for (const id of messageIds) state.traces[id]?.backend.push({ at: iso(at), title, detail, code });
+  }
   function setVisibility(m: MockMessage, visibility: Message['visibility'], route: HandlingRoute) {
     if (m.visibility === visibility) return;
     m.visibility = visibility; m.version++;
@@ -129,6 +213,7 @@ export function createMockLive(users: MockUser[]) {
       for (const m of targets(c)) m.timeoutUntil = c.timeoutUntil;
     }
     c.violationCount = recentConfirmed(c.userId, at);
+    addStep(c.targetMessageIds, at, byOperator ? '제재 적용 (운영자 위반 확정)' : '제재 적용', `${categories.map(x => categoryLabels[x]).join('·')} 확정 → 숨김${timeoutSec ? ` + 채팅 ${timeoutText(timeoutSec)} 제한` : ''}`, 'MP-2.1');
     log('CASE_UPDATED', `${aliasOf(c.userId)} · ${categories.map(x => categoryLabels[x]).join('·')} 위반 확정${timeoutSec ? ` · 채팅 ${timeoutText(timeoutSec)} 제한` : ''}`, at, { caseId: c.caseId });
     ensureKick(c, at);
   }
@@ -146,6 +231,7 @@ export function createMockLive(users: MockUser[]) {
     const reviewId = uid();
     state.reviews.push({ reviewId, kind: 'KICK', liveId: LIVE_ID, caseId: trigger.caseId, status: 'PENDING', version: 1, createdAt: iso(at), aiVerdict: 'VIOLATION', messages: trigger.messages, targetMessageIds: trigger.targetMessageIds, findings: trigger.findings ?? [], basisCaseIds: eligible.slice(0, KICK_THRESHOLD).map(c => c.caseId), summary: KICK_SUMMARY });
     trigger.status = 'KICK_REVIEW_PENDING';
+    addStep(trigger.targetMessageIds, at, '강퇴 심사 요청', `최근 24시간 확정 사건 ${KICK_THRESHOLD}건 → 운영자 승인 대기`, 'MP-4.1');
     log('KICK_REVIEW_REQUIRED', `${aliasOf(userId)} · 확정 사건 ${KICK_THRESHOLD}건`, at, { caseId: trigger.caseId, reviewId });
   }
   function send(user: MockUser, text: string, at = Date.now()): SendResult {
@@ -155,12 +241,19 @@ export function createMockLive(users: MockUser[]) {
     const normalized = normalize(text);
     const same = state.messages.filter(m => m.ownerId === user.id && normalize(m.text) === normalized && Date.parse(m.sentAt) > at - FLOOD_WINDOW_MS).length + 1;
     let { route, tags, ruleCategories } = classify(text, same);
-    const base: MockMessage = { messageId: uid(), channelId: CHANNEL_ID, liveId: LIVE_ID, authorAlias: user.alias, text, visibility: 'PUBLIC', version: 1, sentAt: iso(at), isMine: false, ownerId: user.id, moderationReasonCode: null, moderationNotice: null, reviewStatus: null, timeoutUntil: null };
+    const messageId = uid();
+    const trace: MockTrace = reactive({ messageId, route, agent: null, backend: [
+      { at: iso(at), title: '정규화', detail: `"${text}" → "${normalized}"`, code: 'norm-v1' },
+      { at: iso(at), title: '사전 검사', detail: dictHits(text, same).join(' · ') || '사전에 걸린 단어 없음', code: 'dict-v2' }
+    ] });
+    const base: MockMessage = { messageId, channelId: CHANNEL_ID, liveId: LIVE_ID, authorAlias: user.alias, text, visibility: 'PUBLIC', version: 1, sentAt: iso(at), isMine: false, ownerId: user.id, moderationReasonCode: null, moderationNotice: null, reviewStatus: null, timeoutUntil: null };
     // 같은 도배가 10초 안에 이어지면 기존 도배 사건에 붙여 숨긴다(Backend flood_marks).
     const mark = route === 'RULE_CONFIRMED' ? undefined : state.floodMarks.find(f => f.userId === user.id && f.text === normalized && f.lastSentAt > at - FLOOD_WINDOW_MS);
     const owner = mark && state.cases.find(c => c.caseId === mark.caseId && isConfirmed(c));
     if (mark && owner) {
       const message = reactive({ ...base, visibility: 'HIDDEN', moderationReasonCode: 'FLOOD_REPEATED', moderationNotice: '동일 문장 반복으로 숨김 처리되었습니다.' }) as MockMessage;
+      trace.route = 'FLOOD_REVIEW'; trace.backend.push({ at: iso(at), title: '기존 도배 사건에 추가', detail: '10초 안에 같은 문장이 이어져 바로 숨김', code: 'CP-4.2' });
+      state.traces[messageId] = trace;
       state.messages.push(message); owner.targetMessageIds.push(message.messageId); mark.lastSentAt = at;
       log('CHAT', `${user.alias} · 도배 반복 숨김`, at);
       return { ok: true, message, caseItem: owner };
@@ -169,18 +262,36 @@ export function createMockLive(users: MockUser[]) {
     const message = reactive({ ...base, visibility: route === 'PASS' ? 'PUBLIC' : route === 'RULE_CONFIRMED' ? 'HIDDEN' : 'HELD' }) as MockMessage;
     if (route === 'RULE_CONFIRMED') message.moderationReasonCode = tags.includes('LINK') ? 'LINK_NOT_ALLOWED' : 'PROFANITY_INCLUDED';
     else if (route !== 'PASS') { const n = authorNotice(route, false); message.moderationReasonCode = n.code; message.moderationNotice = n.notice; message.reviewStatus = message.visibility === 'HELD' ? 'PENDING' : null; }
-    state.messages.push(message); if (state.messages.length > 300) state.messages.splice(0, state.messages.length - 300);
+    trace.backend.push({ at: iso(at), title: '처리 경로 결정', detail: routeText[route], code: route });
+    state.traces[messageId] = trace;
+    state.messages.push(message);
+    if (state.messages.length > 300) for (const old of state.messages.splice(0, state.messages.length - 300)) delete state.traces[old.messageId];
     log('CHAT', `${user.alias} · ${message.visibility}`, at);
     if (route === 'PASS') return { ok: true, message, caseItem: null };
     const c = reactive({ caseId: uid(), liveId: LIVE_ID, version: 1, confirmationStatus: 'PENDING', handlingRoute: route, messages: snapshot(user.id), targetMessageIds: [message.messageId], confirmedFindings: [], findings: [], createdAt: iso(at), violationCount: recentConfirmed(user.id, at), status: 'ANALYZING', userId: user.id, timeoutUntil: null }) as MockCase;
     state.cases.push(c);
     log('CASE_CREATED', `${user.alias} · ${route}`, at, { caseId: c.caseId });
+    if (route !== 'RULE_CONFIRMED' && route !== 'FLOOD_REVIEW') {
+      addStep([messageId], at, '임시 비노출', '작성자와 운영자에게만 보임', 'HELD');
+      addStep([messageId], at, '문맥 준비', `최근 채팅 ${c.messages.length}개. 작성자 U1·주변 U2…로 바꾸고 전화번호·이메일·링크를 가림`, 'SP-4.1');
+      addStep([messageId], at, 'Agent 조사 요청', '조사 작업 1건 (대상 메시지 1개)', 'investigate');
+    }
     if (route === 'FLOOD_REVIEW') { confirm(c, ['FLOOD'], at, false); state.floodMarks.push({ userId: user.id, text: normalized, caseId: c.caseId, lastSentAt: at }); }
     else if (route === 'RULE_CONFIRMED') confirm(c, ruleCategories, at, false);
     else {
       log('TOOL_START', `${user.alias} · ${route === 'PII_INVESTIGATION' ? '개인정보 조사' : '문맥 조사'} (목업 Agent)`, at, { caseId: c.caseId });
       const finding = mockAgent(message.messageId, route, tags, text);
       c.findings = [finding]; c.status = 'NEEDS_REVIEW';
+      trace.agent = mockAgentTrace(route, text, finding, c.messages.length, c.violationCount ?? 0);
+      addStep([messageId], at, '판단·근거 검증', verifyText(finding), finding.verdict);
+      if (route === 'PII_INVESTIGATION' && finding.verdict === 'NO_VIOLATION') {
+        c.confirmationStatus = 'CONFIRMED_NORMAL'; c.status = 'NO_ACTION'; c.version++;
+        setVisibility(message, 'PUBLIC', route);
+        log('MESSAGE_RESTORED', `${user.alias} · 개인정보 정상 판정으로 공개 (운영자 검토 없음)`, at, { caseId: c.caseId });
+        addStep([messageId], at, '가림 해제', '개인정보 정상 판정 → 운영자 검토 없이 공개 (정책 v3.1 §5)', 'CONFIRMED_NORMAL');
+        return { ok: true, message, caseItem: c };
+      }
+      addStep([messageId], at, '문맥 검토 생성', 'AI 제안만으로 확정하지 않고 운영자 결정 대기 (정책 v3.1)', 'CONTEXT_REVIEW_REQUIRED');
       log('TOOL_END', `${user.alias} · AI 제안 ${finding.verdict}`, at, { caseId: c.caseId });
       const reviewId = uid();
       state.reviews.push({ reviewId, kind: 'CONTEXT', liveId: LIVE_ID, caseId: c.caseId, status: 'PENDING', version: 1, createdAt: iso(at), aiVerdict: finding.verdict, messages: c.messages, targetMessageIds: c.targetMessageIds, findings: c.findings, basisCaseIds: [], summary: CONTEXT_SUMMARY });
@@ -197,6 +308,7 @@ export function createMockLive(users: MockUser[]) {
     state.decisions[reviewId] = { kind: r.kind, value, reason, decidedAt: iso(at) };
     r.version++;
     log('REVIEW_DECIDED', `${aliasOf(c.userId)} · ${r.kind} ${value}`, at, { caseId: c.caseId, reviewId });
+    if (r.kind === 'CONTEXT') addStep(c.targetMessageIds, at, '운영자 결정', `${value === 'CONFIRM_NORMAL' ? '정상 확정 → 공개' : value === 'CONFIRM_VIOLATION' ? '위반 확정' : '보류 → 다시 결정 대기'} · 이유: ${reason}`, value);
     if (r.kind === 'CONTEXT') {
       if (value === 'DEFER') return { ok: true, message: '보류했습니다. 검토 대기에 남습니다. (MOCK)' };
       r.status = 'DECIDED';
@@ -250,12 +362,13 @@ export function createMockLive(users: MockUser[]) {
       if (state.kicks[c.userId] === r.reviewId) { delete state.kicks[c.userId]; state.kickProgress[r.reviewId] = '근거 취소 · 강퇴 해제'; }
       else if (state.kickProgress[r.reviewId]) state.kickProgress[r.reviewId] = '근거 취소 · 강퇴하지 않음';
     }
+    addStep(c.targetMessageIds, at, '오판 취소', `${categoryLabels[f.category]} 근거 취소${c.confirmationStatus === 'CANCELLED' ? ' → 다시 공개' : ''} · 이유: ${reason}`, 'REVOKED');
     log('CASE_UPDATED', `${aliasOf(c.userId)} · ${categoryLabels[f.category]} 오판 취소 · ${reason}`, at, { caseId: c.caseId });
     return true;
   }
   // 초기 화면: fixture 채팅과 운영자 결정을 시간 순서대로 다시 넣는다.
   function reset(lines: FixtureLine[], now = Date.now()) {
-    Object.assign(state, { messages: [], cases: [], reviews: [], decisions: {}, timeouts: {}, kicks: {}, kickProgress: {}, logs: [], floodMarks: [] });
+    Object.assign(state, { messages: [], cases: [], reviews: [], decisions: {}, timeouts: {}, kicks: {}, kickProgress: {}, logs: [], traces: {}, floodMarks: [] });
     state.live = { liveId: LIVE_ID, channelId: CHANNEL_ID, startedAt: iso(now - 3_600_000), endedAt: null };
     type Step = { at: number; run: () => void };
     const steps: Step[] = [];

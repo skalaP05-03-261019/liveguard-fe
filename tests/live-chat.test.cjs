@@ -533,6 +533,10 @@ test('API case flow shows AI investigation from live events, basis reasons and t
  await gotoQueue(page);const kick=page.locator('.studio-review.kick');await kick.waitFor();
  const reasons=await kick.locator('.basis-reason').allInnerTexts();
  assert.deepEqual(reasons,['규칙 자동 확정 · AI 조사 없음','규칙 자동 확정 · AI 조사 없음','AI 위반 의심 · 대상을 향한 공격입니다.']);
+ await kick.getByText('기준 사건 AI 판단 근거 · case-ctx',{exact:true}).click();
+ const basis=kick.getByRole('region',{name:'AI 판단 근거'});
+ await basis.getByText('대상을 향한 공격입니다.',{exact:true}).waitFor();
+ assert.match(await basis.innerText(),/CP-3.2/);
  // 아직 결정되지 않은 사건의 AI 조사가 실시간으로 진행된다.
  await waitFor(()=>clients.size>=2);
  emit('TOOL_START',{caseId:'case-held',tool:'get_context',callId:'c1'});emit('TOOL_END',{caseId:'case-held',tool:'get_context',callId:'c1',status:'OK',elapsedMs:900});
@@ -594,107 +598,157 @@ test('mock chat archive links a moderated message to its case flow',async()=>{
  assert.match(await flow.locator('li').first().innerText(),new RegExp(text.slice(0,6).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
 });
 
-// 판단 경로 그래프의 노드·선 상태(path·wait·skip·unknown)를 한 번에 읽는다.
-const graphTones=(detail,kind='node')=>detail.locator(`[data-graph-${kind}]`).evaluateAll((els,kind)=>Object.fromEntries(els.map(el=>[el.dataset[kind==='node'?'graphNode':'graphEdge'],['path','wait','skip','unknown'].find(c=>el.classList.contains(c))])),kind);
+// 판정 흐름 그래프의 노드·선 상태(path·wait·skip·unknown·later)를 한 번에 읽는다.
+const flowTones=(detail,kind='node')=>detail.locator(kind==='node'?'.flow-graph [data-flow-node]':'[data-flow-edge]').evaluateAll((els,kind)=>Object.fromEntries(els.map(el=>[el.dataset[kind==='node'?'flowNode':'flowEdge'],['path','wait','skip','unknown','later'].find(c=>el.classList.contains(c))])),kind);
+const pathOf=async detail=>Object.entries(await flowTones(detail)).filter(([,t])=>t==='path').map(([k])=>k);
 
 test('API chat detail follows the AI investigation of a selected chat in real time',async()=>{
  const masked={messageId:'held-1',authorAlias:'U1',text:'held-1 원문',visibility:'HELD',sentAt:timestamp()};
  state.messages=[message('pass-1','observer'),message('held-1','author','HELD')];
  state.cases=[{caseId:'case-held',liveId:'live-1',version:1,confirmationStatus:'PENDING',handlingRoute:'CONTEXT_REVIEW',messages:[masked],targetMessageIds:['held-1'],confirmedFindings:[],findings:[],createdAt:timestamp(),violationCount:0}];
  const page=await open('operator');await waitFor(()=>clients.size>=2);
- const detail=page.locator('.chat-detail');
+ const detail=page.locator('.chat-detail'),outcome=detail.locator('[data-flow-outcome]'),evidence=detail.locator('[data-flow-evidence]');
  await page.locator('.chat-row[data-message-id="pass-1"]').click();
- await detail.getByText('서버 경로 기록 없음',{exact:true}).waitFor();
+ await outcome.getByText('서버 경로 기록 없음',{exact:true}).waitFor();
  // 사건이 없는 채팅은 접수만 거친 단계이고 나머지는 '기록 없음'이다. 통과로 추정하지 않는다.
- let nodes=await graphTones(detail);
+ let nodes=await flowTones(detail);
  assert.equal(Object.keys(nodes).length,12);
- assert.deepEqual(Object.entries(nodes).filter(([,t])=>t!=='unknown').map(([k])=>k),['chat']);
- assert.equal(nodes.chat,'path');
- assert.equal(await detail.locator('[data-graph-edge].path').count(),0);
- await detail.locator('[data-graph-node="public"]').click();
- await detail.locator('.graph-step-detail').getByText('서버에 이 단계의 기록이 아직 없습니다. 추정해서 채우지 않습니다.',{exact:true}).waitFor();
- assert.equal(await detail.getByText('AI Agent 판단',{exact:true}).count(),0);
+ assert.deepEqual(Object.entries(nodes).filter(([,t])=>t!=='unknown').map(([k])=>k),['input']);
+ assert.equal(await detail.locator('[data-flow-edge].path').count(),0);
+ await detail.locator('.flow-graph [data-flow-node="public"]').click();
+ await evidence.getByText('서버에 이 단계의 기록이 아직 없습니다. 추정해서 채우지 않습니다.',{exact:true}).waitFor();
+ assert.equal(await evidence.locator('.evidence-section li').count(),0,'no facts for an unrecorded step');
  await page.locator('.chat-row[data-message-id="held-1"]').click();
- await detail.getByText('AI 문맥 검토',{exact:true}).waitFor();
+ await outcome.getByText('AI 문맥 검토',{exact:true}).waitFor();await outcome.getByText('Agent 조사 중',{exact:true}).waitFor();
+ await outcome.getByText('현재 임시 비노출',{exact:true}).waitFor();
  // 판정이 아직 없으니 Agent 조사에서 멈추고, 그 뒤 단계는 거쳤다고 표시하지 않는다.
- nodes=await graphTones(detail);
- assert.equal(nodes.classify,'path');assert.equal(nodes.agent,'wait');
- assert.deepEqual(await detail.locator('.process-zone.on').evaluateAll(z=>z.map(x=>x.dataset.graphZone)),['agent']);
- assert.equal(nodes.public,'skip');assert.equal(nodes.rule,'skip');
- for(const id of ['research','verify','wait','decide','normal','violation'])assert.notEqual(nodes[id],'path',id);
- assert.equal((await graphTones(detail,'edge'))['classify-agent'],'path');
- await detail.locator('.graph-status-badge').getByText('현재 임시 비노출',{exact:true}).waitFor();
- await detail.locator('[data-graph-node="classify"]').click();
- await detail.locator('.graph-step-detail').getByText(/CONTEXT_REVIEW/).waitFor();
+ nodes=await flowTones(detail);
+ assert.equal(nodes.classify,'path');assert.equal(nodes.agent,'wait');assert.equal(nodes.public,'skip');assert.equal(nodes.rule,'skip');
+ for(const id of ['policy','verify','wait','normal','sanction'])assert.equal(nodes[id],'unknown',id);
+ assert.equal((await flowTones(detail,'edge'))['classify-agent'],'path');
  emit('TOOL_START',{caseId:'case-held',tool:'get_context',callId:'c1'});
- await detail.getByText('조사 중입니다. 결과가 나오면 자동으로 보입니다.',{exact:true}).waitFor();
+ await evidence.getByText('조사 중입니다. 결과가 나오면 자동으로 보입니다.',{exact:true}).waitFor();
+ await detail.locator('[data-flow-history]').getByText('조사 시작',{exact:true}).waitFor();
  // Agent 판정이 저장되고 문맥 검토가 만들어진다.
  state.cases[0].findings=[{messageId:'held-1',verdict:'NEEDS_REVIEW',categories:['HARASSMENT'],policyIds:['CP-3.2'],reason:'대상이 분명하지 않습니다.',missingFacts:['특정 시청자를 겨냥했는지']}];
  state.reviews=[{reviewId:'review-held',kind:'CONTEXT',liveId:'live-1',caseId:'case-held',status:'PENDING',version:1,createdAt:timestamp(),aiVerdict:'NEEDS_REVIEW',messages:[masked],targetMessageIds:['held-1'],findings:state.cases[0].findings,basisCaseIds:[],summary:'AI 제안을 확인하고 최종 결정해 주세요'}];
  emit('TOOL_END',{caseId:'case-held',tool:'get_context',callId:'c1',status:'OK'});emit('CONTEXT_REVIEW_REQUIRED',{reviewId:'review-held',caseId:'case-held',aiVerdict:'NEEDS_REVIEW'});
- await detail.getByText('AI 제안 · 판단 보류',{exact:true}).waitFor();
- nodes=await graphTones(detail);const edges=await graphTones(detail,'edge');
- for(const id of ['chat','classify','agent','research','verify'])assert.equal(nodes[id],'path',id);
- assert.equal(nodes.wait,'wait');assert.equal(nodes.apply,'skip');assert.notEqual(nodes.decide,'path');
- assert.equal(edges['verify-wait'],'path');assert.equal(edges['verify-apply'],'skip');
- // 띠는 위에서부터 ① 통과 ② 숨김 ③ Agent 판단 ④ 운영자 결정, 띠 사이에는 선만 있고 화살표는 없다.
- assert.deepEqual(await detail.locator('[data-graph-zone]').evaluateAll(z=>z.map(x=>x.dataset.graphZone)),['pass','hide','agent','operator']);
- const bandTops=await detail.locator('[data-graph-zone] rect').evaluateAll(r=>r.map(x=>+x.getAttribute('y')));
- assert.deepEqual([...bandTops].sort((x,y)=>x-y),bandTops);
- assert.equal(await detail.locator('.process-separator').count(),4);assert.equal(await detail.locator('[data-graph-edge]').count(),12);
- assert.deepEqual(await detail.locator('.process-zone.on').evaluateAll(z=>z.map(x=>x.dataset.graphZone)),['agent','operator']);
- await detail.locator('[data-graph-edge="verify-wait"]').getByText('문맥 검토',{exact:true}).waitFor();
- // 노드를 누르면 그래프 아래에 그 단계의 근거가 나온다. 내부 코드는 여기에서만 보인다.
- assert.equal(await detail.locator('.process-graph').getByText('NEEDS_REVIEW').count(),0);
- const step=detail.locator('.graph-step-detail');
- await detail.locator('[data-graph-node="research"]').click();
- await step.getByText('대상이 분명하지 않습니다.',{exact:true}).waitFor();await step.getByText('CP-3.2',{exact:true}).waitFor();
- await detail.locator('[data-graph-node="verify"]').click();
- await step.getByText('판단 보류 (NEEDS_REVIEW)',{exact:true}).waitFor();
- await detail.getByText('확인 필요: 특정 시청자를 겨냥했는지',{exact:true}).waitFor();
- assert.equal(await detail.getByText('조사 중입니다.',{exact:false}).count(),0);
+ await outcome.getByText('AI 제안 · 판단 보류',{exact:true}).waitFor();await outcome.getByText('AI 제안 · 운영자 결정 대기',{exact:true}).waitFor();
+ assert.equal(await detail.locator('[data-mock-trace]').count(),0,'API screen never shows the mock trace');
+ nodes=await flowTones(detail);const edges=await flowTones(detail,'edge');
+ assert.deepEqual(await pathOf(detail),['input','classify','agent','policy','verify']);
+ assert.equal(nodes.wait,'wait');assert.equal(nodes.normal,'unknown');assert.equal(nodes.sanction,'unknown');
+ assert.equal(edges['verify-wait'],'path');assert.equal(edges['wait-normal'],'unknown');
+ // 기본으로 지금 대기 중인 단계의 근거가 열린다.
+ await evidence.locator('.evidence-stage').getByText('운영자 결정 대기').waitFor();
+ // 노드를 누르면 아래에 그 단계의 판단 내용·근거·상태가 나온다. 내부 코드는 근거 칸에만 보인다.
+ assert.equal(await detail.locator('.flow-graph').getByText('NEEDS_REVIEW').count(),0);
+ // Agent는 판정과 근거를 내고(AGENT · 02), 백엔드가 검증해 문맥 경로는 운영자 결정으로 넘긴다(정책 v3.1 §5).
+ await detail.locator('.flow-graph [data-flow-node="policy"]').click();
+ await evidence.getByText('대상이 분명하지 않습니다.',{exact:true}).waitFor();
+ await evidence.getByText('AI 제안 판단 보류 (NEEDS_REVIEW)',{exact:true}).waitFor();
+ await evidence.getByText('확인 필요: 특정 시청자를 겨냥했는지',{exact:true}).waitFor();
+ await evidence.getByText('적용 정책 CP-3.2',{exact:true}).waitFor();
+ await detail.locator('.flow-graph [data-flow-node="verify"]').click();
+ await evidence.locator('[data-flow-evidence] .flow-badge, .flow-badge').getByText('백엔드 처리',{exact:true}).first().waitFor();
+ await evidence.getByText('결과: 운영자 결정 대기',{exact:true}).waitFor();
+ await evidence.getByText(/AI 정상 판단만으로 공개하지 않습니다/).waitFor();
+ // 경로 재생: 처음부터 한 단계씩 보여 주고, 아직 보여 주지 않은 단계는 '다음 단계'로 둔다.
+ await detail.getByRole('button',{name:/경로 재생/}).click();
+ await waitFor(async()=>(await flowTones(detail)).wait==='later'||(await flowTones(detail)).verify==='later');
+ await waitFor(async()=>(await flowTones(detail)).wait==='wait',8000);
  await detail.getByRole('button',{name:'결정하러 가기 →',exact:true}).click();
  await page.locator('.queue-page .studio-review.open[data-review-id="review-held"]').waitFor();
 });
 
-test('mock chat detail shows the filter result, rule outcome and AI judgment without inventing one',async()=>{
+test('API chat detail follows the v3.1 personal-data branch: a normal verdict is released by the backend without an operator',async()=>{
+ const masked={messageId:'pii-1',authorAlias:'U1',text:'제 번호 [PHONE]',visibility:'PUBLIC',sentAt:timestamp()};
+ state.messages=[message('pii-1','author')];
+ state.cases=[{caseId:'case-pii',liveId:'live-1',version:2,confirmationStatus:'CONFIRMED_NORMAL',handlingRoute:'PII_INVESTIGATION',messages:[masked],targetMessageIds:['pii-1'],confirmedFindings:[],findings:[{messageId:'pii-1',verdict:'NO_VIOLATION',categories:[],policyIds:['SP-3.1'],reason:'본인이 공개한 업무용 연락처입니다.',missingFacts:[]}],createdAt:timestamp(),violationCount:0}];
+ const page=await open('operator');const detail=page.locator('.chat-detail');
+ await page.locator('.chat-row[data-message-id="pii-1"]').click();
+ await detail.locator('[data-flow-outcome]').getByText('개인정보 정상 · 가림 해제',{exact:true}).waitFor();
+ assert.deepEqual(await pathOf(detail),['input','classify','agent','policy','verify','normal']);
+ const nodes=await flowTones(detail),edges=await flowTones(detail,'edge');
+ assert.equal(nodes.wait,'skip');assert.equal(edges['verify-normal'],'path');assert.equal(edges['wait-normal'],'skip');
+ await detail.locator('.flow-graph [data-flow-node="verify"]').click();
+ await detail.locator('[data-flow-evidence]').getByText('결과: 가림 해제',{exact:true}).waitFor();
+});
+
+test('mock includes an AI-decided case: a public company contact is released by the backend without an operator (v3.1 §5)',async()=>{
  const page=await openMockModerator();const detail=page.locator('.chat-detail');
+ const row=page.locator('.chat-row').filter({hasText:'고객센터 help@game-corp.example'});
+ // 운영자 결정 없이 공개됐으므로 비공개 표시가 없고, 결정 대기에도 없다.
+ assert.equal(await row.locator('.state-pill').count(),0);
+ await row.click();
+ await detail.locator('[data-flow-outcome]').getByText('개인정보 정상 · 가림 해제',{exact:true}).waitFor();
+ await detail.locator('[data-flow-outcome]').getByText('판단: Agent · 검증·해제: 백엔드 · 운영자 검토 없음',{exact:true}).waitFor();
+ assert.deepEqual(await pathOf(detail),['input','classify','agent','policy','verify','normal']);
+ assert.equal((await flowTones(detail)).wait,'skip');
+ await detail.locator('.flow-graph [data-flow-node="policy"]').click();
+ await detail.locator('[data-flow-evidence]').getByText('AI 제안 위반 아님 (NO_VIOLATION)',{exact:true}).waitFor();
+ await detail.locator('[data-flow-history]').getByText('개인정보 정상 판정 → 운영자 검토 없이 공개 (정책 v3.1 §5)',{exact:true}).waitFor();
+ await gotoQueue(page);
+ assert.equal(await page.locator('.queue-page').getByText('고객센터 help@game-corp.example').count(),0);
+});
+
+test('mock chat detail shows the filter result, rule outcome and AI judgment without inventing one',async()=>{
+ const page=await openMockModerator();const detail=page.locator('.chat-detail'),outcome=detail.locator('[data-flow-outcome]'),evidence=detail.locator('[data-flow-evidence]'),historyBox=detail.locator('[data-flow-history]');
  await detail.getByText('채팅을 누르면',{exact:false}).waitFor();
  await page.locator('.chat-row').filter({hasText:'오늘 몇 시까지 하세요?'}).click();
- await detail.getByText('서버 경로 기록 없음',{exact:true}).waitFor();
- assert.deepEqual(Object.entries(await graphTones(detail)).filter(([,t])=>t==='path').map(([k])=>k),['chat']);
- assert.equal(await detail.locator('.process-zone.on').count(),0);
- await detail.locator('[data-graph-zone-line]').getByText('1차 분류 기록 없음',{exact:true}).waitFor();
+ // 목업 Backend는 통과한 채팅도 처리 기록을 남긴다. 기록에 근거해 통과 경로만 칠한다.
+ await outcome.getByText('필터 통과 (목업 기록)',{exact:true}).waitFor();await outcome.getByText('백엔드에서 통과',{exact:true}).waitFor();
+ assert.deepEqual(await pathOf(detail),['input','classify','public']);
+ await historyBox.getByText('사전에 걸린 단어 없음',{exact:true}).waitFor();
  await page.locator('.chat-row').filter({hasText:'시발 너 진짜 못하네'}).click();
- await detail.getByText('규칙 자동 확정',{exact:true}).waitFor();
- let nodes=await graphTones(detail);
- assert.equal(nodes.rule,'path');
- for(const id of ['public','agent','research','verify','wait','decide'])assert.equal(nodes[id],'skip',id);
- assert.equal((await graphTones(detail,'edge'))['classify-rule'],'path');
- assert.deepEqual(await detail.locator('.process-zone.on').evaluateAll(z=>z.map(x=>x.dataset.graphZone)),['hide']);
- await detail.locator('[data-graph-zone-line]').getByText(/^숨김 → .*욕설/).waitFor();
- // 규칙으로 확정된 채팅은 숨김·제재 처리 노드가 기본으로 열린다.
- const step=detail.locator('.graph-step-detail');
- await step.getByText('숨김·제재 처리',{exact:false}).waitFor();await step.getByText('욕설',{exact:true}).waitFor();
- assert.equal(await step.count(),1);
- assert.equal(await detail.locator('.detail-block[aria-live="polite"] .review-ai').count(),0);
+ await outcome.getByText('규칙 자동 확정',{exact:true}).waitFor();await outcome.getByText('백엔드만으로 처리됨',{exact:true}).waitFor();
+ const nodes=await flowTones(detail);
+ assert.deepEqual(await pathOf(detail),['input','classify','rule','sanction']);
+ for(const id of ['public','agent','policy','verify','wait','normal'])assert.equal(nodes[id],'skip',id);
+ assert.equal((await flowTones(detail,'edge'))['classify-rule'],'path');
+ // 규칙으로 확정된 채팅은 마지막 단계(숨김·제재 적용)의 근거가 기본으로 열린다. Agent 판단 과정은 없다.
+ await evidence.locator('.evidence-stage').getByText('숨김 · 제재 적용').waitFor();
+ await evidence.getByText('위반 유형 욕설',{exact:true}).waitFor();await evidence.getByText('v3.1 §6 제재표 (MP-2.1)',{exact:true}).waitFor();
+ assert.equal(await detail.locator('[data-mock-trace]').count(),0);
+ await detail.locator('.flow-graph [data-flow-node="classify"]').click();
+ await evidence.getByText("사전 검사: 확정 욕설 '시발'",{exact:true}).waitFor();
  await page.locator('.chat-row').filter({hasText:'아 진짜 노잼이네 꺼져라'}).click();
- await detail.getByText('AI 제안 · 위반 의심',{exact:true}).waitFor();
+ await outcome.getByText('AI 제안 · 위반 의심',{exact:true}).waitFor();
+ // 목업 Agent의 도구 호출·판단 과정·최종 답변. 실제 Agent가 보내지 않는다는 안내가 붙는다.
+ await detail.locator('.flow-graph [data-flow-node="policy"]').click();
+ const mockTrace=evidence.locator('[data-mock-trace]');
+ await mockTrace.getByText(/실제 Agent는 판단 과정을 보내지 않고/).waitFor();
+ await mockTrace.getByText("공격 표현 '꺼져'이 들어 있습니다.",{exact:true}).waitFor();
+ assert.match(await mockTrace.locator('.trace-answer').innerText(),/"verdict": "VIOLATION"/);
+ await detail.locator('.flow-graph [data-flow-node="agent"]').click();
+ for(const tool of ['get_chat_context','get_user_history'])await mockTrace.getByText(tool,{exact:true}).waitFor();
+ await detail.locator('.flow-graph [data-flow-node="policy"]').click();
+ for(const tool of ['search_policy','get_policy_section'])await mockTrace.getByText(tool,{exact:true}).waitFor();
+ // 백엔드 검증 단계에는 Agent 판단 과정이 붙지 않는다.
+ await detail.locator('.flow-graph [data-flow-node="verify"]').click();
+ await evidence.getByText('결과: 운영자 결정 대기',{exact:true}).waitFor();
+ assert.equal(await evidence.locator('[data-mock-trace]').count(),0);
  // 같은 채팅을 결정하면 패널도 결과를 따라간다.
  await detail.getByRole('button',{name:'결정하러 가기 →',exact:true}).click();
  const card=page.locator('.queue-page .studio-review.open');await card.getByLabel('결정 이유 (필수)').fill('감탄 표현으로 봅니다.');await decideCard(card,'정상 확정');
- await gotoMonitor(page);await detail.getByText('정상 확정 · 공개',{exact:true}).first().waitFor();
- nodes=await graphTones(detail);
- for(const id of ['agent','research','verify','wait','decide','normal'])assert.equal(nodes[id],'path',id);
- assert.equal(nodes.violation,'skip');assert.equal((await graphTones(detail,'edge'))['decide-normal'],'path');
- // 채팅 칸은 영상 정보와 같은 왼쪽 열 그대로이고, 상세 패널은 그 오른쪽에 있다.
+ await gotoMonitor(page);await outcome.getByText('운영자 정상 확정 · 공개',{exact:true}).waitFor();
+ assert.deepEqual(await pathOf(detail),['input','classify','agent','policy','verify','wait','normal']);
+ assert.equal((await flowTones(detail)).sanction,'skip');assert.equal((await flowTones(detail,'edge'))['wait-normal'],'path');
+ await historyBox.getByText('정상 확정 → 공개 · 이유: 감탄 표현으로 봅니다.',{exact:true}).waitFor();
+ // 채팅 칸은 영상 정보와 같은 왼쪽 열 그대로이고, 상세 패널은 그 오른쪽에 있다. 상세 맨 위 채팅은 채팅 줄과 같은 모양이다.
  const chat=await page.locator('.chat-panel').boundingBox(),stream=await page.locator('.stream-panel').boundingBox(),side=await detail.boundingBox();
  assert.equal(Math.round(chat.width),Math.round(stream.width));assert(side.x>chat.x+chat.width);
- // 넓은 화면에서 판단 경로 그래프는 상세 패널의 오른쪽 열, 채팅은 왼쪽 채팅 줄과 같은 모양이다.
+ // 넓은 화면에서 채팅 열과 상세 열은 1 : 2다.
  await page.setViewportSize({width:1440,height:1000});
- const main=await detail.locator('.detail-main').boundingBox(),graphBox=await detail.locator('.graph-section').boundingBox();
- assert(graphBox.x>=main.x+main.width,'graph sits in the right column');
+ const chat2=await page.locator('.chat-panel').boundingBox(),side2=await detail.boundingBox();
+ assert(Math.abs(side2.width/chat2.width-2)<0.08,`detail:chat = ${side2.width}:${chat2.width}`);
+ // 채팅 상세는 2열: 왼쪽 채팅·결과·근거·기록, 오른쪽 판정 흐름도.
+ const mainBox=await detail.locator('.flow-main').boundingBox(),sideBox=await detail.locator('.flow-side').boundingBox();
+ assert(sideBox.x>=mainBox.x+mainBox.width,'process graph sits right of the summary');
+ assert(Math.abs(sideBox.y-mainBox.y)<2,'both columns start at the top');
+ assert.equal(await detail.locator('.flow-main [data-flow-outcome]').count(),1);assert.equal(await detail.locator('.flow-side .flow-graph').count(),1);
  assert.equal(await detail.locator('.chat-row.detail-message .chat-avatar').count(),1);
+ assert((await detail.locator('.chat-row.detail-message').boundingBox()).height>=20,'top chat row is not squashed');
  // 임시 비노출과 숨김은 같은 회색 표시다.
  const look=sel=>page.locator(sel).first().evaluate(el=>{const c=getComputedStyle(el);return c.backgroundColor+'|'+c.color;});
  await page.locator('.demo-fold summary').click();await page.getByRole('button',{name:'개인정보',exact:true}).click();
@@ -899,4 +953,28 @@ test('live end replaces an active timeout window without announcing a timeout re
  assert.equal(await page.getByRole('dialog',{name:'채팅 제한 안내',exact:true}).count(),0);
  assert.equal(await page.locator('.yt-timeout-released').count(),0);
  assert.equal(await page.getByLabel('채팅 메시지',{exact:true}).isDisabled(),true);assert.equal(await page.locator('video').count(),0);
+});
+
+test('API decision evidence uses persisted findings, refreshes on SSE and renders reasons as text',async()=>{
+ const f={messageId:'evidence-msg',verdict:'NEEDS_REVIEW',categories:[],policyIds:['CP-3.2'],reason:'<img src=x onerror="alert(1)"> 문맥 확인 필요',missingFacts:['공격 대상과 대화 맥락 확인']};
+ state.messages=[message('evidence-msg','author','HELD')];
+ const c={caseId:'case-evidence',liveId:'live-1',version:1,confirmationStatus:'PENDING',handlingRoute:'CONTEXT_REVIEW',messages:[{messageId:'evidence-msg',authorAlias:'U1',text:'검토 대상',visibility:'HELD',sentAt:timestamp()}],targetMessageIds:['evidence-msg'],confirmedFindings:[],findings:[f],createdAt:timestamp(),violationCount:0};
+ state.cases=[c];
+ state.reviews=[{reviewId:'review-evidence',kind:'CONTEXT',liveId:'live-1',caseId:c.caseId,status:'PENDING',version:1,createdAt:timestamp(),aiVerdict:'NEEDS_REVIEW',messages:c.messages,targetMessageIds:c.targetMessageIds,findings:[],basisCaseIds:[],summary:'검토 요청'}];
+ const page=await open('operator');await gotoQueue(page);
+ const evidence=page.getByRole('region',{name:'AI 판단 근거'});
+ await evidence.getByText(f.reason,{exact:true}).waitFor();
+ await evidence.getByText('공격 대상과 대화 맥락 확인',{exact:true}).waitFor();
+ assert.match(await evidence.innerText(),/서버에 저장된 AI 조사 결과/);
+ assert.match(await evidence.innerText(),/CP-3.2/);
+ assert.equal(await evidence.locator('img').count(),0);
+ await waitFor(()=>clients.size>=2);
+ c.findings=[{...f,verdict:'VIOLATION',categories:['HARASSMENT'],reason:'서버에서 갱신한 판단 근거',missingFacts:[]}];
+ emit('CASE_UPDATED',{caseId:c.caseId});
+ await evidence.getByText('서버에서 갱신한 판단 근거',{exact:true}).waitFor();
+ assert.equal(await evidence.getByText('공격 대상과 대화 맥락 확인',{exact:true}).count(),0);
+ state.reviews[0].findings=[{...f,verdict:'NO_VIOLATION',reason:'검토 API가 반환한 최신 근거',policyIds:[],missingFacts:[]}];
+ emit('CASE_UPDATED',{caseId:c.caseId});
+ await evidence.getByText('검토 API가 반환한 최신 근거',{exact:true}).waitFor();
+ await evidence.getByText('제출된 정책 근거 없음',{exact:true}).waitFor();
 });
