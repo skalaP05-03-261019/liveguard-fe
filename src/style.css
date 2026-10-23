@@ -74,18 +74,18 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .header-logout{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border:1px solid var(--line);border-radius:18px;color:var(--blue);font-size:14px;font-weight:500;background:#fff}
 .header-logout:hover{background:var(--blue-bg);border-color:transparent}
 .app-body{display:flex;flex:1;min-height:0}
-.sidebar{position:fixed;top:56px;left:0;z-index:45;width:255px;height:calc(100vh - 56px);background:#fff;border-right:1px solid var(--line);display:flex;flex-direction:column;overflow-y:auto;transform:translateX(-100%);visibility:hidden;transition:transform .2s ease,visibility .2s}
+.sidebar{position:fixed;top:56px;left:0;z-index:45;width:255px;height:calc(100vh - 56px);background:#f3f3f3;border-right:1px solid #e6e6e6;display:flex;flex-direction:column;overflow-y:auto;transform:translateX(-100%);visibility:hidden;transition:transform .2s ease,visibility .2s}
 .sidebar.open{transform:none;visibility:visible;box-shadow:4px 0 24px #00000026}
 .nav-backdrop{position:fixed;inset:56px 0 0 0;z-index:44;background:#0000004d}
 @media(prefers-reduced-motion:reduce){.sidebar{transition:none}}
 .sidebar-channel{display:flex;flex-direction:column;align-items:center;gap:4px;padding:24px 16px 20px;text-align:center}
 .sidebar-channel b{font-size:15px;font-weight:500;margin-top:14px}
 .sidebar-channel small{color:var(--text-2)}
-.side-nav{display:grid;gap:0;padding:4px 0}
-.side-nav button{display:flex;align-items:center;gap:24px;text-align:left;padding:0 24px;height:48px;color:var(--text-2);font-size:15px;font-weight:500;position:relative}
-.side-nav button:hover{background:var(--chip)}
-.side-nav button.active{background:var(--chip);color:var(--red)}
-.side-nav button.active:before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--red)}
+.side-nav{display:grid;gap:4px;padding:4px 16px}
+/* 넷플릭스 계정 화면처럼: 연회색 바탕, 고른 메뉴는 둥근 회색 배경(시스템 운영자 왼쪽 메뉴와 같은 모양) */
+.side-nav button{display:flex;align-items:center;gap:14px;text-align:left;padding:0 14px;height:46px;border-radius:8px;color:#141414;font-size:15px;font-weight:500;position:relative}
+.side-nav button:hover{background:#e9e9e9}
+.side-nav button.active{background:#e0e0e0;font-weight:600}
 .sidebar-foot{display:flex;align-items:center;font-size:12px;margin-top:auto;padding:18px 24px;color:var(--text-2);border-top:1px solid var(--line)}
 .online-dot{display:inline-block;width:8px;height:8px;flex:none;border-radius:50%;background:var(--green);margin-right:8px}
 .workspace{flex:1;min-width:0}
@@ -842,13 +842,13 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 
 /* 실시간 관제는 영상·채팅만, 결정 대기는 별도 페이지 */
 /* 채팅 칸은 결정 대기가 있던 때와 같은 너비·높이를 유지하고, 오른쪽 칸에 채팅 상세를 둔다 */
-/* 실시간 관제: 채팅 열 : 채팅 상세 열 = 1 : 2 */
-.monitor-grid.chat-only{grid-template-columns:minmax(300px,1fr) minmax(0,2fr);grid-template-areas:'stream detail' 'chat detail'}
+/* 실시간 관제(스트리머): 영상 정보와 실시간 채팅만. 채팅별 판정 흐름은 시스템 운영자 화면의 '채팅관제 Tracking' 탭에 있다. */
+.monitor-grid.chat-only{grid-template-columns:minmax(0,1fr);grid-template-areas:'stream' 'chat'}
 .queue-link{margin:-2px 0 -2px 6px;padding:0 10px;line-height:16px;border-radius:12px;background:#fff1c2;border:1px solid #e7c35c;color:#5c3d00;font-size:12px;font-weight:600}
 .queue-link:hover{background:#ffe7a0}
 .queue-page{max-width:980px}
 .queue-page .hitl-section{max-height:none;overflow:visible}
-@media(max-width:950px){.monitor-grid.chat-only{grid-template-columns:1fr;grid-template-areas:'stream' 'chat' 'detail'}}
+
 /* 950px 넘는 화면은 높이를 화면에 맞추고 채팅 상세 안에서만 스크롤한다. 상세가 길어도 영상·채팅 칸이 늘어나지 않는다. */
 @media(min-width:951px){.monitor-grid.chat-only{grid-template-rows:auto minmax(0,1fr);height:calc(100vh - 56px - 132px);min-height:600px}.monitor-grid.chat-only .chat-panel{min-height:0}}
 
@@ -1002,3 +1002,22 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
   .history-row .flow-badge,.history-content,.history-executor{grid-column:2;text-align:left}
   .history-time{grid-row:1 / span 3;align-self:start;padding-top:3px}
 }
+
+/* 시스템 운영자 탭과 채팅관제 Tracking (채팅 열 : 채팅 상세 열 = 1 : 2) */
+/* 시스템 운영자 왼쪽 메뉴 (넷플릭스 계정 화면처럼 연회색 바탕, 고른 항목은 둥근 회색 배경) */
+.sys-layout{display:grid;grid-template-columns:260px minmax(0,1fr);min-height:calc(100vh - 56px)}
+.sys-side{display:flex;flex-direction:column;gap:4px;padding:28px 16px;background:#f3f3f3;border-right:1px solid #e6e6e6}
+@media(min-width:951px){.sys-side{position:sticky;top:56px;align-self:start;height:calc(100vh - 56px)}}
+.sys-side button{display:flex;align-items:center;gap:14px;width:100%;padding:12px 14px;border-radius:8px;background:none;color:#141414;font-size:15px;font-weight:500;text-align:left}
+.sys-side button:hover{background:#e9e9e9}
+.sys-side button.on{background:#e0e0e0;font-weight:600}
+.sys-side button svg{flex:none}
+@media(max-width:950px){
+  .sys-layout{grid-template-columns:1fr}
+  .sys-side{flex-direction:row;overflow-x:auto;padding:8px 12px;border-right:0;border-bottom:1px solid #e6e6e6}
+  .sys-side button{width:auto;white-space:nowrap;padding:10px 12px;font-size:14px}
+}
+.tracking-grid{display:grid;grid-template-columns:minmax(300px,1fr) minmax(0,2fr);grid-template-areas:'chat detail';gap:16px;height:calc(100vh - 56px - 210px);min-height:600px}
+.tracking-grid .chat-panel{grid-area:chat;min-height:0}
+.tracking-channel{margin-left:6px;font-size:12px;font-weight:500;color:var(--text-2)}
+@media(max-width:950px){.tracking-grid{grid-template-columns:1fr;grid-template-areas:'chat' 'detail';height:auto}.tracking-grid .chat-panel{min-height:360px;max-height:60vh}}

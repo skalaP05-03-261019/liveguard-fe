@@ -1,15 +1,21 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { AlertTriangle, CheckCircle2, Clock3, LogOut, ShieldCheck, XCircle } from 'lucide-vue-next';
+import { Activity, AlertTriangle, CheckCircle2, Clock3, LayoutDashboard, LogOut, ShieldCheck, XCircle } from 'lucide-vue-next';
+import type { Component } from 'vue';
 import { useLiveGuard } from './stores/liveGuard';
 import { categoryLabels, type Category, type Verdict } from './contracts';
 import { avatarColor } from './avatar';
 import { KICK_SUMMARY } from './mockLive';
+import ChatTracking from './ChatTracking.vue';
 import { LIVE_CHANNEL_ID, sysChannels, sysLogs, sysReports, type SysChannel, type SysLog, type SysReport, type ReportStatus } from './systemMock';
 
 // 시스템 운영자(Mock 전용): LIVE:GUARD Agent가 여러 방송에서 올바르게 판단하는지 모니터링한다.
 // 행복한게임방은 목업 방송 상태(스트리머의 실제 승인·기각 포함)를, 나머지 방송은 고정 예시를 쓴다. 실제 API에는 통합 지표 API가 없다.
 const store = useLiveGuard();
+// 탭: 시스템 현황(여러 방송 지표) · 채팅관제 Tracking(채팅별 판정 흐름)
+type SysTab = 'overview' | 'tracking';
+const tab = ref<SysTab>('overview');
+const tabs: { key: SysTab; label: string; icon: Component }[] = [{ key: 'overview', label: '시스템 현황', icon: LayoutDashboard }, { key: 'tracking', label: '채팅관제 Tracking', icon: Activity }];
 const now = ref(Date.now());
 let timer: number | undefined;
 onMounted(() => { timer = window.setInterval(() => { now.value = Date.now(); }, 30000); });
@@ -25,6 +31,7 @@ const verdictTone = (v: string) => ({ VIOLATION: 'violation', NO_VIOLATION: 'cle
 // 목업 채널(행복한게임방). 데모 화면의 채팅 수에 오늘 앞서 검사한 양(예시 기준값)을 더해 다른 방송과 규모를 맞춘다.
 const LIVE_BASE = { scanned: 1480, hidden: 27 };
 const mock = store.mock.state;
+const caseNames = computed(() => Object.fromEntries(mock.cases.map(c => [c.caseId, store.mock.aliasOf(c.userId)])));
 const ownerOf = (caseId: string) => mock.cases.find(c => c.caseId === caseId)?.userId ?? '';
 const liveChannel = computed<SysChannel>(() => ({ id: LIVE_CHANNEL_ID, name: '행복한게임방', streamer: '행복한게임방', live: true, viewers: 2341, scanned: LIVE_BASE.scanned + mock.messages.length, hidden: LIVE_BASE.hidden + mock.messages.filter(m => m.visibility !== 'PUBLIC').length }));
 const liveReports = computed<SysReport[]>(() => mock.reviews.filter(r => r.kind === 'KICK').map(r => {
@@ -83,7 +90,20 @@ const channelStats = computed(() => shownChannels.value.map(c => {
   <div class="app-shell sys-shell">
     <header class="topbar"><div class="topbar-title"><span class="yt-logo"><span class="yt-logo-mark"><ShieldCheck :size="15"/></span><b>LIVE<span>:</span>GUARD</b></span><span class="console-tag">System</span></div>
       <div class="topbar-right"><span class="yt-me" :style="{background: avatarColor(store.me?.nickname ?? '시스템')}">{{(store.me?.nickname ?? '시').slice(0,1)}}</span><span class="operator-info">{{store.me?.nickname}}</span><button class="header-logout" @click="store.logout()"><LogOut :size="16"/> 로그아웃</button></div></header>
+    <div class="sys-layout">
+    <!-- 왼쪽 메뉴: 아이콘과 이름, 고른 항목은 회색 배경 -->
+    <nav class="sys-side" role="tablist" aria-orientation="vertical" aria-label="시스템 운영자 화면">
+      <button v-for="t in tabs" :key="t.key" type="button" role="tab" :aria-selected="tab===t.key" :class="{on: tab===t.key}" @click="tab=t.key"><component :is="t.icon" :size="22" :stroke-width="1.8"/><span>{{t.label}}</span></button>
+    </nav>
     <main class="main-content sys-main">
+      <template v-if="tab==='tracking'">
+      <div class="sys-head">
+        <div><h1>채팅관제 Tracking</h1><p>채팅 한 줄을 누르면 백엔드 1차 분류, AI Agent 조사·판정, 백엔드 검증, 운영자 결정까지 어떤 경로로 처리됐는지 확인합니다. 조회 전용입니다.</p></div>
+        <span class="sys-mock">Mock 데이터 · 행복한게임방 데모 방송과 연동</span>
+      </div>
+      <ChatTracking channel-name="행복한게임방" :messages="mock.messages" :reviews="mock.reviews" :cases="mock.cases" :case-names="caseNames" :logs="mock.logs" :kick-progress="mock.kickProgress" :traces="mock.traces"/>
+      </template>
+      <template v-else>
       <div class="sys-head">
         <div><h1>AI Agent 모니터링</h1><p>여러 방송에서 LIVE:GUARD Agent가 내린 판단과, 강퇴 승인 요청에 대한 스트리머의 최종 결정을 확인합니다.</p></div>
         <span class="sys-mock">Mock 데이터 · 행복한게임방은 데모 상태와 연동</span>
@@ -98,7 +118,7 @@ const channelStats = computed(() => shownChannels.value.map(c => {
         <header class="sys-section-head"><div><h2>강퇴 승인 요청 추적</h2><p>확정 위반 3건이 쌓여 생긴 강퇴 요청을 스트리머가 승인했는지, 강퇴가 실제로 적용됐는지 확인합니다.</p></div>
           <div class="sys-chips" role="group" aria-label="결정 상태 필터"><button v-for="f in ([['ALL','전체'],['PENDING','대기'],['APPROVED','승인'],['REJECTED','기각']] as const)" :key="f[0]" :class="{on: statusFilter===f[0]}" @click="statusFilter=f[0]">{{f[1]}} <b>{{f[0]==='ALL' ? reports.length : count(reports, f[0])}}</b></button></div></header>
         <div class="table-scroll"><table class="data-table sys-table">
-          <thead><tr><th>요청</th><th>방송</th><th>대상 사용자</th><th>요청 사유</th><th>기준 사건</th><th>스트리머 결정</th><th>결정까지</th><th>강퇴 실행</th><th>스트리머 판단 근거</th></tr></thead>
+          <thead><tr><th>요청</th><th>방송</th><th>대상 사용자</th><th>요청 사유</th><th>기준 사건</th><th>스트리머 결정</th><th>결정까지</th><th>강퇴 실행</th></tr></thead>
           <tbody>
             <tr v-for="r in shownReports" :key="r.id">
               <td class="nowrap">{{asTime(r.reportedAt)}}</td>
@@ -109,7 +129,6 @@ const channelStats = computed(() => shownChannels.value.map(c => {
               <td class="nowrap"><span class="decision" :class="r.status.toLowerCase()"><Clock3 v-if="r.status==='PENDING'" :size="15"/><CheckCircle2 v-else-if="r.status==='APPROVED'" :size="15"/><XCircle v-else :size="15"/>{{r.status==='PENDING' ? '대기 중' : r.status==='APPROVED' ? '승인' : '기각'}}</span><small v-if="r.status==='REJECTED'" class="disagree">AI와 다른 판단</small></td>
               <td class="nowrap">{{r.status==='PENDING' ? `${span(r.reportedAt, now)}째` : r.decidedAt ? span(r.reportedAt, new Date(r.decidedAt).getTime()) : '-'}}</td>
               <td class="nowrap"><span v-if="r.execution==='EXECUTED'" class="exec ok"><CheckCircle2 :size="14"/>실행 완료</span><span v-else-if="r.execution==='FAILED'" class="exec fail"><AlertTriangle :size="14"/>실행 실패</span><span v-else-if="r.status==='APPROVED'" class="exec wait"><Clock3 :size="14"/>실행 대기</span><span v-else class="muted-dash">-</span></td>
-              <td class="sys-note">{{r.decisionReason ?? '-'}}</td>
             </tr>
             <tr v-if="!shownReports.length"><td colspan="9" class="empty-block">해당하는 강퇴 승인 요청이 없습니다.</td></tr>
           </tbody>
@@ -131,7 +150,9 @@ const channelStats = computed(() => shownChannels.value.map(c => {
           <tbody><tr v-for="l in logs" :key="l.id"><td class="nowrap">{{asTime(l.at)}}</td><td class="nowrap">{{channelName(l.channelId)}}</td><td class="nowrap"><b>{{l.userAlias}}</b></td><td class="sys-msg">{{l.text}}</td><td class="nowrap">{{catName(l.category)}}</td><td class="nowrap"><span class="verdict-badge" :class="verdictTone(l.verdict)">{{verdictName(l.verdict)}}</span></td><td class="nowrap" :class="{report: l.action==='강퇴 승인 요청'}">{{l.action}}</td></tr></tbody>
         </table></div>
       </section>
+      </template>
       <footer class="dashboard-footer"><span>LIVE:GUARD · AI Agent 모니터링 (Mock)</span><span>실제 연동 시 여러 채널의 사건·강퇴 검토 조회 API가 필요합니다.</span></footer>
     </main>
+    </div>
   </div>
 </template>

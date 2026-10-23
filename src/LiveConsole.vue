@@ -180,8 +180,9 @@ async function send(){
 const requests=new Map<string,{serialized:string;id:string}>();
 async function decide(r:LiveReview,value:string,reason:string,categories:Category[]){
  if(!await sessionValid())return;
- if(!reason.trim()){error.value='결정 이유를 입력해 주세요.';return;}
- const body:Record<string,unknown>={expectedReviewVersion:r.version,decision:value,reason:reason.trim()};
+ // reason은 선택이다(Backend A-26). 운영자 화면은 입력란이 없어 보내지 않는다.
+ const body:Record<string,unknown>={expectedReviewVersion:r.version,decision:value};
+ if(reason.trim())body.reason=reason.trim();
  if(value==='CONFIRM_VIOLATION'){
   body.categories=categories;
   if(!categories.length){error.value='위반 유형을 하나 이상 선택해 주세요.';return;}
