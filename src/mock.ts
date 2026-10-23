@@ -49,7 +49,7 @@ export const filterExamples: { key: 'hide' | 'held' | 'pass'; title: string; not
 ];
 
 // 초기 화면: 지난 채팅을 목업 판정에 시간 순서대로 다시 넣는다. decide는 그 메시지의 문맥 검토에 운영자가 내린 결정이다.
-export interface FixtureLine { alias: string; text: string; minutesAgo: number; repeat?: number; decide?: { value: 'CONFIRM_NORMAL' | 'CONFIRM_VIOLATION'; categories?: Category[]; minutesAgo: number } }
+export interface FixtureLine { alias: string; text: string; minutesAgo: number; repeat?: number; agentTimeout?: boolean; decide?: { value: 'CONFIRM_NORMAL' | 'CONFIRM_VIOLATION'; categories?: Category[]; minutesAgo: number } }
 export const fixtureLines: FixtureLine[] = [
   { alias: '치킨러버', text: '방송 켜자마자 들어왔어요 ㅎㅎ', minutesAgo: 24 },
   { alias: '고인물', text: '오늘 패치 내용 보셨어요?', minutesAgo: 23 },
@@ -66,6 +66,7 @@ export const fixtureLines: FixtureLine[] = [
   { alias: '버럭이', text: '아 진짜 노잼이네 꺼져라', minutesAgo: 12 },
   { alias: '게임소녀', text: '보스 패턴 바뀐 것 같아요', minutesAgo: 11 },
   { alias: '정보왕', text: '결제 오류는 고객센터 help@game-corp.example 로 문의하면 돼요', minutesAgo: 10 },
+  { alias: '화난곰', text: '방송 왜 이래 미쳤나 진짜', minutesAgo: 9.5, agentTimeout: true },
   { alias: '김하늘', text: '오늘 텐션 최고네요 👍', minutesAgo: 9 },
   { alias: '고인물', text: '다음 맵은 왼쪽 길이 빨라요', minutesAgo: 8 },
   { alias: '치킨러버', text: '치킨 왔다! 같이 먹어요 ㅋㅋ', minutesAgo: 7 },
@@ -78,7 +79,7 @@ export const fixtureLines: FixtureLine[] = [
 ];
 
 // 빠른 시연: 처리 경로마다 한 줄씩. 보내는 사람은 경로별 시연 계정이다.
-export const demoScenarios: { key: string; label: string; alias: string; text: string; repeat?: number }[] = [
+export const demoScenarios: { key: string; label: string; alias: string; text: string; repeat?: number; agentTimeout?: boolean }[] = [
   { key: 'normal', label: '정상', alias: '별빛시청자', text: '오늘 방송 정말 재밌네요!' },
   { key: 'profanity', label: '확정 욕설', alias: '화난곰', text: '아 시발 진짜 못하네' },
   { key: 'link', label: '링크', alias: '스팸장인', text: '무료 스킨 받기 free-skin.example 바로 접속' },
@@ -88,6 +89,7 @@ export const demoScenarios: { key: string; label: string; alias: string; text: s
   { key: 'pii', label: '개인정보', alias: '오픈톡', text: '제 번호 010-1234-5678로 연락 주세요' },
   { key: 'group-hate', label: '집단 배제 (v3.2)', alias: '시비왕', text: '○○ 출신은 다 꺼져라 이 방송에 오지 마' },
   { key: 'account', label: '계좌번호', alias: '오픈톡', text: '후원은 123-456-789012 로 보내 주세요' },
+  { key: 'agent-timeout', label: 'Agent 응답 없음 (A-25)', alias: '버럭이', text: '진짜 미쳤냐 그만 좀 해', agentTimeout: true },
   { key: 'pii-public', label: '개인정보 정상 (AI 판단)', alias: '정보왕', text: '결제 오류는 고객센터 help@game-corp.example 로 문의하면 돼요' },
   { key: 'false-positive', label: '문맥 오탐', alias: '새벽감성', text: '와 이번 한타 미쳤다 ㅋㅋ' }
 ];

@@ -1022,3 +1022,10 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .tracking-channel{margin-left:6px;font-size:12px;font-weight:500;color:var(--text-2)}
 @media(max-width:950px){.tracking-grid{grid-template-columns:1fr;grid-template-areas:'chat' 'detail';height:auto}.tracking-grid .chat-panel{min-height:360px;max-height:60vh}}
 .policy-new{display:inline-block;margin-left:4px;padding:0 6px;border-radius:4px;background:#e8f0fe;color:#1a56b8;font-size:11px;font-weight:600;vertical-align:1px}
+
+/* AI 판정 없이 열린 검토(A-25) */
+.verdict-badge.no-ai{background:#eceff3;color:#3d4652}
+.no-ai-box{margin:10px 0;padding:12px;border:1px dashed #b8c0ca;border-radius:8px;background:#f7f8fa}
+.no-ai-box b{display:block;font-size:14px}
+.no-ai-box p{margin:4px 0;font-size:13px;line-height:1.55}
+.no-ai-box small{display:block;color:var(--text-2);font-size:12px;line-height:1.5}

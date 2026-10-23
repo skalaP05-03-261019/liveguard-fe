@@ -22,6 +22,8 @@ export type SendResult = { ok: true; message: MockMessage; caseItem: MockCase | 
 // BE가 검토 카드에 넣는 고정 요약 문구(LiveModerationService.reviewCard)
 export const KICK_SUMMARY = '서로 다른 확정 사건 3건 — 방송 종료까지 차단 승인 요청';
 export const CONTEXT_SUMMARY = 'AI 제안을 확인하고 최종 결정해 주세요';
+// AI 판정 없이 연 문맥 검토의 고정 요약(A-25, LiveModerationService.reviewCard)
+export const NO_AI_SUMMARY = 'AI 분석 결과를 받지 못했습니다. 주변 문맥을 확인하고 직접 결정해 주세요';
 export const KICK_WAITING = '결정 접수 · 실행 결과 대기';
 
 const iso = (t: number) => new Date(t).toISOString();
@@ -264,7 +266,8 @@ export function createMockLive(users: MockUser[]) {
     addStep(trigger.targetMessageIds, at, '강퇴 심사 요청', `최근 24시간 확정 사건 ${KICK_THRESHOLD}건 → 운영자 승인 대기`, 'MP-4.1');
     log('KICK_REVIEW_REQUIRED', `${aliasOf(userId)} · 확정 사건 ${KICK_THRESHOLD}건`, at, { caseId: trigger.caseId, reviewId });
   }
-  function send(user: MockUser, text: string, at = Date.now()): SendResult {
+  // agentTimeout: Agent 판정이 마감(기본 3분) 안에 오지 않은 경우를 재현한다(A-25). 목업은 마감을 기다리지 않고 바로 연다.
+  function send(user: MockUser, text: string, at = Date.now(), opts: { agentTimeout?: boolean } = {}): SendResult {
     if (state.kicks[user.id]) return { ok: false, code: 'KICKED' };
     const until = state.timeouts[user.id];
     if (until && Date.parse(until) > at) return { ok: false, code: 'TIMED_OUT', until };
@@ -310,6 +313,15 @@ export function createMockLive(users: MockUser[]) {
     else if (route === 'RULE_CONFIRMED') confirm(c, ruleCategories, at, false);
     else {
       log('TOOL_START', `${user.alias} · ${route === 'PII_INVESTIGATION' ? '개인정보 조사' : '문맥 조사'} (목업 Agent)`, at, { caseId: c.caseId });
+      if (opts.agentTimeout) {
+        // AI 판정 없이 문맥 검토를 연다(A-25): aiVerdict=NEEDS_REVIEW, findings=[], 메시지는 HELD 유지.
+        addStep([messageId], at, '판정 마감 초과', 'AI 판정이 마감(기본 3분) 안에 오지 않음 → AI 결과 없이 검토 열기', 'A-25');
+        addStep([messageId], at, '문맥 검토 생성', 'AI 결과 없음 · 운영자가 직접 결정하고 백엔드가 바로 적용', 'CONTEXT_REVIEW_REQUIRED');
+        const reviewId = uid();
+        state.reviews.push({ reviewId, kind: 'CONTEXT', liveId: LIVE_ID, caseId: c.caseId, status: 'PENDING', version: 1, createdAt: iso(at), aiVerdict: 'NEEDS_REVIEW', messages: c.messages, targetMessageIds: c.targetMessageIds, findings: [], basisCaseIds: [], summary: NO_AI_SUMMARY });
+        log('CONTEXT_REVIEW_REQUIRED', `${user.alias} · AI 결과 없음`, at, { caseId: c.caseId, reviewId });
+        return { ok: true, message, caseItem: c };
+      }
       const finding = mockAgent(message.messageId, route, tags, text);
       c.findings = [finding]; c.status = 'NEEDS_REVIEW';
       trace.agent = mockAgentTrace(route, text, finding, c.messages.length, c.violationCount ?? 0);
@@ -407,7 +419,7 @@ export function createMockLive(users: MockUser[]) {
       const user = users.find(u => u.alias === line.alias)!;
       const at = now - line.minutesAgo * 60_000;
       let sent: MockMessage | null = null;
-      for (let n = 0; n < (line.repeat ?? 1); n++) steps.push({ at: at + n * 2000, run: () => { const r = send(user, line.text, at + n * 2000); if (r.ok) sent = r.message; } });
+      for (let n = 0; n < (line.repeat ?? 1); n++) steps.push({ at: at + n * 2000, run: () => { const r = send(user, line.text, at + n * 2000, { agentTimeout: line.agentTimeout }); if (r.ok) sent = r.message; } });
       const d = line.decide;
       if (d) steps.push({ at: now - d.minutesAgo * 60_000, run: () => {
         const r = state.reviews.find(x => x.kind === 'CONTEXT' && x.targetMessageIds.includes(sent?.messageId ?? ''));

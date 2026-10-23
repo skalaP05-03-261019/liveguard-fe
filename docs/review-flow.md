@@ -100,3 +100,15 @@ Backend가 정책 v3.2로 올라갔다(liveguard-be PR #82, TBD A-27). 프론트
 - 필터 사전은 바뀌지 않았다. 집단 비하 표현도 공격 단어(미쳤·접어라·꺼져·죽어)가 있어야 AI 검토 후보가 된다. 목업 예시도 공격 단어를 넣었다.
 - 배포 주의: Backend 기본값은 v3.2인데 liveguard-agent main은 아직 v3.1이다(v3.2는 `feat/105-policy-v32-group-harassment`). 버전이 다르면 Agent 판정이 모두 거절되고 AI 판정 없는 검토로 넘어간다.
 
+## AI 판정 없이 열린 검토 표시 (#25, 2026-10-23)
+
+Backend는 Agent 판정이 마감(기본 3분) 안에 오지 않거나 분석이 실패하면 AI 판정 없이 문맥 검토를 연다(TBD A-25). `aiVerdict=NEEDS_REVIEW`, `findings=[]`, summary "AI 분석 결과를 받지 못했습니다. 주변 문맥을 확인하고 직접 결정해 주세요". 결정은 Backend가 바로 적용한다. 결정 전에 판정이 늦게 오면 같은 검토에 붙고 버전이 오른다.
+
+| 화면 | 보이는 것 |
+| --- | --- |
+| 결정 대기 카드 | 머리에 "AI 결과 없음", 본문에 안내 상자(summary + 마감 초과·분석 실패 설명). "판단 보류"로 보이지 않음. 늦은 판정이 붙으면 AI 제안 카드로 바뀜 ([01](evidence/no-ai-review/01-context-card-no-ai.png)) |
+| 사건 이력 | 상태 "결정 대기 · AI 결과 없음", 처리 흐름의 AI 조사·판정 칸에 "AI 결과 없음" |
+| 채팅관제 Tracking | Agent 조사 → (AI 결과 없음) → 운영자 결정 대기. 정책 대조·근거 검증은 회색. 결과 배너 "AI 결과 없음 · 운영자 결정 대기" ([02](evidence/no-ai-review/02-tracking-no-ai-path.png)) |
+| 보류 표시 | 검토 버전 숫자가 아니라 실제 보류 결정(REVIEW_DECIDED의 DEFER)으로 "보류 n회" 표시. 늦은 판정의 버전 증가를 보류로 오해하지 않음 |
+| 목업 | 처음 화면에 "AI 결과 없음" 검토 1건(화난곰), 빠른 시연 "Agent 응답 없음 (A-25)" |
+

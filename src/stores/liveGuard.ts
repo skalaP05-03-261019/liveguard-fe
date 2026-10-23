@@ -127,7 +127,7 @@ export const useLiveGuard = defineStore('liveGuard', () => {
     const sc = demoScenarios.find(x => x.key === key); if (!sc) return;
     const user = userByAlias(sc.alias), at = Date.now();
     let last: SendResult | null = null;
-    for (let n = 0; n < (sc.repeat ?? 1); n++) last = mock.send(user, sc.text, at + n);
+    for (let n = 0; n < (sc.repeat ?? 1); n++) last = mock.send(user, sc.text, at + n, { agentTimeout: sc.agentTimeout });
     if (last) { if (last.ok && last.message.visibility === 'PUBLIC') toast(`${sc.alias} · 공개 (MOCK)`); else announce(last, sc.alias); }
   }
   function decide(reviewId: string, value: ContextDecision | KickDecision, reason: string, categories: Category[] = []) {

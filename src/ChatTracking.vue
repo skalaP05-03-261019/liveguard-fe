@@ -46,7 +46,8 @@ function caseStateOf(c: LiveCase): { label: string; tone: string } {
   if (c.confirmationStatus === 'CONFIRMED_VIOLATION') return { label: `위반 확정 · ${ruleAction(c).label}`, tone: 'violation' };
   if (c.confirmationStatus === 'CONFIRMED_NORMAL') return { label: '정상 확정 · 공개', tone: 'clear' };
   if (c.confirmationStatus === 'CANCELLED') return { label: '오판 취소', tone: 'cancelled' };
-  return { label: c.findings?.length ? '결정 대기' : 'AI 조사 중', tone: 'pending' };
+  const openReview = props.reviews.some(r => r.kind === 'CONTEXT' && r.caseId === c.caseId && r.status === 'PENDING');
+  return { label: c.findings?.length ? '결정 대기' : openReview ? '결정 대기 · AI 결과 없음' : 'AI 조사 중', tone: 'pending' };
 }
 
 // 채팅: 사용자가 직접 위로 스크롤했을 때만 따라가기를 멈추고, 그동안 온 메시지 수를 버튼으로 알려 준다.
@@ -109,7 +110,7 @@ const flowNodes: FlowNode[] = [
 ];
 const flowEdgeDefs: [FlowNodeId, FlowNodeId, string][] = [
   ['input', 'classify', ''], ['classify', 'public', '통과'], ['classify', 'rule', '규칙 확정'], ['classify', 'agent', '조사 후보'],
-  ['agent', 'policy', ''], ['policy', 'verify', 'AI 판정 전달'], ['verify', 'wait', '문맥 검토 · 판단 보류'], ['verify', 'normal', '개인정보 정상'], ['verify', 'sanction', '개인정보 위반'],
+  ['agent', 'policy', ''], ['agent', 'wait', 'AI 결과 없음'], ['policy', 'verify', 'AI 판정 전달'], ['verify', 'wait', '문맥 검토 · 판단 보류'], ['verify', 'normal', '개인정보 정상'], ['verify', 'sanction', '개인정보 위반'],
   ['rule', 'sanction', ''], ['wait', 'normal', '정상 확정'], ['wait', 'sanction', '위반 확정'], ['sanction', 'kickReview', '확정 3건'], ['kickReview', 'kick', '승인 · 재검증']
 ];
 const actorText: Record<FlowActor, string> = { backend: '백엔드', agent: 'Agent', human: '운영자' };
@@ -138,6 +139,16 @@ const flow = computed(() => {
     go('sanction');
   } else {
     go('agent');
+    // AI 판정 없이 열린 검토(A-25): Agent 조사에서 바로 운영자 결정으로. 정책 대조·검증은 거치지 않았다.
+    if (!sel.finding && sel.review) {
+      go('wait');
+      if (sel.review.status === 'PENDING') { waitAt('wait', 'normal', 'sanction', 'kickReview', 'kick'); return out(); }
+      if (item.confirmationStatus === 'CONFIRMED_NORMAL') { go('normal'); return out(); }
+      go('sanction');
+      const k = kickReviewOf(item);
+      if (k) { go('kickReview'); if (k.status === 'PENDING') waitAt('kickReview', 'kick'); else if ((props.kickProgress[k.reviewId] ?? '').startsWith('강퇴 적용 완료')) go('kick'); }
+      return out();
+    }
     if (!sel.finding) { waitAt('agent', 'policy', 'verify', 'wait', 'normal', 'sanction', 'kickReview', 'kick'); return out(); }
     go('policy', 'verify');
     // 개인정보 경로는 운영자 검토 없이 BE가 반영할 수 있다(정상 → 해제, 검증된 위반 → 확정). 문맥 경로는 항상 운영자 결정.
@@ -203,7 +214,8 @@ function drawEdges() {
     const actor: FlowActor = flowNodeOf(a).actor === 'agent' ? 'agent' : flowNodeOf(b).actor === 'human' || flowNodeOf(a).actor === 'human' ? 'human' : 'backend';
     let d: string, lx: number, ly: number, anchor: 'start' | 'middle' | 'end' = 'middle';
     // 판단 검증과 운영자 결정에서 제재로: 왼쪽으로 나가 제재 카드 위로 들어간다. 위쪽에서 나가는 선을 더 안쪽으로 보내 서로 겹치지 않게 한다.
-    if ((a === 'wait' || a === 'verify') && b === 'sanction') { const x = q.r - (a === 'verify' ? 44 : 22); d = `M${p.l - 2} ${p.cy}H${x}V${q.t - 4}`; lx = p.l - 6; ly = p.cy - 6; anchor = 'end'; }
+    if (a === 'agent' && b === 'wait') { const x = p.l - 9; d = `M${p.l - 2} ${p.cy}H${x}V${q.t - 14}H${q.l + 16}V${q.t - 4}`; lx = x - 4; ly = (p.b + q.t) / 2; anchor = 'end'; }
+    else if ((a === 'wait' || a === 'verify') && b === 'sanction') { const x = q.r - (a === 'verify' ? 44 : 22); d = `M${p.l - 2} ${p.cy}H${x}V${q.t - 4}`; lx = p.l - 6; ly = p.cy - 6; anchor = 'end'; }
     // 판단 검증에서 가림 해제로: 오른쪽 여백을 따라 내려가 해제 카드 오른쪽으로 들어간다.
     else if (a === 'verify' && b === 'normal') { const x = p.r + 7; d = `M${p.r + 1} ${p.cy}H${x}V${q.cy}H${q.r + 4}`; lx = p.r - 4; ly = p.b + 14; anchor = 'end'; }
     else if (a === 'verify' && b === 'wait') { d = `M${p.cx} ${p.b + 1}V${q.t - 4}`; lx = p.cx - 7; ly = q.t - 8; anchor = 'end'; }
@@ -228,6 +240,11 @@ const outcome = computed(() => {
   if (item.confirmationStatus === 'CANCELLED') return res(isRule(item) ? 'backend' : 'agent', '오판 취소 · 다시 공개', '운영자가 근거를 취소했습니다. 남은 근거가 없어 공개합니다.');
   if (isRule(item)) return res('backend', '백엔드만으로 처리됨', '판단: 백엔드 규칙 · 실행: 백엔드 · Agent 호출 없음');
   const detail = item.handlingRoute === 'PII_INVESTIGATION' ? '판단: Agent · 검증: 백엔드 · 판단 보류면 운영자 결정' : '판단 제안: Agent · 결정: 운영자 · 실행: 백엔드';
+  if (!sel.finding && sel.review) {
+    const noAi = 'AI 결과 없음(마감 초과 또는 분석 실패) · 결정: 운영자 · 실행: 백엔드';
+    if (sel.review.status === 'PENDING') return res('human', 'AI 결과 없음 · 운영자 결정 대기', noAi);
+    return res('human', item.confirmationStatus === 'CONFIRMED_NORMAL' ? '운영자 정상 확정 · 공개 (AI 결과 없음)' : '운영자 위반 확정 · 숨김 (AI 결과 없음)', noAi);
+  }
   if (!sel.finding) return res('agent', 'Agent 조사 중', detail);
   if (!sel.review && item.confirmationStatus === 'CONFIRMED_NORMAL') return res('agent', '개인정보 정상 · 가림 해제', '판단: Agent · 검증·해제: 백엔드 · 운영자 검토 없음');
   if (!sel.review && item.confirmationStatus === 'CONFIRMED_VIOLATION') return res('agent', '개인정보 위반 확정 · 숨김', '판단: Agent · 근거 검증·확정: 백엔드');
@@ -277,6 +294,12 @@ const evidence = computed(() => {
       add(at('TOOL_START') && `조사 시작 ${at('TOOL_START')}`); add(at('TOOL_END', true) && `조사 완료 ${at('TOOL_END', true)}`); add(at('TASK_FAILED', true) && `조사 실패 ${at('TASK_FAILED', true)}`);
       if (!facts.length && finding) add('조사 시각은 이 화면을 연 뒤의 실시간 기록만 보입니다.');
       base.tools = trace?.agent?.tools.filter(t => t.name === 'get_chat_context' || t.name === 'get_user_history') ?? [];
+      if (!finding && review) {
+        add(`AI 결과 없이 검토 열림 ${asTime(review.createdAt)}`);
+        for (const s2 of step('판정 마감 초과')) add(s2.detail);
+        fill('AI 분석 결과를 받지 못했습니다. 판정이 마감(기본 3분) 안에 오지 않았거나 분석이 실패해, 백엔드가 AI 결과 없이 문맥 검토를 열었습니다.',
+          '임시 비노출', '운영자 결정 대기', '백엔드가 AI 결과 없이 검토를 엽니다. 메시지는 계속 비공개이고, 결정은 백엔드가 바로 적용합니다.', 'A-25'); break;
+      }
       fill(sel.investigating ? '조사 중입니다. 결과가 나오면 자동으로 보입니다.' : '가린 주변 채팅과 작성자의 이번 방송 이력을 불러와 표현의 뜻을 조사했습니다.',
         '임시 비노출', '임시 비노출', 'Agent가 조사합니다. 이 단계에서는 제재하지 않습니다.', 'SP-4.1 원문 마스킹'); break;
     case 'policy':
@@ -300,7 +323,10 @@ const evidence = computed(() => {
     case 'wait': {
       add(review && `결정 요청 ${asTime(review.createdAt)}`);
       add(review && `검토 상태 ${reviewStatusLabels[review.status] ?? review.status} · 버전 ${review.version}`);
-      if (review && (review.status === 'PENDING' ? review.version > 1 : review.version > 2)) add('보류 기록 있음 · 같은 검토로 다시 결정 대기');
+      // 보류는 검토 버전 숫자가 아니라 실제 보류 결정(REVIEW_DECIDED의 DEFER)으로 판단한다. 늦게 온 AI 판정도 버전을 올린다(A-25).
+      const defers = events.filter(l => l.event === 'REVIEW_DECIDED' && /DEFER/.test(l.detail));
+      if (defers.length) add(`보류 ${defers.length}회 · 같은 검토로 다시 결정 대기 (마지막 ${asTime(defers[defers.length - 1].time)})`);
+      if (review && !finding) add('AI 결과 없음 · 운영자가 주변 문맥을 보고 직접 판단');
       for (const s of step('운영자 결정')) add(`${asTime(s.at)} ${s.detail}`);
       const decided = item?.confirmationStatus === 'CONFIRMED_NORMAL' ? '정상 확정' : item?.confirmationStatus === 'CONFIRMED_VIOLATION' || item?.confirmationStatus === 'CANCELLED' ? '위반 확정' : '결정 대기';
       fill('AI 제안은 참고용입니다. 운영자가 정상·위반·보류를 결정할 때까지 공개하지 않습니다. 보류는 공개 승인이 아닙니다.', '임시 비노출', decided, '운영자가 결정합니다. 위반 확정 전에는 확정 이력에 넣지 않습니다.', 'v3.2 §5'); break;
@@ -352,7 +378,7 @@ const history = computed(() => {
   } else if (item) {
     push(item.createdAt, 'backend', '백엔드', '1차 분류 · 사건 생성', item.handlingRoute ? routeLabels[item.handlingRoute] : '-', '백엔드 분류');
     const review = sel.review;
-    if (review) push(review.createdAt, 'human', '운영자 대기', '운영자 결정 요청', sel.finding ? `AI 제안 ${verdictLabels[sel.finding.verdict]}` : '-', '결정 전 공개 안 함');
+    if (review) push(review.createdAt, 'human', '운영자 대기', '운영자 결정 요청', sel.finding ? `AI 제안 ${verdictLabels[sel.finding.verdict]}` : 'AI 결과 없음 (마감 초과 또는 분석 실패)', '결정 전 공개 안 함');
     for (const l of events) {
       if (l.event === 'REVIEW_DECIDED') push(l.time, 'human', '운영자', '운영자 결정', item.confirmationStatus === 'CONFIRMED_NORMAL' ? '정상 확정' : item.confirmationStatus === 'PENDING' ? '보류' : '위반 확정', '운영자 결정');
       if (l.event === 'MESSAGE_RESTORED') push(l.time, 'backend', '백엔드', '다시 공개', '임시 비노출 → 공개', '백엔드 실행');
