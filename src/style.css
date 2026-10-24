@@ -646,6 +646,8 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .onair{display:inline-flex;align-items:center;gap:6px}
 .offair{color:var(--text-3)}
 .sys-table td.report{color:var(--live);font-weight:500}
+/* 좁은 화면에서 가로 스크롤되는 표의 빈 상태 문구가 잘리지 않게 왼쪽에 붙인다 */
+@media(max-width:590px){.sys-table .empty-block{text-align:left;padding:28px 10px}}
 @media(max-width:1300px){.sys-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:590px){.sys-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.sys-tile b{font-size:22px}}
 
