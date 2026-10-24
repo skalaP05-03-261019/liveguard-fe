@@ -6,6 +6,7 @@ import {ApiError,authorNotice,type Category,type Live,type LiveCase,type LiveRev
 import {useLiveGuard} from './stores/liveGuard';
 import {LogOut,ShieldCheck} from 'lucide-vue-next';
 import ViewerScreen from './ViewerScreen.vue';
+import ModeBadge from './ModeBadge.vue';
 import StudioScreen,{type StudioLog} from './StudioScreen.vue';
 const store=useLiveGuard();
 const live=ref<Live|null>(null), messages=ref<Message[]>([]), reviews=ref<LiveReview[]>([]);
@@ -217,11 +218,11 @@ onBeforeUnmount(()=>{generation++;disconnect();window.removeEventListener('focus
  <StudioScreen v-else-if="operator" :nickname="store.me?.nickname??'운영자'" :live="live" :ended="ended" :loading="loading" :online="online" :messages="visibleMessages" :reviews="reviews" :cases="caseHistory" :case-names="caseNames" :logs="logs" :kick-progress="kickProgress" :archive="archive" :archive-more="archiveMore" :archive-loading="archiveLoading" :busy="busy" :error="error" :notice="notice"
   @decide="decide" @revoke="revoke" @refresh="load" @start="start" @end="end" @logout="store.logout()" @page="onPage" @load-older="loadArchive(false)"/>
  <div v-else class="v1-shell">
-  <header class="v1-top"><span class="yt-logo"><span class="yt-logo-mark"><ShieldCheck :size="16"/></span><b>LIVE:GUARD</b></span><b>시스템 운영자</b><span class="v1-me">{{store.me?.nickname}}</span><button @click="store.logout()"><LogOut :size="15"/> 로그아웃</button></header>
+  <header class="v1-top"><span class="yt-logo"><span class="yt-logo-mark"><ShieldCheck :size="16"/></span><b>LIVE:GUARD</b></span><b>시스템 운영자</b><span class="v1-me"><ModeBadge :online="online"/>{{store.me?.nickname}}</span><button @click="store.logout()"><LogOut :size="15"/> 로그아웃</button></header>
   <main class="v1-main"><section class="v1-card"><h2>등록된 역할로 접근했습니다</h2><p>이 계정에는 담당 방송이 없습니다. 방송 검토는 담당 운영자 계정으로 확인하세요.</p><p>여러 방송의 통합 지표 API가 없어 이 화면에는 Mock 집계를 표시하지 않습니다.</p></section></main>
  </div>
 </template>
 <style scoped>
-.v1-shell{min-height:100vh;background:#f8f8f8;color:#111}.v1-top{height:64px;background:#fff;border-bottom:1px solid #e5e5e5;display:flex;align-items:center;gap:18px;padding:0 28px}.v1-me{margin-left:auto}.v1-top button{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid #ddd;border-radius:6px;padding:9px 13px;font-weight:600}.v1-main{max-width:960px;margin:auto;padding:30px}.v1-card{background:#fff;border:1px solid #e4e4e4;border-radius:12px;padding:20px;display:grid;gap:10px}.v1-card h2{font-size:18px}.v1-card p{color:#555;line-height:1.6}
+.v1-shell{min-height:100vh;background:#f8f8f8;color:#111}.v1-top{height:64px;background:#fff;border-bottom:1px solid #e5e5e5;display:flex;align-items:center;gap:18px;padding:0 28px}.v1-me{margin-left:auto;display:inline-flex;align-items:center;gap:8px}.v1-top button{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid #ddd;border-radius:6px;padding:9px 13px;font-weight:600}.v1-main{max-width:960px;margin:auto;padding:30px}.v1-card{background:#fff;border:1px solid #e4e4e4;border-radius:12px;padding:20px;display:grid;gap:10px}.v1-card h2{font-size:18px}.v1-card p{color:#555;line-height:1.6}
 @media(max-width:600px){.v1-top{padding:0 14px;gap:10px;font-size:13px}.v1-main{padding:16px}}
 </style>

@@ -7,6 +7,7 @@ import { categoryLabels, type Category, type Verdict } from './contracts';
 import { avatarColor } from './avatar';
 import { KICK_SUMMARY } from './mockLive';
 import ChatTracking from './ChatTracking.vue';
+import ModeBadge from './ModeBadge.vue';
 import { LIVE_CHANNEL_ID, sysChannels, sysLogs, sysReports, type SysChannel, type SysLog, type SysReport, type ReportStatus } from './systemMock';
 
 // 시스템 운영자(Mock 전용): LIVE:GUARD Agent가 여러 방송에서 올바르게 판단하는지 모니터링한다.
@@ -89,7 +90,7 @@ const channelStats = computed(() => shownChannels.value.map(c => {
 <template>
   <div class="app-shell sys-shell">
     <header class="topbar"><div class="topbar-title"><span class="yt-logo"><span class="yt-logo-mark"><ShieldCheck :size="15"/></span><b>LIVE<span>:</span>GUARD</b></span><span class="console-tag">System</span></div>
-      <div class="topbar-right"><span class="yt-me" :style="{background: avatarColor(store.me?.nickname ?? '시스템')}">{{(store.me?.nickname ?? '시').slice(0,1)}}</span><span class="operator-info">{{store.me?.nickname}}</span><button class="header-logout" @click="store.logout()"><LogOut :size="16"/> 로그아웃</button></div></header>
+      <div class="topbar-right"><ModeBadge mock/><span class="yt-me" :style="{background: avatarColor(store.me?.nickname ?? '시스템')}">{{(store.me?.nickname ?? '시').slice(0,1)}}</span><span class="operator-info">{{store.me?.nickname}}</span><button class="header-logout" @click="store.logout()"><LogOut :size="16"/> 로그아웃</button></div></header>
     <div class="sys-layout">
     <!-- 왼쪽 메뉴: 아이콘과 이름, 고른 항목은 회색 배경 -->
     <nav class="sys-side" role="tablist" aria-orientation="vertical" aria-label="시스템 운영자 화면">
@@ -99,14 +100,14 @@ const channelStats = computed(() => shownChannels.value.map(c => {
       <template v-if="tab==='tracking'">
       <div class="sys-head">
         <div><h1>채팅관제 Tracking</h1><p>채팅 한 줄을 누르면 백엔드 1차 분류, AI Agent 조사·판정, 백엔드 검증, 운영자 결정까지 어떤 경로로 처리됐는지 확인합니다. 조회 전용입니다.</p></div>
-        <span class="sys-mock">Mock 데이터 · 행복한게임방 데모 방송과 연동</span>
+        <span class="sys-mock">행복한게임방 데모 방송과 연동</span>
       </div>
       <ChatTracking channel-name="행복한게임방" :messages="mock.messages" :reviews="mock.reviews" :cases="mock.cases" :case-names="caseNames" :logs="mock.logs" :kick-progress="mock.kickProgress" :traces="mock.traces"/>
       </template>
       <template v-else>
       <div class="sys-head">
         <div><h1>AI Agent 모니터링</h1><p>여러 방송에서 LIVE:GUARD Agent가 내린 판단과, 강퇴 승인 요청에 대한 스트리머의 최종 결정을 확인합니다.</p></div>
-        <span class="sys-mock">Mock 데이터 · 행복한게임방은 데모 상태와 연동</span>
+        <span class="sys-mock">행복한게임방은 데모 상태와 연동</span>
       </div>
       <div class="sys-filter" role="group" aria-label="방송 필터"><button :class="{on: channelFilter==='ALL'}" @click="channelFilter='ALL'">전체 방송</button><button v-for="c in channels" :key="c.id" :class="{on: channelFilter===c.id}" @click="channelFilter=c.id"><i v-if="c.live" class="live-dot" aria-label="방송 중"/>{{c.name}}</button></div>
 
@@ -151,7 +152,7 @@ const channelStats = computed(() => shownChannels.value.map(c => {
         </table></div>
       </section>
       </template>
-      <footer class="dashboard-footer"><span>LIVE:GUARD · AI Agent 모니터링 (Mock)</span><span>실제 연동 시 여러 채널의 사건·강퇴 검토 조회 API가 필요합니다.</span></footer>
+      <footer class="dashboard-footer"><span>LIVE:GUARD · AI Agent 모니터링</span><span>실제 연동 시 여러 채널의 사건·강퇴 검토 조회 API가 필요합니다.</span></footer>
     </main>
     </div>
   </div>

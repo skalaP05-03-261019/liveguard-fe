@@ -18,11 +18,14 @@ export const useLiveGuard = defineStore('liveGuard', () => {
   const viewerId = ref(DEMO_USERS[0].id);
   const busy = ref(false);
   const error = ref('');
+  // notice는 화면 안 안내 줄(role=status)에 보인다. toastText는 안내 줄이 없는 곳(로그인 직후)에만 띄운다(#28).
   const notice = ref('');
+  const toastText = ref('');
   const loginRequired = ref(true);
   const clock = ref(Date.now());
   let clockTimer: ReturnType<typeof setInterval> | undefined;
   let notificationTimeout: ReturnType<typeof setTimeout> | undefined;
+  let toastTimeout: ReturnType<typeof setTimeout> | undefined;
 
   // 목업 방송: 정책 v3.2 판정과 API v1.0 모양의 사건·검토(mockLive.ts)
   const mock = createMockLive(mockUsers);
@@ -42,14 +45,15 @@ export const useLiveGuard = defineStore('liveGuard', () => {
     return last ? authorNotice(last) : null;
   });
 
-  function toast(text: string) { notice.value = text; if (notificationTimeout) clearTimeout(notificationTimeout); notificationTimeout = setTimeout(() => notice.value = '', 3500); }
+  function inform(text: string) { notice.value = text; if (notificationTimeout) clearTimeout(notificationTimeout); notificationTimeout = setTimeout(() => notice.value = '', 3500); }
+  function toast(text: string) { toastText.value = text; if (toastTimeout) clearTimeout(toastTimeout); toastTimeout = setTimeout(() => toastText.value = '', 3500); }
+  // 오류는 error 하나에만 둔다. 화면이 오류 줄(role=alert)로 보여 주므로 안내 줄·토스트에 같은 문구를 다시 띄우지 않는다.
   function report(e: unknown): void {
     const err = e instanceof ApiError ? e : new ApiError('TEMPORARY_UNAVAILABLE', e instanceof Error ? e.message : '알 수 없는 오류');
     error.value = `${err.code}: ${err.message}`;
     if (err.code === 'UNAUTHENTICATED') loginRequired.value = true;
-    toast(error.value);
   }
-  function resetMock() { mock.reset(fixtureLines); error.value = ''; notice.value = ''; }
+  function resetMock() { mock.reset(fixtureLines); error.value = ''; notice.value = ''; toastText.value = ''; }
   async function init() {
     if (!clockTimer) clockTimer = setInterval(() => { clock.value = Date.now(); }, 1000);
     if (demo) { resetMock(); loginRequired.value = true; me.value = null; return; }
@@ -71,7 +75,7 @@ export const useLiveGuard = defineStore('liveGuard', () => {
         viewerId.value = role === 'VIEWER' ? me.value.userId : viewerId.value;
         loginRequired.value = false;
         startFeed();
-        toast(`${me.value.nickname} 로그인 완료 (MOCK)`);
+        toast(`${me.value.nickname} 로그인 완료`);
       } else {
         let user: Me;
         try { user = await api.login(username, password); }
@@ -100,17 +104,17 @@ export const useLiveGuard = defineStore('liveGuard', () => {
   }
 
   function announce(r: SendResult, alias: string) {
-    if (!r.ok) return toast(r.code === 'KICKED' ? '현재 방송 입장이 제한되었습니다.' : '채팅이 일시 제한되어 메시지를 보낼 수 없습니다.');
+    if (!r.ok) return inform(r.code === 'KICKED' ? '현재 방송 입장이 제한되었습니다.' : '채팅이 일시 제한되어 메시지를 보낼 수 없습니다.');
     const m = r.message, c = r.caseItem;
     if (m.visibility === 'PUBLIC') return;
-    if (m.visibility === 'HELD') return toast(`${alias} · AI 검토 후 운영자 결정 대기 (MOCK)`);
+    if (m.visibility === 'HELD') return inform(`${alias} · AI 검토 후 운영자 결정 대기`);
     const limit = c?.timeoutUntil ? ` · 채팅 ${timeoutText(Math.round((Date.parse(c.timeoutUntil) - Date.parse(m.sentAt)) / 1000))} 제한` : '';
-    toast(`${alias} · 메시지 숨김${limit} (MOCK)`);
+    inform(`${alias} · 메시지 숨김${limit}`);
   }
   // 목업 시청자 채팅. 판정은 mockLive가 Backend와 같은 처리 경로로 한다.
   async function sendMessage(text: string) {
     const trimmed = text.trim(); if (!trimmed) return false;
-    if (trimmed.length > MAX_CHAT_LENGTH) { toast(`메시지는 최대 ${MAX_CHAT_LENGTH}자입니다.`); return false; }
+    if (trimmed.length > MAX_CHAT_LENGTH) { inform(`메시지는 최대 ${MAX_CHAT_LENGTH}자입니다.`); return false; }
     clock.value = Date.now();
     const r = mock.send(viewer.value, trimmed);
     if (!r.ok) { announce(r, viewer.value.alias); return false; }
@@ -128,20 +132,19 @@ export const useLiveGuard = defineStore('liveGuard', () => {
     const user = userByAlias(sc.alias), at = Date.now();
     let last: SendResult | null = null;
     for (let n = 0; n < (sc.repeat ?? 1); n++) last = mock.send(user, sc.text, at + n, { agentTimeout: sc.agentTimeout });
-    if (last) { if (last.ok && last.message.visibility === 'PUBLIC') toast(`${sc.alias} · 공개 (MOCK)`); else announce(last, sc.alias); }
+    if (last) { if (last.ok && last.message.visibility === 'PUBLIC') inform(`${sc.alias} · 공개`); else announce(last, sc.alias); }
   }
   function decide(reviewId: string, value: ContextDecision | KickDecision, reason: string, categories: Category[] = []) {
     const r = mock.decide(reviewId, value, reason.trim(), categories);
-    if (r.ok) error.value = ''; else error.value = r.message;
-    toast(r.message);
+    if (r.ok) { error.value = ''; inform(r.message); } else error.value = r.message;
     return r.ok;
   }
   function revoke(caseId: string, findingId: string, reason: string) {
     if (!mock.revoke(caseId, findingId, reason)) return false;
-    toast('오판 취소를 반영했습니다. 남은 근거가 없으면 메시지가 다시 공개됩니다. (MOCK)');
+    inform('오판 취소를 반영했습니다. 남은 근거가 없으면 메시지가 다시 공개됩니다.');
     return true;
   }
-  function finishKick(reviewId: string, outcome: KickOutcome) { const text = mock.finishKick(reviewId, outcome); if (text) toast(text); return !!text; }
+  function finishKick(reviewId: string, outcome: KickOutcome) { const text = mock.finishKick(reviewId, outcome); if (text) inform(text); return !!text; }
 
   // Mock 실시간 흐름: 4.5초마다 채팅 한 줄. 가끔 아직 사건이 없는 사용자의 위반이 섞인다.
   const feedOn = ref(false);
@@ -158,8 +161,8 @@ export const useLiveGuard = defineStore('liveGuard', () => {
   function startFeed() { if (!demo || feedTimer) return; feedTimer = setInterval(feedTick, 4500); feedOn.value = true; }
   function stopFeed() { if (feedTimer) clearInterval(feedTimer); feedTimer = undefined; feedOn.value = false; }
   function toggleFeed() { if (feedOn.value) stopFeed(); else startFeed(); }
-  function dispose() { stopFeed(); if (clockTimer) clearInterval(clockTimer); if (notificationTimeout) clearTimeout(notificationTimeout); }
-  return { mode, me, channelId, viewerId, busy, error, notice, loginRequired, clock, mock,
+  function dispose() { stopFeed(); if (clockTimer) clearInterval(clockTimer); if (notificationTimeout) clearTimeout(notificationTimeout); if (toastTimeout) clearTimeout(toastTimeout); }
+  return { mode, me, channelId, viewerId, busy, error, notice, toastText, loginRequired, clock, mock,
     viewerAlias, viewerMessages, kicked, viewerTimeoutUntil, timedOut, viewerLastReason,
-    init, login, logout, syncIdentity, clearIdentity, toast, report, resetMock, sendMessage, setMockTimeout, mockScenario, decide, revoke, finishKick, feedOn, toggleFeed, dispose };
+    init, login, logout, syncIdentity, clearIdentity, inform, toast, report, resetMock, sendMessage, setMockTimeout, mockScenario, decide, revoke, finishKick, feedOn, toggleFeed, dispose };
 });
