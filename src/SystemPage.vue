@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { Activity, AlertTriangle, CheckCircle2, Clock3, LayoutDashboard, LogOut, ShieldCheck, XCircle } from 'lucide-vue-next';
+import { Activity, AlertTriangle, CheckCircle2, Clock3, LogOut, Radio, ShieldCheck, XCircle } from 'lucide-vue-next';
 import type { Component } from 'vue';
 import { useLiveGuard } from './stores/liveGuard';
 import { categoryLabels, type Category, type Verdict } from './contracts';
@@ -18,10 +18,10 @@ import { LIVE_CHANNEL_ID, sysChannels, sysLogs, sysReports, type SysChannel, typ
 const props = withDefaults(defineProps<{ api?: boolean }>(), { api: false });
 const NO_API = '여러 방송 조회 API가 없어 표시할 데이터가 없습니다.';
 const store = useLiveGuard();
-// 탭: 시스템 현황(여러 방송 지표) · 채팅관제 Tracking(채팅별 판정 흐름)
+// 탭: 실시간 관제(방송 중인 채널의 지금 상태) · 채팅관제 Tracking(채팅별 판정 흐름). 기간 통계는 BE 기간 집계 API가 생기면 따로 둔다
 type SysTab = 'overview' | 'tracking';
 const tab = ref<SysTab>('overview');
-const tabs: { key: SysTab; label: string; icon: Component }[] = [{ key: 'overview', label: '시스템 현황', icon: LayoutDashboard }, { key: 'tracking', label: '채팅관제 Tracking', icon: Activity }];
+const tabs: { key: SysTab; label: string; icon: Component }[] = [{ key: 'overview', label: '실시간 관제', icon: Radio }, { key: 'tracking', label: '채팅관제 Tracking', icon: Activity }];
 const now = ref(Date.now());
 let timer: number | undefined;
 onMounted(() => { timer = window.setInterval(() => { now.value = Date.now(); }, 30000); });
@@ -58,16 +58,20 @@ const liveLogs = computed<SysLog[]>(() => mock.cases.map(c => {
   return { id: c.caseId, channelId: LIVE_CHANNEL_ID, at: c.createdAt, userAlias: store.mock.aliasOf(c.userId), text: target?.text ?? '', category: c.confirmedFindings[0]?.category ?? c.findings?.[0]?.categories[0] ?? null, verdict, action };
 }));
 
-const channels = computed(() => props.api ? [] : [liveChannel.value, ...sysChannels]);
+// 실시간 관제는 방송 중인 채널만 본다. 끝난 방송의 사건·강퇴 요청도 함께 뺀다
+const allChannels = computed(() => props.api ? [] : [liveChannel.value, ...sysChannels]);
+const channels = computed(() => allChannels.value.filter(c => c.live));
+const offAir = computed(() => allChannels.value.length - channels.value.length);
+const onAir = (channelId: string) => channels.value.some(c => c.id === channelId);
 const channelName = (id: string) => channels.value.find(c => c.id === id)?.name ?? id;
 const channelFilter = ref<string>('ALL');
 const statusFilter = ref<'ALL' | ReportStatus>('ALL');
 const inChannel = <T extends { channelId?: string; id?: string }>(x: T, id = (x as { channelId?: string }).channelId ?? (x as { id: string }).id) => channelFilter.value === 'ALL' || id === channelFilter.value;
 
-const allReports = computed(() => (props.api ? [] : [...liveReports.value, ...sysReports]).sort((a, b) => b.reportedAt.localeCompare(a.reportedAt)));
+const allReports = computed(() => (props.api ? [] : [...liveReports.value, ...sysReports]).filter(r => onAir(r.channelId)).sort((a, b) => b.reportedAt.localeCompare(a.reportedAt)));
 const reports = computed(() => allReports.value.filter(r => inChannel(r)));
 const shownReports = computed(() => reports.value.filter(r => statusFilter.value === 'ALL' || r.status === statusFilter.value));
-const logs = computed(() => (props.api ? [] : [...liveLogs.value, ...sysLogs]).filter(l => inChannel(l)).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 40));
+const logs = computed(() => (props.api ? [] : [...liveLogs.value, ...sysLogs]).filter(l => onAir(l.channelId) && inChannel(l)).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 40));
 const shownChannels = computed(() => channels.value.filter(c => inChannel(c, c.id)));
 
 const count = (list: SysReport[], s: ReportStatus) => list.filter(r => r.status === s).length;
@@ -138,7 +142,7 @@ const channelStats = computed(() => shownChannels.value.map(c => {
       </template>
       <template v-else>
       <div class="sys-head">
-        <div><h1>AI Agent 모니터링</h1><p>여러 방송에서 LIVE:GUARD Agent가 내린 판단과, 강퇴 승인 요청에 대한 스트리머의 최종 결정을 확인합니다.</p></div>
+        <div><h1>실시간 관제</h1><p>방송 중인 채널에서 LIVE:GUARD Agent가 내린 판단과 강퇴 승인 요청 처리 상황을 봅니다.<template v-if="offAir"> 방송 중이 아닌 채널 {{offAir}}개는 제외했습니다.</template></p></div>
         <span class="sys-mock">{{api ? '여러 방송 통합 조회 API가 없습니다' : '행복한게임방은 데모 상태와 연동'}}</span>
       </div>
       <div class="sys-filter" role="group" aria-label="방송 필터"><button :class="{on: channelFilter==='ALL'}" @click="channelFilter='ALL'">전체 방송</button><button v-for="c in channels" :key="c.id" :class="{on: channelFilter===c.id}" @click="channelFilter=c.id"><i v-if="c.live" class="live-dot" aria-label="방송 중"/>{{c.name}}</button></div>
@@ -148,12 +152,12 @@ const channelStats = computed(() => shownChannels.value.map(c => {
         <article class="card sys-chart-card">
           <header><h2>전체 채팅 판정 현황</h2><span v-if="judgmentTotal" class="sys-base">{{nf.format(judgmentTotal)}}건 기준</span></header>
           <p class="sys-chart-note">AI가 검사한 채팅의 지금 상태입니다. 판정 대기는 AI 조사 중이거나 운영자 문맥 검토를 기다리는 채팅입니다.</p>
-          <StackedBar :segments="judgment" label="전체 채팅 판정 현황" :empty="api ? '연동 API 없음' : '검사한 채팅 없음'"/>
+          <StackedBar :segments="judgment" label="전체 채팅 판정 현황" :empty="api ? '연동 API 없음' : channels.length ? '검사한 채팅 없음' : '방송 중인 채널 없음'"/>
         </article>
         <article class="card sys-chart-card">
           <header><h2>강퇴 승인 요청 처리 현황</h2><span v-if="reports.length" class="sys-base">{{nf.format(reports.length)}}건 기준</span></header>
           <p class="sys-chart-note">확정 위반 3건으로 생긴 강퇴 승인 요청을 스트리머가 처리한 결과입니다. <span v-if="reports.length">승인율 <b>{{kickSummary.approval}}</b> · <span :class="{'sys-waiting': kickSummary.waiting}">{{kickSummary.oldest}}</span></span></p>
-          <StackedBar :segments="kickSegments" label="강퇴 승인 요청 처리 현황" :empty="api ? '연동 API 없음' : '강퇴 승인 요청 없음'"/>
+          <StackedBar :segments="kickSegments" label="강퇴 승인 요청 처리 현황" :empty="api ? '연동 API 없음' : channels.length ? '강퇴 승인 요청 없음' : '방송 중인 채널 없음'"/>
         </article>
       </section>
 
@@ -173,7 +177,7 @@ const channelStats = computed(() => shownChannels.value.map(c => {
               <td class="nowrap">{{r.status==='PENDING' ? `${span(r.reportedAt, now)}째` : r.decidedAt ? span(r.reportedAt, new Date(r.decidedAt).getTime()) : '-'}}</td>
               <td class="nowrap"><span v-if="r.execution==='EXECUTED'" class="exec ok"><CheckCircle2 :size="14"/>실행 완료</span><span v-else-if="r.execution==='FAILED'" class="exec fail"><AlertTriangle :size="14"/>실행 실패</span><span v-else-if="r.status==='APPROVED'" class="exec wait"><Clock3 :size="14"/>실행 대기</span><span v-else class="muted-dash">-</span></td>
             </tr>
-            <tr v-if="!shownReports.length"><td colspan="9" class="empty-block">{{api ? NO_API : '해당하는 강퇴 승인 요청이 없습니다.'}}</td></tr>
+            <tr v-if="!shownReports.length"><td colspan="9" class="empty-block">{{api ? NO_API : channels.length ? '해당하는 강퇴 승인 요청이 없습니다.' : '방송 중인 채널이 없습니다.'}}</td></tr>
           </tbody>
         </table></div>
       </section>
@@ -191,7 +195,7 @@ const channelStats = computed(() => shownChannels.value.map(c => {
         <div class="table-scroll"><table class="data-table sys-table">
           <thead><tr><th>방송</th><th>스트리머</th><th>상태</th><th class="num">검사한 채팅</th><th class="num">자동 숨김</th><th class="num">판정 대기</th><th class="num">숨김률</th><th class="num">강퇴 요청</th><th class="num">승인</th><th class="num">기각</th><th class="num">대기</th><th class="num">승인율</th></tr></thead>
           <tbody><tr v-for="c in channelStats" :key="c.id"><td class="nowrap"><b>{{c.name}}</b></td><td class="nowrap">{{c.streamer}}</td><td class="nowrap"><span v-if="c.live" class="onair"><i class="live-dot"/>방송 중 · {{nf.format(c.viewers)}}명</span><span v-else class="offair">방송 종료</span></td><td class="num">{{nf.format(c.scanned)}}</td><td class="num">{{nf.format(c.hidden)}}</td><td class="num">{{nf.format(c.held)}}</td><td class="num">{{c.hiddenRate}}%</td><td class="num">{{c.reports}}</td><td class="num">{{c.approved}}</td><td class="num">{{c.rejected}}</td><td class="num" :class="{pending: c.pending}">{{c.pending}}</td><td class="num">{{c.rate === null ? '-' : `${c.rate}%`}}</td></tr>
-            <tr v-if="!channelStats.length"><td colspan="12" class="empty-block">{{api ? NO_API : '방송이 없습니다.'}}</td></tr></tbody>
+            <tr v-if="!channelStats.length"><td colspan="12" class="empty-block">{{api ? NO_API : '방송 중인 채널이 없습니다.'}}</td></tr></tbody>
         </table></div>
       </section>
 
@@ -200,7 +204,7 @@ const channelStats = computed(() => shownChannels.value.map(c => {
         <div class="table-scroll"><table class="data-table sys-table">
           <thead><tr><th>시간</th><th>방송</th><th>사용자</th><th>메시지</th><th>유형</th><th>확정 상태</th><th>조치</th></tr></thead>
           <tbody><tr v-for="l in logs" :key="l.id"><td class="nowrap">{{asTime(l.at)}}</td><td class="nowrap">{{channelName(l.channelId)}}</td><td class="nowrap"><b>{{l.userAlias}}</b></td><td class="sys-msg">{{l.text}}</td><td class="nowrap">{{catName(l.category)}}</td><td class="nowrap"><span class="verdict-badge" :class="verdictTone(l.verdict)">{{verdictName(l.verdict)}}</span></td><td class="nowrap" :class="{report: l.action==='강퇴 승인 요청'}">{{l.action}}</td></tr>
-            <tr v-if="!logs.length"><td colspan="7" class="empty-block">{{api ? NO_API : '모니터링 내역이 없습니다.'}}</td></tr></tbody>
+            <tr v-if="!logs.length"><td colspan="7" class="empty-block">{{api ? NO_API : channels.length ? '모니터링 내역이 없습니다.' : '방송 중인 채널이 없습니다.'}}</td></tr></tbody>
         </table></div>
       </section>
       </template>
