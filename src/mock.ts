@@ -11,7 +11,7 @@ export const DEMO_USERS: MockUser[] = [
   { id: '22222222-2222-4222-8222-222222222223', alias: '정보왕' }
 ];
 export const MODERATOR_ID = '33333333-3333-4333-8333-333333333333';
-export const demoMe: Me = { userId: MODERATOR_ID, nickname: '운영자', role: 'MODERATOR', channelIds: [CHANNEL_ID] };
+export const demoMe: Me = { userId: MODERATOR_ID, nickname: '스트리머', role: 'MODERATOR', channelIds: [CHANNEL_ID] };
 
 const extraAliases = ['김하늘', '게임소녀', '치킨러버', '고인물', '뉴비123', '새벽감성', '도배러', '이벤트봇', '버럭이', '스팸장인', '연타왕', '화난곰', '오픈톡', '시비왕', '가짜운영자'];
 export const mockUsers: MockUser[] = [...DEMO_USERS, ...extraAliases.map((alias, n) => ({ id: `22222222-2222-4222-8222-2222222223${String(n).padStart(2, '0')}`, alias }))];
