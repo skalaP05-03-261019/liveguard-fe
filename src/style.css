@@ -73,7 +73,10 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .mode-badge{display:inline-flex;align-items:center;gap:6px;flex:none;height:28px;padding:0 10px;border-radius:14px;font-size:12px;font-weight:600;white-space:nowrap;color:var(--text-2);background:#f2f2f2;margin-right:6px}
 .mode-badge i{width:7px;height:7px;border-radius:50%;background:#999}
 .mode-badge.mock{color:#704900;background:#fff1c2}.mode-badge.mock i{background:#e0a800}
-.mode-badge.online{color:#216b39;background:#effaf2}.mode-badge.online i{background:#2ea44f}
+/* ON AIR: 생방송 표시처럼 빨간 배경에 흰 글자(대비 5.9:1), 점이 천천히 깜빡인다 */
+.mode-badge.online{color:#fff;background:var(--live);letter-spacing:.06em}.mode-badge.online i{background:#fff;animation:on-air-pulse 1.6s ease-in-out infinite}
+@keyframes on-air-pulse{50%{opacity:.35}}
+@media(prefers-reduced-motion:reduce){.mode-badge.online i{animation:none}}
 .operator-info{font-weight:500;white-space:nowrap}
 .header-logout{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border:1px solid var(--line);border-radius:18px;color:var(--blue);font-size:14px;font-weight:500;background:#fff}
 .header-logout:hover{background:var(--blue-bg);border-color:transparent}

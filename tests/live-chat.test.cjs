@@ -386,7 +386,7 @@ test('mock and API viewers share desktop geometry and theater controls without i
   assert.match(await page.locator('.yt-time').innerText(),/^\d+:\d{2}:\d{2}$/);
   assert.match(await page.locator('.yt-description b').innerText(),/^방송 시작: /);
  }
- assert.equal(await mock.locator('.mode-badge').innerText(),'MOCK 데이터');assert.match(await api.locator('.mode-badge').innerText(),/^(실시간 연결|연결 대기)$/);
+ assert.equal(await mock.locator('.mode-badge').innerText(),'MOCK 데이터');assert.match(await api.locator('.mode-badge').innerText(),/^(ON AIR|연결 대기)$/);
  assert.equal(await mock.locator('.yt-watching').count(),1);assert.equal(await api.locator('.yt-watching').count(),0);
  assert.equal(await api.getByTitle('새로고침',{exact:true}).count(),1);assert.equal(await mock.getByTitle('새로고침',{exact:true}).count(),0);
  await capture(mock,'shared-viewer-mock-desktop');await capture(api,'shared-viewer-api-desktop');
