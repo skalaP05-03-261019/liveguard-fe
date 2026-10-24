@@ -3,7 +3,8 @@ import type { Category, Verdict } from './contracts';
 // 시스템 운영자 화면용 Mock. 행복한게임방(현재 Mock 채널)은 스토어의 실제 상태를 쓰고, 나머지 방송은 아래 고정 예시를 쓴다.
 export type ReportStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 export type Execution = 'EXECUTED' | 'FAILED' | null;
-export interface SysChannel { id: string; name: string; streamer: string; live: boolean; viewers: number; scanned: number; hidden: number }
+// scanned = 검사한 채팅, hidden = 위반 확정으로 숨김(HIDDEN), held = 판정 대기(HELD: AI 조사 중 또는 운영자 문맥 검토 대기). 나머지는 정상(PUBLIC)
+export interface SysChannel { id: string; name: string; streamer: string; live: boolean; viewers: number; scanned: number; hidden: number; held: number }
 export interface SysReport { id: string; channelId: string; userAlias: string; summary: string; categories: Category[]; reportedAt: string; status: ReportStatus; decidedAt: string | null; decisionReason: string | null; execution: Execution }
 export interface SysLog { id: string; channelId: string; at: string; userAlias: string; text: string; category: Category | null; verdict: Verdict; action: string }
 
@@ -11,10 +12,10 @@ export const LIVE_CHANNEL_ID = 'live-mock';
 const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
 
 export const sysChannels: SysChannel[] = [
-  { id: 'ch-lol', name: '롤 랭크 올리기', streamer: '랭커민수', live: true, viewers: 8120, scanned: 4210, hidden: 96 },
-  { id: 'ch-food', name: '먹방하는 곰', streamer: '곰먹방', live: true, viewers: 3540, scanned: 1875, hidden: 41 },
-  { id: 'ch-song', name: '새벽 노래방', streamer: '새벽소리', live: true, viewers: 960, scanned: 702, hidden: 12 },
-  { id: 'ch-code', name: '코딩 라이브', streamer: '개발자J', live: false, viewers: 0, scanned: 1330, hidden: 18 }
+  { id: 'ch-lol', name: '롤 랭크 올리기', streamer: '랭커민수', live: true, viewers: 8120, scanned: 4210, hidden: 96, held: 7 },
+  { id: 'ch-food', name: '먹방하는 곰', streamer: '곰먹방', live: true, viewers: 3540, scanned: 1875, hidden: 41, held: 3 },
+  { id: 'ch-song', name: '새벽 노래방', streamer: '새벽소리', live: true, viewers: 960, scanned: 702, hidden: 12, held: 2 },
+  { id: 'ch-code', name: '코딩 라이브', streamer: '개발자J', live: false, viewers: 0, scanned: 1330, hidden: 18, held: 0 }
 ];
 
 const r = (id: string, channelId: string, userAlias: string, summary: string, categories: Category[], reportedMin: number, status: ReportStatus, decidedMin: number | null, decisionReason: string | null, execution: Execution): SysReport =>

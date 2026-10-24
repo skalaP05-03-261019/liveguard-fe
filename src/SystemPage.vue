@@ -8,6 +8,7 @@ import { avatarColor } from './avatar';
 import { KICK_SUMMARY } from './mockLive';
 import ChatTracking from './ChatTracking.vue';
 import ModeBadge from './ModeBadge.vue';
+import StackedBar, { type BarSegment } from './StackedBar.vue';
 import { LIVE_CHANNEL_ID, sysChannels, sysLogs, sysReports, type SysChannel, type SysLog, type SysReport, type ReportStatus } from './systemMock';
 
 // 시스템 운영자: LIVE:GUARD Agent가 여러 방송에서 올바르게 판단하는지 모니터링한다.
@@ -38,7 +39,7 @@ const LIVE_BASE = { scanned: 1480, hidden: 27 };
 const mock = store.mock.state;
 const caseNames = computed(() => Object.fromEntries(mock.cases.map(c => [c.caseId, store.mock.aliasOf(c.userId)])));
 const ownerOf = (caseId: string) => mock.cases.find(c => c.caseId === caseId)?.userId ?? '';
-const liveChannel = computed<SysChannel>(() => ({ id: LIVE_CHANNEL_ID, name: '행복한게임방', streamer: '행복한게임방', live: true, viewers: 2341, scanned: LIVE_BASE.scanned + mock.messages.length, hidden: LIVE_BASE.hidden + mock.messages.filter(m => m.visibility !== 'PUBLIC').length }));
+const liveChannel = computed<SysChannel>(() => ({ id: LIVE_CHANNEL_ID, name: '행복한게임방', streamer: '행복한게임방', live: true, viewers: 2341, scanned: LIVE_BASE.scanned + mock.messages.length, hidden: LIVE_BASE.hidden + mock.messages.filter(m => m.visibility === 'HIDDEN').length, held: mock.messages.filter(m => m.visibility === 'HELD').length }));
 const liveReports = computed<SysReport[]>(() => mock.reviews.filter(r => r.kind === 'KICK').map(r => {
   const d = mock.decisions[r.reviewId], progress = mock.kickProgress[r.reviewId] ?? '';
   return {
@@ -71,26 +72,47 @@ const shownChannels = computed(() => channels.value.filter(c => inChannel(c, c.i
 
 const count = (list: SysReport[], s: ReportStatus) => list.filter(r => r.status === s).length;
 const rate = (list: SysReport[]) => { const a = count(list, 'APPROVED'), d = a + count(list, 'REJECTED'); return d ? Math.round((a / d) * 100) : null; };
-const kpi = computed(() => {
-  const ch = shownChannels.value, rs = reports.value;
-  const scanned = ch.reduce((n, c) => n + c.scanned, 0), hidden = ch.reduce((n, c) => n + c.hidden, 0);
-  const pending = rs.filter(r => r.status === 'PENDING').sort((a, b) => a.reportedAt.localeCompare(b.reportedAt));
-  const approvalRate = rate(rs);
-  const tiles = [
-    { label: '모니터링 중인 방송', value: nf.format(ch.length), sub: `LIVE ${ch.filter(c => c.live).length}개` },
-    { label: 'AI가 검사한 채팅', value: nf.format(scanned), sub: '오늘 누적' },
-    { label: '자동 숨김', value: nf.format(hidden), sub: scanned ? `숨김률 ${(hidden / scanned * 100).toFixed(1)}%` : '숨김률 -' },
-    { label: '강퇴 승인 요청', value: nf.format(rs.length), sub: '확정 위반 3건 누적' },
-    { label: '스트리머 승인율', value: approvalRate === null ? '-' : `${approvalRate}%`, sub: `승인 ${count(rs, 'APPROVED')} · 기각 ${count(rs, 'REJECTED')}` },
-    { label: '결정 대기', value: nf.format(pending.length), sub: pending.length ? `가장 오래 ${span(pending[0].reportedAt, now.value)}째` : '대기 없음', alert: pending.length > 0 }
+// 대시보드 차트 색. dataviz 검증 스크립트(validate_palette.js, 라이트)로 고른 값이다. 초록·빨강은 색각 이상 구분이 안 돼(ΔE 4.1) 쓰지 않는다.
+// ① 정상·비정상·판정 대기: 모든 검사 통과(최저 ΔE 15.3). ② 승인·결정 대기·기각: 구분 통과(최저 ΔE 24.4), 기각 회청색은 '조치 없음'이라 일부러 무채색에 가깝다.
+const JUDGMENT_COLORS = { normal: '#2a78d6', abnormal: '#e34948', pending: '#eda100' };
+const KICK_COLORS = { APPROVED: '#6250d6', PENDING: '#eda100', REJECTED: '#64748B' };
+const judgmentOf = (list: SysChannel[]): BarSegment[] => {
+  const scanned = list.reduce((n, c) => n + c.scanned, 0), hidden = list.reduce((n, c) => n + c.hidden, 0), held = list.reduce((n, c) => n + c.held, 0);
+  return [
+    { key: 'normal', label: '정상', value: Math.max(scanned - hidden - held, 0), color: JUDGMENT_COLORS.normal },
+    { key: 'abnormal', label: '비정상', value: hidden, color: JUDGMENT_COLORS.abnormal },
+    { key: 'pending', label: '판정 대기', value: held, color: JUDGMENT_COLORS.pending }
   ];
-  // 실제 API는 가짜 0을 보이지 않고 값 자리를 비운다.
-  return props.api ? tiles.map(k => ({ label: k.label, value: '-', sub: '연동 API 없음', alert: false })) : tiles;
+};
+// ① 전체 채팅 판정 현황: 모수는 검사한 채팅 수
+const judgment = computed(() => judgmentOf(shownChannels.value));
+const judgmentTotal = computed(() => judgment.value.reduce((n, s) => n + s.value, 0));
+// ② 강퇴 승인 요청 처리 현황: 모수는 강퇴 승인 요청 수(비정상 채팅 전체가 아니다)
+const kickSegments = computed<BarSegment[]>(() => [
+  { key: 'APPROVED', label: '스트리머 승인', value: count(reports.value, 'APPROVED'), color: KICK_COLORS.APPROVED },
+  { key: 'PENDING', label: '결정 대기', value: count(reports.value, 'PENDING'), color: KICK_COLORS.PENDING },
+  { key: 'REJECTED', label: '스트리머 기각', value: count(reports.value, 'REJECTED'), color: KICK_COLORS.REJECTED }
+]);
+const kickSummary = computed(() => {
+  const pending = reports.value.filter(r => r.status === 'PENDING').sort((a, b) => a.reportedAt.localeCompare(b.reportedAt));
+  const approvalRate = rate(reports.value);
+  return { approval: approvalRate === null ? '-' : `${approvalRate}%`, oldest: pending.length ? `가장 오래 ${span(pending[0].reportedAt, now.value)}째 대기` : '대기 없음', waiting: pending.length > 0 };
 });
 // 채팅관제 Tracking: 실제 API는 관리자용 방송 채팅·사건 조회가 없어 빈 데이터를 넘긴다.
 const tracking = computed(() => props.api
   ? { channelName: '', messages: [], reviews: [], cases: [], caseNames: {}, logs: [], kickProgress: {}, traces: null }
   : { channelName: '행복한게임방', messages: mock.messages, reviews: mock.reviews, cases: mock.cases, caseNames: caseNames.value, logs: mock.logs, kickProgress: mock.kickProgress, traces: mock.traces });
+// 방송별 비교: 정상이 대부분(보통 97% 이상)이라 100% 누적 막대로는 방송끼리 차이가 안 보인다.
+// 그래서 비정상·판정 대기 비율만 같은 눈금(가장 높은 방송 기준, 올림한 %)에서 길이로 비교하고, 비정상 비율이 높은 순으로 놓는다.
+const channelBars = computed(() => {
+  const rows = shownChannels.value.map(c => ({
+    id: c.id, name: c.name, live: c.live, scanned: c.scanned, segments: judgmentOf([c]).filter(s => s.key !== 'normal'),
+    abnormalRate: c.scanned ? c.hidden / c.scanned * 100 : 0, pendingRate: c.scanned ? c.held / c.scanned * 100 : 0,
+    kickPending: count(allReports.value.filter(r => r.channelId === c.id), 'PENDING')
+  })).sort((a, b) => b.abnormalRate - a.abnormalRate);
+  const maxRate = Math.max(1, Math.ceil(Math.max(0, ...rows.map(r => r.abnormalRate + r.pendingRate))));
+  return { maxRate, rows: rows.map(r => ({ ...r, scale: r.scanned * maxRate / 100 })) };
+});
 const channelStats = computed(() => shownChannels.value.map(c => {
   const rs = allReports.value.filter(r => r.channelId === c.id);
   return { ...c, reports: rs.length, approved: count(rs, 'APPROVED'), rejected: count(rs, 'REJECTED'), pending: count(rs, 'PENDING'), rate: rate(rs), hiddenRate: c.scanned ? (c.hidden / c.scanned * 100).toFixed(1) : '-' };
@@ -121,8 +143,18 @@ const channelStats = computed(() => shownChannels.value.map(c => {
       </div>
       <div class="sys-filter" role="group" aria-label="방송 필터"><button :class="{on: channelFilter==='ALL'}" @click="channelFilter='ALL'">전체 방송</button><button v-for="c in channels" :key="c.id" :class="{on: channelFilter===c.id}" @click="channelFilter=c.id"><i v-if="c.live" class="live-dot" aria-label="방송 중"/>{{c.name}}</button></div>
 
-      <section class="sys-kpis" aria-label="주요 지표">
-        <div v-for="k in kpi" :key="k.label" class="sys-tile" :class="{alert: k.alert}"><span>{{k.label}}</span><b>{{k.value}}</b><small>{{k.sub}}</small></div>
+      <!-- ① 전체 채팅 판정과 ② 강퇴 승인 처리를 따로 본다. 모수가 다르다(검사한 채팅 / 강퇴 승인 요청) -->
+      <section class="sys-charts" aria-label="주요 지표">
+        <article class="card sys-chart-card">
+          <header><h2>전체 채팅 판정 현황</h2><span v-if="judgmentTotal" class="sys-base">{{nf.format(judgmentTotal)}}건 기준</span></header>
+          <p class="sys-chart-note">AI가 검사한 채팅의 지금 상태입니다. 판정 대기는 AI 조사 중이거나 운영자 문맥 검토를 기다리는 채팅입니다.</p>
+          <StackedBar :segments="judgment" label="전체 채팅 판정 현황" :empty="api ? '연동 API 없음' : '검사한 채팅 없음'"/>
+        </article>
+        <article class="card sys-chart-card">
+          <header><h2>강퇴 승인 요청 처리 현황</h2><span v-if="reports.length" class="sys-base">{{nf.format(reports.length)}}건 기준</span></header>
+          <p class="sys-chart-note">확정 위반 3건으로 생긴 강퇴 승인 요청을 스트리머가 처리한 결과입니다. <span v-if="reports.length">승인율 <b>{{kickSummary.approval}}</b> · <span :class="{'sys-waiting': kickSummary.waiting}">{{kickSummary.oldest}}</span></span></p>
+          <StackedBar :segments="kickSegments" label="강퇴 승인 요청 처리 현황" :empty="api ? '연동 API 없음' : '강퇴 승인 요청 없음'"/>
+        </article>
       </section>
 
       <section class="card sys-section">
@@ -147,11 +179,19 @@ const channelStats = computed(() => shownChannels.value.map(c => {
       </section>
 
       <section class="card sys-section">
-        <header class="sys-section-head"><div><h2>방송별 현황</h2><p>방송마다 검사·숨김한 양과 강퇴 요청에 대한 스트리머의 결정 결과입니다.</p></div></header>
+        <header class="sys-section-head"><div><h2>방송별 현황</h2><p>방송마다 채팅 판정 분포와 강퇴 요청 결정 결과입니다. 비정상 비율이 높은 방송이 위에 옵니다.<template v-if="channels.length"> 방송 {{shownChannels.length}}개 · 방송 중 {{shownChannels.filter(c => c.live).length}}개</template></p></div></header>
+        <div v-if="channelBars.rows.length" class="sys-channel-bars">
+          <div class="sys-channel-key"><ul class="stacked-legend compact" aria-hidden="true"><li v-for="s in judgment.filter(x => x.key !== 'normal')" :key="s.key"><span><i :style="{background: s.color}"/>{{s.label}}</span></li></ul><small>막대 길이: 검사한 채팅 중 비율 (끝 = {{channelBars.maxRate}}%)</small></div>
+          <div v-for="c in channelBars.rows" :key="c.id" class="sys-channel-bar">
+            <b class="sys-channel-name"><i v-if="c.live" class="live-dot" aria-label="방송 중"/>{{c.name}}</b>
+            <StackedBar :segments="c.segments" :label="`${c.name} 비정상·판정 대기 비율`" :legend="false" thin :base="c.scanned" :scale="c.scale" empty="검사한 채팅 없음"/>
+            <span class="sys-channel-meta">비정상 {{c.abnormalRate.toFixed(1)}}% · 대기 {{c.pendingRate.toFixed(1)}}%<template v-if="c.kickPending"> · <b class="sys-waiting">강퇴 대기 {{c.kickPending}}건</b></template></span>
+          </div>
+        </div>
         <div class="table-scroll"><table class="data-table sys-table">
-          <thead><tr><th>방송</th><th>스트리머</th><th>상태</th><th class="num">검사한 채팅</th><th class="num">자동 숨김</th><th class="num">숨김률</th><th class="num">강퇴 요청</th><th class="num">승인</th><th class="num">기각</th><th class="num">대기</th><th class="num">승인율</th></tr></thead>
-          <tbody><tr v-for="c in channelStats" :key="c.id"><td class="nowrap"><b>{{c.name}}</b></td><td class="nowrap">{{c.streamer}}</td><td class="nowrap"><span v-if="c.live" class="onair"><i class="live-dot"/>방송 중 · {{nf.format(c.viewers)}}명</span><span v-else class="offair">방송 종료</span></td><td class="num">{{nf.format(c.scanned)}}</td><td class="num">{{nf.format(c.hidden)}}</td><td class="num">{{c.hiddenRate}}%</td><td class="num">{{c.reports}}</td><td class="num">{{c.approved}}</td><td class="num">{{c.rejected}}</td><td class="num" :class="{pending: c.pending}">{{c.pending}}</td><td class="num">{{c.rate === null ? '-' : `${c.rate}%`}}</td></tr>
-            <tr v-if="!channelStats.length"><td colspan="11" class="empty-block">{{api ? NO_API : '방송이 없습니다.'}}</td></tr></tbody>
+          <thead><tr><th>방송</th><th>스트리머</th><th>상태</th><th class="num">검사한 채팅</th><th class="num">자동 숨김</th><th class="num">판정 대기</th><th class="num">숨김률</th><th class="num">강퇴 요청</th><th class="num">승인</th><th class="num">기각</th><th class="num">대기</th><th class="num">승인율</th></tr></thead>
+          <tbody><tr v-for="c in channelStats" :key="c.id"><td class="nowrap"><b>{{c.name}}</b></td><td class="nowrap">{{c.streamer}}</td><td class="nowrap"><span v-if="c.live" class="onair"><i class="live-dot"/>방송 중 · {{nf.format(c.viewers)}}명</span><span v-else class="offair">방송 종료</span></td><td class="num">{{nf.format(c.scanned)}}</td><td class="num">{{nf.format(c.hidden)}}</td><td class="num">{{nf.format(c.held)}}</td><td class="num">{{c.hiddenRate}}%</td><td class="num">{{c.reports}}</td><td class="num">{{c.approved}}</td><td class="num">{{c.rejected}}</td><td class="num" :class="{pending: c.pending}">{{c.pending}}</td><td class="num">{{c.rate === null ? '-' : `${c.rate}%`}}</td></tr>
+            <tr v-if="!channelStats.length"><td colspan="12" class="empty-block">{{api ? NO_API : '방송이 없습니다.'}}</td></tr></tbody>
         </table></div>
       </section>
 

@@ -1057,12 +1057,14 @@ test('API admin shows the same system screen as the mock with empty data and no 
  // API admin: 같은 메뉴·지표·표 제목, 값만 비어 있다. 백엔드에 시스템 운영자 권한과 여러 방송 조회 API가 없다
  const shape=async page=>({
   tabs:await page.getByRole('tab').allInnerTexts(),
-  kpis:await page.locator('.sys-tile span').allInnerTexts(),
+  charts:await page.locator('.sys-chart-card h2').allInnerTexts(),
   sections:await page.locator('.sys-section h2').allInnerTexts()
  });
  assert.deepEqual(await shape(api),await shape(mock));
  assert.equal(await api.locator('.mode-badge').innerText(),'연결 대기');assert.equal(await mock.locator('.mode-badge').innerText(),'MOCK 데이터');
- assert.deepEqual([...new Set(await api.locator('.sys-tile b').allInnerTexts())],['-']);
+ // 차트도 가짜 0 없이 비워 둔다
+ assert.equal(await api.locator('.sys-chart-card .stacked-empty').filter({hasText:'연동 API 없음'}).count(),2);
+ assert.equal(await api.locator('.sys-chart-card .stacked-legend, .sys-base').count(),0);
  assert.equal(await api.locator('.sys-table .empty-block').filter({hasText:'여러 방송 조회 API가 없어 표시할 데이터가 없습니다.'}).count(),3);
  const text=await api.locator('.sys-shell').innerText();
  for(const invented of ['행복한게임방','2,341','명 시청','LIVE 1'])assert(!text.includes(invented),invented);
@@ -1070,4 +1072,27 @@ test('API admin shows the same system screen as the mock with empty data and no 
  await api.getByRole('tab',{name:'채팅관제 Tracking',exact:true}).click();
  await api.locator('.tracking-grid').getByText('표시할 채팅이 없습니다.',{exact:true}).waitFor();
  await capture(api,'admin-api-tracking');
+});
+
+test('admin dashboard charts split chat judgment from kick approval and rank channels by abnormal rate',async()=>{
+ const context=await browser.newContext({viewport:{width:1280,height:1000},timezoneId:'Asia/Seoul'});contexts.push(context);
+ const page=await context.newPage();page.on('pageerror',e=>runtimeErrors.push(e.message));
+ await page.goto(mockBase);await page.getByRole('button',{name:'시스템 운영자 전용',exact:true}).click();
+ await page.getByRole('button',{name:'로그인',exact:true}).click();await page.locator('.sys-shell').waitFor();
+ const [judgment,kick]=await page.locator('.sys-chart-card').all();
+ const count=t=>Number(t.replace(/[^0-9]/g,''));
+ // ① 모수는 검사한 채팅, ② 모수는 강퇴 승인 요청. 범례 합이 각 모수와 같다
+ for(const [card,labels] of [[judgment,['정상','비정상','판정 대기']],[kick,['스트리머 승인','결정 대기','스트리머 기각']]]){
+  assert.deepEqual(await card.locator('.stacked-legend span').allInnerTexts(),labels);
+  const sum=(await card.locator('.stacked-legend b').allInnerTexts()).map(count).reduce((a,b)=>a+b,0);
+  assert.equal(sum,count(await card.locator('.sys-base').innerText()));
+ }
+ assert(count(await kick.locator('.sys-base').innerText())<count(await judgment.locator('.sys-base').innerText()));
+ // 조각에 마우스를 올리면 라벨·건수·% 툴팁
+ await judgment.locator('.stacked-seg').first().hover();
+ assert.match(await page.getByRole('tooltip').innerText(),/^정상 · [0-9,]+건 · [0-9.]+%$/);
+ // 방송별 분포는 비정상 비율이 높은 순
+ const rates=(await page.locator('.sys-channel-meta').allInnerTexts()).map(t=>Number(/비정상 ([0-9.]+)%/.exec(t)[1]));
+ assert.equal(rates.length,5);assert.deepEqual(rates,[...rates].sort((a,b)=>b-a));
+ await capture(page,'admin-dashboard-charts');
 });
