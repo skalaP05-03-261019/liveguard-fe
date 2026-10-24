@@ -4,6 +4,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { AlertCircle, BookOpen, ChevronDown, ChevronRight, ClipboardCheck, FileClock, LogOut, Menu, MessagesSquare, Pause, Play, Radio, RefreshCcw, ShieldCheck, Sparkles, Users, UserX } from 'lucide-vue-next';
 import ViewerManage from './ViewerManage.vue';
+import ModeBadge from './ModeBadge.vue';
 import AiEvidence from './AiEvidence.vue';
 import { groupByViewer, type ViewerCase, type ViewerFinding, type ViewerReview } from './viewerManage';
 import { avatarColor } from './avatar';
@@ -282,7 +283,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
 <template>
   <div class="app-shell studio-shell">
     <header class="topbar"><div class="topbar-title"><button class="yt-icon-button" :class="{on: navVisible}" :title="navVisible ? '메뉴 닫기' : '메뉴 열기'" aria-controls="operator-nav" :aria-expanded="navVisible" @click="toggleNav"><Menu :size="22"/></button><span class="yt-logo"><span class="yt-logo-mark"><ShieldCheck :size="15"/></span><b>LIVE<span>:</span>GUARD</b></span><span class="console-tag">Studio</span></div>
-      <div class="topbar-right"><span class="connection"><span class="online-dot" :class="{off: !online}"/> {{mock ? 'MOCK 데이터' : online ? '실시간 연결' : '연결 대기'}}</span><span class="yt-me" :style="{background: avatarColor(nickname)}" :title="nickname">{{nickname.slice(0,1)}}</span><span class="operator-info">{{nickname}}</span><button class="header-logout" @click="emit('logout')"><LogOut :size="16"/> 로그아웃</button></div></header>
+      <div class="topbar-right"><ModeBadge :mock="mock" :online="online"/><span class="yt-me" :style="{background: avatarColor(nickname)}" :title="nickname">{{nickname.slice(0,1)}}</span><span class="operator-info">{{nickname}}</span><button class="header-logout" @click="emit('logout')"><LogOut :size="16"/> 로그아웃</button></div></header>
     <div class="app-body">
       <div v-if="!wide && navOpen" class="nav-backdrop" @click="navOpen = false"/>
       <aside id="operator-nav" class="sidebar" :class="{open: !wide && navOpen, docked: wide && !navCollapsed}" :aria-hidden="!navVisible" :inert="!navVisible">
@@ -295,11 +296,11 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
  <button :class="{active: page==='chats'}" :aria-current="page==='chats' ? 'page' : undefined" @click="goto('chats')"><MessagesSquare :size="22" :stroke-width="1.8"/><span>채팅 기록</span></button>
           <button :class="{active: page==='policy'}" :aria-current="page==='policy' ? 'page' : undefined" @click="goto('policy')"><BookOpen :size="22" :stroke-width="1.8"/><span>정책 근거</span></button>
         </nav>
-        <div class="sidebar-foot"><span class="online-dot" :class="{off: !online}"/>{{mock ? '목업 방송 · 정책 v3.2 판정' : online ? 'SSE 연결됨' : '연결 확인 중'}}</div>
+        <div class="sidebar-foot">운영정책 v3.2 기준</div>
       </aside>
       <div class="workspace">
         <main class="main-content">
-          <div class="status-strip"><div><Sparkles :size="16"/><b>{{pageTitles[page]}}</b><span v-if="mock" class="mock-mode-pill">MOCK · 시뮬레이션 결과</span><span v-else>LIVE API · 서버 권한 적용</span></div>
+          <div class="status-strip"><div><Sparkles :size="16"/><b>{{pageTitles[page]}}</b></div>
             <div class="status-controls"><button v-if="!mock" @click="emit('refresh')"><RefreshCcw :size="14"/> 새로고침</button><button v-if="!mock && !loading && (!live || ended)" class="primary" :disabled="busy" @click="emit('start')">방송 시작</button><button v-if="!mock && live && !ended" :disabled="busy" @click="emit('end')">방송 종료</button></div></div>
           <p v-if="error" class="error-inline" role="alert"><AlertCircle :size="17"/> {{error}}</p>
           <p v-if="notice" class="studio-notice" role="status">{{notice}}</p>
@@ -367,7 +368,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
                 </section>
             </section>
 
-            <ViewerManage v-else-if="page==='viewers'" :rows="viewerRows" :busy="busy || ended" :scope="mock ? '현재 방송(Mock 데이터)' : '현재 방송'" @decide="onViewerDecide" @revoke="onViewerRevoke"/>
+            <ViewerManage v-else-if="page==='viewers'" :rows="viewerRows" :busy="busy || ended" scope="현재 방송" @decide="onViewerDecide" @revoke="onViewerRevoke"/>
 
             <section v-else-if="page==='cases'" class="secondary-page card"><div class="secondary-heading"><div><h2><FileClock :size="24"/> 사건 이력</h2><p>행을 펼치면 사건 하나가 어떻게 처리됐는지 단계별로 볼 수 있습니다.</p></div></div>
               <div class="studio-tabs" role="tablist" aria-label="사건 이력 보기"><button role="tab" :aria-selected="caseTab==='cases'" :class="{on: caseTab==='cases'}" @click="caseTab='cases'">사건 <b>{{cases.length}}</b></button><button role="tab" :aria-selected="caseTab==='reviews'" :class="{on: caseTab==='reviews'}" @click="caseTab='reviews'">검토 기록 <b>{{reviews.length}}</b></button></div>
@@ -411,7 +412,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
               <div v-if="archiveMore" class="chat-db-more"><button type="button" :disabled="archiveLoading" @click="emit('loadOlder')">{{archiveLoading ? '불러오는 중…' : '이전 채팅 더 불러오기'}}</button></div>
             </section>
           </template>
-          <footer class="dashboard-footer"><span>LIVE:GUARD · API v1.0 (liveId){{mock ? ' · MOCK' : ''}}</span><span>프론트는 <code>/api/**</code>만 사용합니다. <code>/internal/**</code>·MCP·Agent 호출은 백엔드 담당입니다.</span></footer>
+          <footer class="dashboard-footer"><span>LIVE:GUARD · API v1.0 (liveId)</span><span>프론트는 <code>/api/**</code>만 사용합니다. <code>/internal/**</code>·MCP·Agent 호출은 백엔드 담당입니다.</span></footer>
         </main>
       </div>
     </div>

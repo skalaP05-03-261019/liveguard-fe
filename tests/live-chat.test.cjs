@@ -377,6 +377,17 @@ test('mock and API viewers share desktop geometry and theater controls without i
  assert.equal(await api.locator('.viewer-demo').count(),0);
  assert.equal(await api.getByText('구독자 12.4만명',{exact:true}).count(),0);
  assert.doesNotMatch(await api.locator('.yt-description').innerText(),/2,341|1시간 전/);
+ // #28: 장식 요소는 같은 자리에 있고 값만 다르다. 계약에 없는 값(시청자·구독자 수)은 API에서 숨긴다.
+ for(const page of [mock,api]){
+  for(const sel of ['.yt-masthead-end .mode-badge','.yt-masthead-end .yt-deco[title="알림"]','.yt-channel-avatar','.yt-subscribe','.yt-actions .yt-segment'])assert.equal(await page.locator(sel).count(),1,sel);
+  assert.equal(await page.locator('.yt-actions .yt-pill').count(),2);
+  assert.equal(await page.locator('.yt-live-dot').innerText(),'실시간');
+  assert.match(await page.locator('.yt-time').innerText(),/^\d+:\d{2}:\d{2}$/);
+  assert.match(await page.locator('.yt-description b').innerText(),/^방송 시작: /);
+ }
+ assert.equal(await mock.locator('.mode-badge').innerText(),'MOCK 데이터');assert.match(await api.locator('.mode-badge').innerText(),/^(실시간 연결|연결 대기)$/);
+ assert.equal(await mock.locator('.yt-watching').count(),1);assert.equal(await api.locator('.yt-watching').count(),0);
+ assert.equal(await api.getByTitle('새로고침',{exact:true}).count(),1);assert.equal(await mock.getByTitle('새로고침',{exact:true}).count(),0);
  await capture(mock,'shared-viewer-mock-desktop');await capture(api,'shared-viewer-api-desktop');
  await api.getByTitle('영화관 모드 (t)',{exact:true}).click();
  const player=await api.locator('.yt-player-area').boundingBox(),chat=await api.locator('.yt-secondary').boundingBox();
@@ -691,7 +702,7 @@ test('admin chat tracking shows the filter result, rule outcome and AI judgment 
 
 test('policy v3.2: the policy page explains CP-3.3 and the mock shows v3.2',async()=>{
  const page=await openMockModerator();
- await page.locator('.sidebar-foot').getByText('목업 방송 · 정책 v3.2 판정',{exact:true}).waitFor();
+ await page.locator('.sidebar-foot').getByText('운영정책 v3.2 기준',{exact:true}).waitFor();await page.locator('.topbar .mode-badge').getByText('MOCK 데이터',{exact:true}).waitFor();
  await page.getByRole('navigation',{name:'운영자 메뉴'}).getByRole('button',{name:'정책 근거',exact:true}).click();
  await page.getByText(/운영정책 v3\.2\(2026-10-23\) 기준/).waitFor();
  const rules=page.locator('[data-policy-harassment]');
@@ -825,7 +836,9 @@ test('mock context review stays held on defer, then applies normal and violation
   return {page,row,card,remaining};
  }
  const deferred=await decide('보류','아직 맥락을 더 확인해야 합니다.');
- await deferred.page.getByText('보류했습니다. 검토 대기에 남습니다. (MOCK)',{exact:true}).waitFor();
+ await deferred.page.locator('.studio-notice').getByText('보류했습니다. 검토 대기에 남습니다.',{exact:true}).waitFor();
+ // #28: 운영자 안내는 화면 안 줄로만. 토스트는 로그인 직후 알림뿐이다
+ assert.equal(await deferred.page.locator('.toast').filter({hasText:'보류했습니다'}).count(),0);
  assert.match(await deferred.row.getAttribute('class'),/held/);assert.equal(deferred.remaining,1);
  const normal=await decide('정상 확정','위반 근거가 충분하지 않아 정상으로 확정합니다.');
  await waitFor(async()=>!(await normal.row.getAttribute('class')).includes('held'));
@@ -859,7 +872,7 @@ test('mock kick approval is explicitly simulated and blocks that viewer for the 
  await page.getByRole('button',{name:'로그인',exact:true}).click();await page.locator('.app-shell').waitFor();
  await page.getByRole('button',{name:'모의 적용 성공',exact:true}).click();
  await page.getByRole('status').filter({hasText:'강퇴 적용 완료'}).first().waitFor();
- await page.getByText('강퇴가 모의 적용됐습니다. (MOCK)',{exact:true}).waitFor();
+ await page.locator('.studio-notice').getByText('강퇴가 모의 적용됐습니다.',{exact:true}).waitFor();
  await page.getByRole('button',{name:'로그아웃',exact:true}).click();
  await page.getByRole('button',{name:'시청자로 시작하기',exact:true}).click();
  await page.getByRole('button',{name:'로그인',exact:true}).click();await page.locator('.viewer-shell').waitFor();

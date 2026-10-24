@@ -344,7 +344,7 @@ export function createMockLive(users: MockUser[]) {
   // 문맥 검토(정상·위반·보류)와 강퇴(승인·기각). 202 접수와 같다: 강퇴는 결과 시뮬레이션 전까지 실행되지 않는다.
   function decide(reviewId: string, value: ContextDecision | KickDecision, reason: string, categories: Category[] = [], at = Date.now()): { ok: boolean; message: string } {
     const r = state.reviews.find(x => x.reviewId === reviewId);
-    if (!r || r.status !== 'PENDING') return { ok: false, message: '다른 결정이 먼저 반영되어 최신 상태를 불러왔습니다. (MOCK)' };
+    if (!r || r.status !== 'PENDING') return { ok: false, message: '다른 결정이 먼저 반영되어 최신 상태를 불러왔습니다.' };
     const c = state.cases.find(x => x.caseId === r.caseId)!;
     if (r.kind === 'CONTEXT' && value === 'CONFIRM_VIOLATION' && !categories.length) return { ok: false, message: '위반 유형을 하나 이상 선택해 주세요.' };
     state.decisions[reviewId] = { kind: r.kind, value, reason, decidedAt: iso(at) };
@@ -352,26 +352,26 @@ export function createMockLive(users: MockUser[]) {
     log('REVIEW_DECIDED', `${aliasOf(c.userId)} · ${r.kind} ${value}`, at, { caseId: c.caseId, reviewId });
     if (r.kind === 'CONTEXT') addStep(c.targetMessageIds, at, '운영자 결정', `${value === 'CONFIRM_NORMAL' ? '정상 확정 → 공개' : value === 'CONFIRM_VIOLATION' ? '위반 확정' : '보류 → 다시 결정 대기'}${reason ? ` · 이유: ${reason}` : ''}`, value);
     if (r.kind === 'CONTEXT') {
-      if (value === 'DEFER') return { ok: true, message: '보류했습니다. 검토 대기에 남습니다. (MOCK)' };
+      if (value === 'DEFER') return { ok: true, message: '보류했습니다. 검토 대기에 남습니다.' };
       r.status = 'DECIDED';
       if (value === 'CONFIRM_NORMAL') {
         c.confirmationStatus = 'CONFIRMED_NORMAL'; c.status = 'NO_ACTION'; c.version++;
         for (const m of targets(c)) setVisibility(m, 'PUBLIC', c.handlingRoute ?? 'CONTEXT_REVIEW');
         log('MESSAGE_RESTORED', `${aliasOf(c.userId)} · 정상 확정으로 공개`, at, { caseId: c.caseId });
-        return { ok: true, message: '정상으로 확정해 메시지를 공개했습니다. (MOCK)' };
+        return { ok: true, message: '정상으로 확정해 메시지를 공개했습니다.' };
       }
       confirm(c, categories, at, true);
-      return { ok: true, message: '위반으로 확정해 메시지를 숨겼습니다. (MOCK)' };
+      return { ok: true, message: '위반으로 확정해 메시지를 숨겼습니다.' };
     }
     r.status = 'DECIDED';
-    if (value === 'REJECT') { state.kickProgress[reviewId] = '강퇴 기각 · 기존 제재 유지'; return { ok: true, message: '강퇴 요청을 모의 기각했습니다. 기존 메시지 가림과 채팅 제한은 유지됩니다. (MOCK)' }; }
+    if (value === 'REJECT') { state.kickProgress[reviewId] = '강퇴 기각 · 기존 제재 유지'; return { ok: true, message: '강퇴 요청을 모의 기각했습니다. 기존 메시지 가림과 채팅 제한은 유지됩니다.' }; }
     // 승인 후 재검증: 기준 사건이 모두 아직 확정 상태여야 한다(MP-4.2).
     if (!r.basisCaseIds.every(id => { const b = state.cases.find(x => x.caseId === id); return b && isConfirmed(b); })) {
       r.status = 'INVALIDATED'; state.kickProgress[reviewId] = '재검증 탈락 · 강퇴하지 않음';
-      return { ok: true, message: '기준 사건이 바뀌어 재검증에서 탈락했습니다. 강퇴하지 않습니다. (MOCK)' };
+      return { ok: true, message: '기준 사건이 바뀌어 재검증에서 탈락했습니다. 강퇴하지 않습니다.' };
     }
     state.kickProgress[reviewId] = KICK_WAITING;
-    return { ok: true, message: `${KICK_WAITING} (MOCK)` };
+    return { ok: true, message: KICK_WAITING };
   }
   // 목업 전용: 강퇴 실행 결과. 실제 API에서는 ACTION_APPLIED·LIVE_ACCESS_BLOCKED로 확인한다.
   function finishKick(reviewId: string, outcome: KickOutcome, at = Date.now()): string | null {
@@ -381,11 +381,11 @@ export function createMockLive(users: MockUser[]) {
     if (outcome === 'SUCCEEDED') {
       state.kicks[userId] = reviewId; state.kickProgress[reviewId] = '강퇴 적용 완료';
       log('LIVE_ACCESS_BLOCKED', `${aliasOf(userId)} · 이번 방송 종료까지`, at); log('ACTION_APPLIED', 'KICK · SUCCEEDED · CONFIRMED', at, { caseId: r.caseId, reviewId });
-      return '강퇴가 모의 적용됐습니다. (MOCK)';
+      return '강퇴가 모의 적용됐습니다.';
     }
-    if (outcome === 'FAILED') { state.kickProgress[reviewId] = '강퇴 실행 실패 · 기존 제재 유지'; log('ACTION_FAILED', 'KICK · FAILED · CONFIRMED', at); return '강퇴 실행 실패를 모의 적용했습니다. 기존 제재는 유지됩니다. (MOCK)'; }
+    if (outcome === 'FAILED') { state.kickProgress[reviewId] = '강퇴 실행 실패 · 기존 제재 유지'; log('ACTION_FAILED', 'KICK · FAILED · CONFIRMED', at); return '강퇴 실행 실패를 모의 적용했습니다. 기존 제재는 유지됩니다.'; }
     state.kickProgress[reviewId] = '실행 결과 확인 중 · 실패로 단정하지 않음'; log('ACTION_FAILED', 'KICK · RUNNING · UNKNOWN', at);
-    return '강퇴 실행 결과를 확인 중입니다. 실패로 단정하지 않습니다. (MOCK)';
+    return '강퇴 실행 결과를 확인 중입니다. 실패로 단정하지 않습니다.';
   }
   // 오판 취소: 근거를 무효로 하고, 남은 근거가 없으면 공개한다. 채팅 제한은 남은 사건 기준으로 줄이기만 하고, 이 사건을 쓴 강퇴는 무효로 한다.
   function revoke(caseId: string, findingId: string, reason: string, at = Date.now()): boolean {
