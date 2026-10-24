@@ -5,6 +5,7 @@ import type { Category, ConfirmedFinding, ContextDecision, Finding, HandlingRout
 import { categoryLabels } from './contracts';
 import { CHANNEL_ID, LIVE_ID, filterDictionary, type FixtureLine, type MockUser } from './mock';
 import { KICK_THRESHOLD, KICK_WINDOW_MS, sanctionFor, timeoutText } from './sanction';
+import { uuid } from './uuid';
 
 export interface MockMessage extends Message { ownerId: string }
 export interface MockCase extends LiveCase { userId: string; createdAt: string; timeoutUntil: string | null }
@@ -27,7 +28,7 @@ export const NO_AI_SUMMARY = 'AI 분석 결과를 받지 못했습니다. 주변
 export const KICK_WAITING = '결정 접수 · 실행 결과 대기';
 
 const iso = (t: number) => new Date(t).toISOString();
-const uid = () => crypto.randomUUID();
+const uid = uuid;
 const FLOOD_WINDOW_MS = 10_000;
 
 // Backend TextNormalizer(norm-v1): NFKC, 소문자, 공백 하나로, 같은 글자 3번 이상은 2번으로

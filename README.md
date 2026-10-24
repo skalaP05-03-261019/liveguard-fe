@@ -264,6 +264,7 @@ docs/
 ├── chat-state-ui.md        # 채팅 상태 처리(#7) 변경·검증 기록
 ├── evidence/review-flow/   # 검토·제재 승인 흐름 검증 캡처
 ├── review-flow.md          # 검토·제재 승인 흐름(#13) 검증 기록
+├── participatory-demo.md   # 참여형 데모 진행 안내(#16): 청중 접속·문장 카드·목업 대체·리허설 기록
 └── live-v1-integration.md  # 실제 API 콘솔 통합 시험 기록
 tests/live-chat.test.cjs    # 채팅 상태 브라우저 테스트 (npm run test:chat)
 public/media/               # 데모 영상·포스터
@@ -281,6 +282,8 @@ nginx.conf.template         # 화면 제공·/api 프록시·SSE 설정 (BACKEND
 * **운영 정책:** [Backend `docs/policy/POLICY.md`](https://github.com/skalaP05-03-261019/liveguard-be/blob/main/docs/policy/POLICY.md) (v3.2, 구현 기준) / 프론트 제재 기준 `src/sanction.ts`
 
 * **Agent 저장소:** [liveguard-agent](https://github.com/skalaP05-03-261019/liveguard-agent)
+
+* **참여형 데모:** [docs/participatory-demo.md](docs/participatory-demo.md) (청중 휴대폰 접속, 시나리오·문장 카드, 실패 시 목업 대체)
 
 **연동 시 유의사항 (Backend 현재 동작):** `REVIEW_DECIDED`의 검토 종류를 명세의 `reviewKind` 대신 `kind`로 보내 프론트가 둘 다 읽습니다. 검토 상태에 명세에 없는 `INVALIDATED`(근거 취소·재검증 탈락)가 올 수 있습니다. 검토 카드의 `summary`는 고정 문구이고, AI 근거는 `findings[]`에만 있습니다.
 
