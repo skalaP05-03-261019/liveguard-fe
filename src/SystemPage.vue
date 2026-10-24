@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { Activity, AlertTriangle, CheckCircle2, Clock3, LogOut, Radio, ShieldCheck, XCircle } from 'lucide-vue-next';
+import { Activity, AlertTriangle, CalendarRange, CheckCircle2, Clock3, LogOut, Radio, ShieldCheck, XCircle } from 'lucide-vue-next';
 import type { Component } from 'vue';
 import { useLiveGuard } from './stores/liveGuard';
 import { categoryLabels, type Category, type Verdict } from './contracts';
@@ -9,6 +9,9 @@ import { KICK_SUMMARY } from './mockLive';
 import ChatTracking from './ChatTracking.vue';
 import ModeBadge from './ModeBadge.vue';
 import StackedBar, { type BarSegment } from './StackedBar.vue';
+import RateBars from './RateBars.vue';
+import PeriodStats from './PeriodStats.vue';
+import { KICK_COLORS, judgmentSegments } from './chartColors';
 import { LIVE_CHANNEL_ID, sysChannels, sysLogs, sysReports, type SysChannel, type SysLog, type SysReport, type ReportStatus } from './systemMock';
 
 // 시스템 운영자: LIVE:GUARD Agent가 여러 방송에서 올바르게 판단하는지 모니터링한다.
@@ -18,10 +21,10 @@ import { LIVE_CHANNEL_ID, sysChannels, sysLogs, sysReports, type SysChannel, typ
 const props = withDefaults(defineProps<{ api?: boolean }>(), { api: false });
 const NO_API = '여러 방송 조회 API가 없어 표시할 데이터가 없습니다.';
 const store = useLiveGuard();
-// 탭: 실시간 관제(방송 중인 채널의 지금 상태) · 채팅관제 Tracking(채팅별 판정 흐름). 기간 통계는 BE 기간 집계 API가 생기면 따로 둔다
-type SysTab = 'overview' | 'tracking';
+// 탭: 실시간 관제(방송 중인 채널의 지금 상태) · 기간 통계(고른 기간, 끝난 방송 포함, #41) · 채팅관제 Tracking(채팅별 판정 흐름)
+type SysTab = 'overview' | 'period' | 'tracking';
 const tab = ref<SysTab>('overview');
-const tabs: { key: SysTab; label: string; icon: Component }[] = [{ key: 'overview', label: '실시간 관제', icon: Radio }, { key: 'tracking', label: '채팅관제 Tracking', icon: Activity }];
+const tabs: { key: SysTab; label: string; icon: Component }[] = [{ key: 'overview', label: '실시간 관제', icon: Radio }, { key: 'period', label: '기간 통계', icon: CalendarRange }, { key: 'tracking', label: '채팅관제 Tracking', icon: Activity }];
 const now = ref(Date.now());
 let timer: number | undefined;
 onMounted(() => { timer = window.setInterval(() => { now.value = Date.now(); }, 30000); });
@@ -76,18 +79,8 @@ const shownChannels = computed(() => channels.value.filter(c => inChannel(c, c.i
 
 const count = (list: SysReport[], s: ReportStatus) => list.filter(r => r.status === s).length;
 const rate = (list: SysReport[]) => { const a = count(list, 'APPROVED'), d = a + count(list, 'REJECTED'); return d ? Math.round((a / d) * 100) : null; };
-// 대시보드 차트 색. dataviz 검증 스크립트(validate_palette.js, 라이트)로 고른 값이다. 초록·빨강은 색각 이상 구분이 안 돼(ΔE 4.1) 쓰지 않는다.
-// ① 정상·비정상·판정 대기: 모든 검사 통과(최저 ΔE 15.3). ② 승인·결정 대기·기각: 구분 통과(최저 ΔE 24.4), 기각 회청색은 '조치 없음'이라 일부러 무채색에 가깝다.
-const JUDGMENT_COLORS = { normal: '#2a78d6', abnormal: '#e34948', pending: '#eda100' };
-const KICK_COLORS = { APPROVED: '#6250d6', PENDING: '#eda100', REJECTED: '#64748B' };
-const judgmentOf = (list: SysChannel[]): BarSegment[] => {
-  const scanned = list.reduce((n, c) => n + c.scanned, 0), hidden = list.reduce((n, c) => n + c.hidden, 0), held = list.reduce((n, c) => n + c.held, 0);
-  return [
-    { key: 'normal', label: '정상', value: Math.max(scanned - hidden - held, 0), color: JUDGMENT_COLORS.normal },
-    { key: 'abnormal', label: '비정상', value: hidden, color: JUDGMENT_COLORS.abnormal },
-    { key: 'pending', label: '판정 대기', value: held, color: JUDGMENT_COLORS.pending }
-  ];
-};
+// 차트 색·조각 정의는 chartColors.ts(실시간 관제·기간 통계 공용)
+const judgmentOf = (list: SysChannel[]): BarSegment[] => judgmentSegments(list.reduce((n, c) => n + c.scanned, 0), list.reduce((n, c) => n + c.hidden, 0), list.reduce((n, c) => n + c.held, 0));
 // ① 전체 채팅 판정 현황: 모수는 검사한 채팅 수
 const judgment = computed(() => judgmentOf(shownChannels.value));
 const judgmentTotal = computed(() => judgment.value.reduce((n, s) => n + s.value, 0));
@@ -106,17 +99,8 @@ const kickSummary = computed(() => {
 const tracking = computed(() => props.api
   ? { channelName: '', messages: [], reviews: [], cases: [], caseNames: {}, logs: [], kickProgress: {}, traces: null }
   : { channelName: '행복한게임방', messages: mock.messages, reviews: mock.reviews, cases: mock.cases, caseNames: caseNames.value, logs: mock.logs, kickProgress: mock.kickProgress, traces: mock.traces });
-// 방송별 비교: 정상이 대부분(보통 97% 이상)이라 100% 누적 막대로는 방송끼리 차이가 안 보인다.
-// 그래서 비정상·판정 대기 비율만 같은 눈금(가장 높은 방송 기준, 올림한 %)에서 길이로 비교하고, 비정상 비율이 높은 순으로 놓는다.
-const channelBars = computed(() => {
-  const rows = shownChannels.value.map(c => ({
-    id: c.id, name: c.name, live: c.live, scanned: c.scanned, segments: judgmentOf([c]).filter(s => s.key !== 'normal'),
-    abnormalRate: c.scanned ? c.hidden / c.scanned * 100 : 0, pendingRate: c.scanned ? c.held / c.scanned * 100 : 0,
-    kickPending: count(allReports.value.filter(r => r.channelId === c.id), 'PENDING')
-  })).sort((a, b) => b.abnormalRate - a.abnormalRate);
-  const maxRate = Math.max(1, Math.ceil(Math.max(0, ...rows.map(r => r.abnormalRate + r.pendingRate))));
-  return { maxRate, rows: rows.map(r => ({ ...r, scale: r.scanned * maxRate / 100 })) };
-});
+// 방송별 비교(RateBars.vue): 비정상·판정 대기 비율을 같은 눈금에서 비교하고 강퇴 대기 수를 붙인다
+const rateRows = computed(() => shownChannels.value.map(c => ({ id: c.id, name: c.name, live: c.live, scanned: c.scanned, hidden: c.hidden, held: c.held, kickPending: count(allReports.value.filter(r => r.channelId === c.id), 'PENDING') })));
 const channelStats = computed(() => shownChannels.value.map(c => {
   const rs = allReports.value.filter(r => r.channelId === c.id);
   return { ...c, reports: rs.length, approved: count(rs, 'APPROVED'), rejected: count(rs, 'REJECTED'), pending: count(rs, 'PENDING'), rate: rate(rs), hiddenRate: c.scanned ? (c.hidden / c.scanned * 100).toFixed(1) : '-' };
@@ -140,6 +124,7 @@ const channelStats = computed(() => shownChannels.value.map(c => {
       </div>
       <ChatTracking :channel-name="tracking.channelName" :messages="tracking.messages" :reviews="tracking.reviews" :cases="tracking.cases" :case-names="tracking.caseNames" :logs="tracking.logs" :kick-progress="tracking.kickProgress" :traces="tracking.traces"/>
       </template>
+      <PeriodStats v-else-if="tab==='period'" :api="api"/>
       <template v-else>
       <div class="sys-head">
         <div><h1>실시간 관제</h1><p>방송 중인 채널에서 LIVE:GUARD Agent가 내린 판단과 강퇴 승인 요청 처리 상황을 봅니다.<template v-if="offAir"> 방송 중이 아닌 채널 {{offAir}}개는 제외했습니다.</template></p></div>
@@ -184,14 +169,7 @@ const channelStats = computed(() => shownChannels.value.map(c => {
 
       <section class="card sys-section">
         <header class="sys-section-head"><div><h2>방송별 현황</h2><p>방송마다 채팅 판정 분포와 강퇴 요청 결정 결과입니다. 비정상 비율이 높은 방송이 위에 옵니다.<template v-if="channels.length"> 방송 {{shownChannels.length}}개 · 방송 중 {{shownChannels.filter(c => c.live).length}}개</template></p></div></header>
-        <div v-if="channelBars.rows.length" class="sys-channel-bars">
-          <div class="sys-channel-key"><ul class="stacked-legend compact" aria-hidden="true"><li v-for="s in judgment.filter(x => x.key !== 'normal')" :key="s.key"><span><i :style="{background: s.color}"/>{{s.label}}</span></li></ul><small>막대 길이: 검사한 채팅 중 비율 (끝 = {{channelBars.maxRate}}%)</small></div>
-          <div v-for="c in channelBars.rows" :key="c.id" class="sys-channel-bar">
-            <b class="sys-channel-name"><i v-if="c.live" class="live-dot" aria-label="방송 중"/>{{c.name}}</b>
-            <StackedBar :segments="c.segments" :label="`${c.name} 비정상·판정 대기 비율`" :legend="false" thin :base="c.scanned" :scale="c.scale" empty="검사한 채팅 없음"/>
-            <span class="sys-channel-meta">비정상 {{c.abnormalRate.toFixed(1)}}% · 대기 {{c.pendingRate.toFixed(1)}}%<template v-if="c.kickPending"> · <b class="sys-waiting">강퇴 대기 {{c.kickPending}}건</b></template></span>
-          </div>
-        </div>
+        <RateBars :rows="rateRows"/>
         <div class="table-scroll"><table class="data-table sys-table">
           <thead><tr><th>방송</th><th>스트리머</th><th>상태</th><th class="num">검사한 채팅</th><th class="num">자동 숨김</th><th class="num">판정 대기</th><th class="num">숨김률</th><th class="num">강퇴 요청</th><th class="num">승인</th><th class="num">기각</th><th class="num">대기</th><th class="num">승인율</th></tr></thead>
           <tbody><tr v-for="c in channelStats" :key="c.id"><td class="nowrap"><b>{{c.name}}</b></td><td class="nowrap">{{c.streamer}}</td><td class="nowrap"><span v-if="c.live" class="onair"><i class="live-dot"/>방송 중 · {{nf.format(c.viewers)}}명</span><span v-else class="offair">방송 종료</span></td><td class="num">{{nf.format(c.scanned)}}</td><td class="num">{{nf.format(c.hidden)}}</td><td class="num">{{nf.format(c.held)}}</td><td class="num">{{c.hiddenRate}}%</td><td class="num">{{c.reports}}</td><td class="num">{{c.approved}}</td><td class="num">{{c.rejected}}</td><td class="num" :class="{pending: c.pending}">{{c.pending}}</td><td class="num">{{c.rate === null ? '-' : `${c.rate}%`}}</td></tr>

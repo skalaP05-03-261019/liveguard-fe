@@ -1100,3 +1100,44 @@ test('admin dashboard charts split chat judgment from kick approval and rank cha
  assert.equal(await page.getByRole('tab',{name:'실시간 관제',exact:true}).getAttribute('aria-selected'),'true');
  await capture(page,'admin-dashboard-charts');
 });
+
+test('admin period stats default to the last 7 days, include ended broadcasts and validate a custom range',async()=>{
+ const context=await browser.newContext({viewport:{width:1280,height:1000},timezoneId:'Asia/Seoul'});contexts.push(context);
+ const page=await context.newPage();page.on('pageerror',e=>runtimeErrors.push(e.message));
+ await page.goto(mockBase);await page.getByRole('button',{name:'시스템 운영자 전용',exact:true}).click();
+ await page.getByRole('button',{name:'로그인',exact:true}).click();await page.locator('.sys-shell').waitFor();
+ assert.deepEqual(await page.getByRole('tab').allInnerTexts(),['실시간 관제','기간 통계','채팅관제 Tracking']);
+ await page.getByRole('tab',{name:'기간 통계',exact:true}).click();
+ const range=page.getByRole('group',{name:'기간'});
+ assert.equal(await range.getByRole('button',{name:'최근 7일'}).getAttribute('aria-pressed'),'true');
+ const count=t=>Number(t.replace(/[^0-9]/g,''));
+ const daily=()=>page.locator('.period-daily tbody tr').count();
+ assert.equal(await daily(),7);
+ const week=count(await page.locator('.sys-chart-card .sys-base').first().innerText());
+ // 기간 통계는 끝난 방송도 포함한다(실시간 관제에서는 빠지는 코딩 라이브)
+ await range.getByRole('button',{name:'최근 30일'}).click();
+ assert.equal(await daily(),30);
+ assert(count(await page.locator('.sys-chart-card .sys-base').first().innerText())>week);
+ assert(await page.locator('.sys-channel-name').filter({hasText:'코딩 라이브'}).count()===1);
+ // 일별 그래프에 마우스를 올리면 날짜·비율 툴팁
+ const svg=page.locator('.trend-wrap svg');const box=await svg.boundingBox();
+ await page.mouse.move(box.x+box.width/2,box.y+box.height/2);
+ assert.match(await page.locator('.trend-tip').innerText(),/^\d{2}\.\d{2} · /);
+ // 직접 선택: 시작일이 끝일보다 늦으면 안내하고 차트를 비운다
+ await range.getByRole('button',{name:'직접 선택'}).click();
+ await page.getByLabel('시작일').fill('2026-10-20');await page.getByLabel('끝일').fill('2026-10-10');
+ await page.getByRole('alert').filter({hasText:'시작일이 끝일보다 늦습니다.'}).waitFor();
+ assert.equal(await page.locator('.sys-chart-card .stacked-empty').filter({hasText:'기간을 다시 골라 주세요'}).count(),2);
+ await capture(page,'admin-period-stats');
+});
+
+test('API admin period stats stay empty until the backend period API exists',async()=>{
+ const page=await open('admin');await page.locator('.sys-shell').waitFor();
+ await page.getByRole('tab',{name:'기간 통계',exact:true}).click();
+ assert.equal(await page.locator('.sys-chart-card .stacked-empty').filter({hasText:'연동 API 없음'}).count(),2);
+ assert.equal(await page.locator('.trend-empty').innerText(),'연동 API 없음');
+ assert.equal(await page.locator('.sys-base, .period-table').count(),0);
+ assert.equal(await page.locator('.period-empty').innerText(),'연동 API 없음');
+ assert.match(await page.locator('.sys-mock').first().innerText(),/기간 집계 API가 없습니다/);
+ await capture(page,'admin-period-api-empty');
+});
