@@ -22,7 +22,7 @@ async function open(role='author',clockTime){
  const context=await browser.newContext({extraHTTPHeaders:{'x-test-role':role},viewport:{width:1280,height:1000},timezoneId:'Asia/Seoul'});contexts.push(context);
  const page=await context.newPage();page.on('pageerror',e=>runtimeErrors.push(e.message));
  if(clockTime)await page.clock.install({time:new Date(clockTime)});
- await page.goto(base);await page.locator('.v1-shell, .viewer-shell, .app-shell').waitFor();
+ await page.goto(base);await page.locator('.viewer-shell, .app-shell').waitFor();
  return page;
 }
 async function openMock(options={}){
@@ -82,7 +82,8 @@ before(async()=>{
   const role=req.headers['x-test-role']||'author',url=new URL(req.url,'http://fixture');
   const json=(status,data)=>{res.writeHead(status,{'Content-Type':'application/json'});res.end(JSON.stringify(status<400?{data,traceId:'test-trace'}:{error:data,traceId:'test-trace'}));};
   if(url.pathname==='/api/auth/me'&&state.authError)return json(401,{code:'UNAUTHENTICATED',message:'Session expired',retryable:false});
-  if(url.pathname==='/api/auth/me')return json(200,{userId:role,nickname:role,role:role==='operator'?'MODERATOR':'VIEWER',channelIds:['channel-1']});
+  // admin(PLATFORM_ADMIN)은 실제 시드처럼 어느 채널에도 소속되지 않는다
+  if(url.pathname==='/api/auth/me')return json(200,{userId:role,nickname:role,role:role==='operator'?'MODERATOR':role==='admin'?'PLATFORM_ADMIN':'VIEWER',channelIds:role==='admin'?[]:['channel-1']});
   if(url.pathname.endsWith('/lives/current')){
    state.currentReads++;const current=state.active?{liveId:state.liveId,channelId:'channel-1',startedAt:timestamp(),endedAt:null}:null;
    if(state.delayCurrent)await new Promise(r=>setTimeout(r,state.delayCurrent));
@@ -1045,4 +1046,28 @@ test('API decision evidence uses persisted findings, refreshes on SSE and render
  emit('CASE_UPDATED',{caseId:c.caseId});
  await evidence.getByText('검토 API가 반환한 최신 근거',{exact:true}).waitFor();
  await evidence.getByText('제출된 정책 근거 없음',{exact:true}).waitFor();
+});
+
+test('API admin shows the same system screen as the mock with empty data and no invented metrics',async()=>{
+ const context=await browser.newContext({viewport:{width:1280,height:1000},timezoneId:'Asia/Seoul'});contexts.push(context);
+ const mock=await context.newPage();mock.on('pageerror',e=>runtimeErrors.push(e.message));
+ await mock.goto(mockBase);await mock.getByRole('button',{name:'시스템 운영자 전용',exact:true}).click();
+ await mock.getByRole('button',{name:'로그인',exact:true}).click();await mock.locator('.sys-shell').waitFor();
+ const api=await open('admin');await api.locator('.sys-shell').waitFor();
+ // API admin: 같은 메뉴·지표·표 제목, 값만 비어 있다. 백엔드에 시스템 운영자 권한과 여러 방송 조회 API가 없다
+ const shape=async page=>({
+  tabs:await page.getByRole('tab').allInnerTexts(),
+  kpis:await page.locator('.sys-tile span').allInnerTexts(),
+  sections:await page.locator('.sys-section h2').allInnerTexts()
+ });
+ assert.deepEqual(await shape(api),await shape(mock));
+ assert.equal(await api.locator('.mode-badge').innerText(),'연결 대기');assert.equal(await mock.locator('.mode-badge').innerText(),'MOCK 데이터');
+ assert.deepEqual([...new Set(await api.locator('.sys-tile b').allInnerTexts())],['-']);
+ assert.equal(await api.locator('.sys-table .empty-block').filter({hasText:'여러 방송 조회 API가 없어 표시할 데이터가 없습니다.'}).count(),3);
+ const text=await api.locator('.sys-shell').innerText();
+ for(const invented of ['행복한게임방','2,341','명 시청','LIVE 1'])assert(!text.includes(invented),invented);
+ await capture(mock,'admin-mock');await capture(api,'admin-api');
+ await api.getByRole('tab',{name:'채팅관제 Tracking',exact:true}).click();
+ await api.locator('.tracking-grid').getByText('표시할 채팅이 없습니다.',{exact:true}).waitFor();
+ await capture(api,'admin-api-tracking');
 });
