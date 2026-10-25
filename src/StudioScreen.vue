@@ -220,6 +220,7 @@ function flowOf(c: LiveCase): FlowStep[] {
       ? { label: 'AI 판정', time: null, detail: `${verdictLabels[finding.verdict]} (${finding.verdict}) · ${finding.reason}${finding.policyIds.length ? ` · 정책 ${finding.policyIds.join(', ')}` : ''}`, tone: 'done' }
       : review ? { label: 'AI 판정', time: null, detail: '없음 · 운영자가 주변 문맥을 보고 직접 결정', tone: 'skip' }
       : { label: 'AI 판정', time: null, detail: '판정 대기', tone: 'wait' });
+    if(review)steps.push({label:'문맥 검토 요청',time:asTime(review.createdAt),detail:reviewStatusLabels[review.status] ?? review.status,tone:review.status==='PENDING'?'wait':'done'});
     const decided = last('REVIEW_DECIDED');
     if (review?.status === 'PENDING' || c.confirmationStatus === 'PENDING') steps.push({ label: '운영자 결정', time: null, detail: decided ? `보류됨 (${at(decided)}) · 다시 결정 대기` : '결정 대기', tone: 'wait' });
     else steps.push({ label: '운영자 결정', time: at(decided), detail: c.confirmationStatus === 'CONFIRMED_NORMAL' ? '정상 확정' : '위반 확정', tone: 'done' });
@@ -236,10 +237,10 @@ function flowOf(c: LiveCase): FlowStep[] {
 }
 const openCase = ref<string | null>(null);
 function toggleCase(id: string) { openCase.value = openCase.value === id ? null : id; }
-function showFlow(caseId: string) { openCase.value = caseId; caseTab.value = 'cases'; caseFilter.value = 'ALL'; goto('cases'); }
-// 사건 이력: '사건'과 '검토 기록'을 탭으로 나누고, 사건은 상태로 걸러 본다.
+function showFlow(caseId: string) { openCase.value = caseId; caseFilter.value = 'ALL'; goto('cases'); }
+// 검토 정보는 사건의 처리 흐름에 합치고, 사건을 찾을 수 없는 요청은 별도로 남긴다.
 type CaseFilter = 'ALL' | 'PENDING' | 'VIOLATION' | 'RULE' | 'CLEARED';
-const caseTab = ref<'cases' | 'reviews'>('cases');
+const unlinkedReviews = computed(() => props.reviews.filter(r => !props.cases.some(c => c.caseId===r.caseId || (r.kind==='KICK' && r.basisCaseIds.includes(c.caseId)))));
 const caseFilter = ref<CaseFilter>('ALL');
 const caseFilters: { key: CaseFilter; label: string; match: (c: LiveCase) => boolean }[] = [
   { key: 'ALL', label: '전체', match: () => true },
@@ -356,7 +357,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
       </aside>
       <div class="workspace">
         <main class="main-content">
-          <div v-if="page!=='monitor' || !live" class="status-strip"><div><Radio :size="18"/><b>{{pageTitles[page]}}</b></div></div>
+          <div v-if="(page!=='monitor' || !live) && page!=='cases'" class="status-strip"><div><Radio :size="18"/><b>{{pageTitles[page]}}</b></div></div>
           <OperatorTools ref="operatorToolsRef" :live-id="live?.liveId??''" :ended="ended" :reviews="reviews" :progress="kickProgress" @navigate="navigateTool" @open="openToolAlert"/>
           <p v-if="error" class="error-inline" role="alert"><AlertCircle :size="17"/> {{error}}</p>
           <p v-if="notice" class="studio-notice" role="status">{{notice}}</p>
@@ -419,20 +420,14 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
 
             <ViewerManage v-else-if="page==='viewers'" :rows="viewerRows" :busy="busy || ended" scope="현재 방송" @decide="onViewerDecide" @revoke="onViewerRevoke"/>
 
-            <section v-else-if="page==='cases'" class="secondary-page card"><div class="secondary-heading"><div><h2><FileClock :size="24"/> 사건 이력</h2><p>행을 펼치면 사건 하나가 어떻게 처리됐는지 단계별로 볼 수 있습니다.</p></div></div>
-              <div class="studio-tabs" role="tablist" aria-label="사건 이력 보기"><button role="tab" :aria-selected="caseTab==='cases'" :class="{on: caseTab==='cases'}" @click="caseTab='cases'">사건 <b>{{cases.length}}</b></button><button role="tab" :aria-selected="caseTab==='reviews'" :class="{on: caseTab==='reviews'}" @click="caseTab='reviews'">검토 기록 <b>{{reviews.length}}</b></button></div>
-              <template v-if="caseTab==='cases'">
+            <section v-else-if="page==='cases'" class="secondary-page card case-history"><div class="secondary-heading"><div><h2><FileClock :size="24"/> 사건 이력</h2><p>사건을 펼치면 채팅부터 판정·결정·조치까지 시간 흐름을 확인할 수 있습니다.</p></div></div>
                 <div class="vm-chips" role="group" aria-label="사건 상태 필터"><button v-for="f in caseFilters" :key="f.key" :class="{on: caseFilter===f.key}" :aria-pressed="caseFilter===f.key" @click="caseFilter=f.key">{{f.label}} <b>{{caseCount(f.key)}}</b></button></div>
                 <div class="table-scroll"><table class="data-table case-table"><thead><tr><th class="vm-toggle-col"></th><th>시각</th><th>시청자</th><th>메시지 (마스킹)</th><th>상태</th></tr></thead><tbody>
                   <template v-for="c in shownCases" :key="c.caseId"><tr class="case-row" :class="{open: openCase===c.caseId}" :data-case-id="c.caseId" @click="toggleCase(c.caseId)"><td class="vm-toggle-col"><button class="vm-expand" :aria-expanded="openCase===c.caseId" :aria-label="`${nameOf(c.caseId)} 사건 처리 흐름 ${openCase===c.caseId ? '닫기' : '보기'}`" @click.stop="toggleCase(c.caseId)"><ChevronDown v-if="openCase===c.caseId" :size="18"/><ChevronRight v-else :size="18"/></button></td><td class="nowrap">{{asTime(c.createdAt)}}</td><td class="nowrap">{{nameOf(c.caseId)}}</td><td class="log-text">{{targetText(c) ?? '-'}}</td><td><span class="case-state" :class="caseStateOf(c).tone">{{caseStateOf(c).label}}</span></td></tr>
-                  <tr v-if="openCase===c.caseId" class="case-flow-row"><td colspan="5"><ol class="case-flow" aria-label="사건 처리 흐름"><li v-for="(step, n) in flowOf(c)" :key="n" :class="step.tone"><b>{{step.label}}</b><time>{{step.time ?? ''}}</time><span>{{step.detail}}</span></li></ol><small class="vm-muted">AI 조사 시작·완료와 운영자 결정 시각은 실시간 이벤트에만 있어, 이 화면을 연 뒤의 일만 보입니다. 새로고침하면 사라집니다.</small></td></tr></template></tbody></table></div>
+                  <tr v-if="openCase===c.caseId" class="case-flow-row"><td colspan="5"><ol class="case-flow" aria-label="사건 처리 흐름"><li v-for="(step, n) in flowOf(c)" :key="n" :class="step.tone"><div class="case-step-heading"><b>{{step.label}}</b><time>{{step.time ?? '시각 미기록'}}</time></div><span class="case-step-detail">{{step.detail}}</span></li></ol><small class="vm-muted">AI 조사 시작·완료와 운영자 결정 시각은 실시간 이벤트에만 있어, 이 화면을 연 뒤의 일만 보입니다. 새로고침하면 사라집니다.</small></td></tr></template></tbody></table></div>
                 <p v-if="!shownCases.length" class="empty-block">{{cases.length ? '조건에 맞는 사건이 없습니다.' : '아직 사건이 없습니다.'}}</p>
-              </template>
-              <template v-else>
-                <div class="table-scroll"><table class="data-table"><thead><tr><th>요청 시각</th><th>종류</th><th>시청자</th><th>상태</th></tr></thead><tbody>
-                  <tr v-for="r in reviews" :key="r.reviewId"><td class="nowrap">{{asTime(r.createdAt)}}</td><td>{{r.kind==='KICK' ? '강퇴 승인' : '문맥 검토'}}</td><td>{{nameOf(r.caseId)}}</td><td>{{reviewStatusLabels[r.status] ?? r.status}}<template v-if="kickStateOf(r)"> · {{kickStateOf(r)}}</template></td></tr></tbody></table></div>
-                <p v-if="!reviews.length" class="empty-block">아직 검토 기록이 없습니다.</p>
-              </template></section>
+              <details v-if="unlinkedReviews.length" class="unlinked-review-records"><summary>연결 사건을 조회할 수 없는 검토 {{unlinkedReviews.length}}건</summary><p class="vm-muted">목록에 연결 사건이 없어 검토 요청 정보를 별도로 표시합니다.</p><ul><li v-for="r in unlinkedReviews" :key="r.reviewId">{{asTime(r.createdAt)}} · {{r.kind==='KICK'?'강퇴 승인':'문맥 검토'}} · {{nameOf(r.caseId)}} · {{reviewStatusLabels[r.status] ?? r.status}}<template v-if="kickStateOf(r)"> · {{kickStateOf(r)}}</template></li></ul></details>
+              </section>
 
             <section v-else-if="page==='policy'" class="secondary-page card"><div class="secondary-heading"><div><h2><BookOpen :size="24"/> 채팅 관제 운영 정책</h2><p>운영정책 v3.2(2026-10-23) 기준의 처리 경로와 제재 기준입니다. 읽기 전용이며 제재 기간은 운영자가 정하지 않습니다. 전환 전에 열린 사건은 그 사건에 기록된 v3.1로 판정합니다.</p></div></div>
               <h3 class="studio-subhead">처리 경로</h3>

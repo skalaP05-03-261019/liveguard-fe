@@ -630,7 +630,7 @@ test('mock chat archive links a moderated message to its case flow',async()=>{
  const row=page.locator('.chat-db tbody tr').first();const text=await row.locator('.chat-db-text').innerText();
  await row.getByRole('button',{name:'처리 흐름 →',exact:true}).click();
  const flow=page.locator('.case-flow');await flow.waitFor();
- assert.equal(await page.locator('.status-strip b').first().innerText(),'사건 이력');
+ assert.equal(await page.getByRole('heading',{name:'사건 이력',exact:true}).count(),1);
  assert.match(await flow.locator('li').first().innerText(),new RegExp(text.slice(0,6).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
 });
 
@@ -1674,4 +1674,23 @@ test('mock assistant keeps sending with its panel closed until stopped explicitl
  const panel=page.getByRole('dialog',{name:'어떤 것을 도와드릴까요?',exact:true});await panel.locator('.viewer-assistant-prompt').click();await panel.getByRole('button',{name:'시연 도우미 닫기',exact:true}).click();
  await page.clock.runFor(3000);assert.equal(await panel.count(),0);await page.locator('.yt-chat-items').getByText('[시연 3/30] 다들 반가워요 👋',{exact:true}).waitFor();
  await trigger.click();assert.equal(await panel.locator('li').count(),3);await panel.getByRole('button',{name:'중단하기',exact:true}).click();await page.clock.runFor(3000);assert.equal(await panel.locator('li').count(),3);
+});
+
+test('case history has one heading and a vertical timeline with integrated review requests',async()=>{
+ const page=await openMockModerator();await page.getByRole('button',{name:'사건 이력',exact:true}).click();
+ assert.equal(await page.getByRole('heading',{name:'사건 이력',exact:true}).count(),1);
+ assert.equal(await page.getByRole('tab',{name:/검토 기록/}).count(),0);
+ await page.locator('.case-row').first().click();const flow=page.getByRole('list',{name:'사건 처리 흐름',exact:true});
+ const labels=await flow.locator('.case-step-heading b').allInnerTexts();assert.deepEqual(labels.slice(0,2),['채팅','사건 생성']);assert(labels.includes('조치'));
+ const rows=await flow.locator('li').evaluateAll(items=>items.map(e=>e.getBoundingClientRect().top));assert(rows.every((v,i)=>!i||v>rows[i-1]));
+ await captureReview(page,'case-timeline-mock-desktop');
+ await page.setViewportSize({width:390,height:844});await captureReview(page,'case-timeline-mock-390');
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+});
+
+test('case history preserves review requests whose cases are unavailable',async()=>{
+ state.cases=[];state.reviews=[{reviewId:'orphan-review',kind:'CONTEXT',liveId:'live-1',caseId:'missing-case',status:'DECIDED',version:1,createdAt:timestamp(),aiVerdict:'NEEDS_REVIEW',messages:[],targetMessageIds:[],findings:[],basisCaseIds:[],summary:'검토 요청'}];
+ const page=await open('operator');await page.getByRole('button',{name:'사건 이력',exact:true}).click();
+ const records=page.locator('.unlinked-review-records');await records.locator('summary').click();assert.match(await records.innerText(),/문맥 검토/);assert.match(await records.innerText(),/결정됨/);
+ await captureReview(page,'case-timeline-api-unlinked');
 });
