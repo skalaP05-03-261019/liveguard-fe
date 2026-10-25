@@ -317,7 +317,7 @@ const evidence = computed(() => {
       for (const s2 of step('판단·근거 검증')) add(s2.detail);
       const next = review ? '운영자 결정 대기' : item?.confirmationStatus === 'CONFIRMED_NORMAL' ? '가림 해제' : item?.confirmationStatus === 'CONFIRMED_VIOLATION' ? '위반 확정' : '검증 중';
       add(`결과: ${next}`);
-      fill(pii ? '개인정보 경로: 정상이면 가림을 풀고, 판단 보류면 운영자 검토로 넘깁니다. 위반은 실제 개인정보 근거가 검증될 때만 확정합니다.' : '문맥 경로: AI 판정과 상관없이 운영자 결정으로 넘깁니다. AI 정상 판단만으로 공개하지 않습니다.',
+      fill(pii ? '개인정보 경로: AI 조사 후 백엔드가 근거·정책을 검증합니다. v3.2는 실존·소유자 확인 없이 형태·노출 문맥으로 판단하며, 개인정보 단독 위반은 운영자 결정 없이 확정합니다. 정상은 가림 해제, 판단 보류·다른 유형 혼합은 운영자 검토입니다. v3.1 사건은 당시 기준을 유지합니다.' : '문맥 경로: AI 판정과 상관없이 운영자 결정으로 넘깁니다. AI 정상 판단만으로 공개하지 않습니다.',
         '임시 비노출', next, '백엔드가 검증하고 넘깁니다.', 'v3.2 §5'); break;
     }
     case 'wait': {

@@ -31,5 +31,5 @@ export const routeRows: { route: HandlingRoute; trigger: string; decider: string
   { route: 'RULE_CONFIRMED', trigger: '확정 욕설 사전 일치, 링크 포함', decider: 'Backend 규칙', result: '바로 숨김·위반 확정, 기준표의 채팅 제한 자동 적용' },
   { route: 'FLOOD_REVIEW', trigger: '10초 안에 같은 문장 3회 이상', decider: 'Backend 규칙', result: '세 번째부터 숨김·위반 확정' },
   { route: 'CONTEXT_REVIEW', trigger: '공격 표현(집단을 향한 표현 포함), 공식 사칭 + 로그인 요구', decider: 'AI 제안 → 운영자 결정', result: '결정 전까지 임시 비노출(HELD)' },
-  { route: 'PII_INVESTIGATION', trigger: '전화번호·계좌번호(하이픈 묶음 10자리 이상)·이메일 형식. 숫자 나열만으로는 아님', decider: 'AI 조사 → 위반 아님이면 백엔드가 해제, 판단 보류면 운영자 결정', result: '처리 전까지 임시 비노출(HELD)' }
+  { route: 'PII_INVESTIGATION', trigger: '전화번호·계좌번호(하이픈 묶음 10자리 이상)·이메일 형식. 숫자 나열만으로는 아님', decider: 'AI 조사 → 백엔드 검증·확정. 개인정보 단독 위반은 운영자 결정 없이 확정, 판단 보류·다른 유형 혼합은 운영자 검토', result: '조사 중 HELD · 정상은 해제 · 확정 위반은 숨김과 제재' }
 ];
