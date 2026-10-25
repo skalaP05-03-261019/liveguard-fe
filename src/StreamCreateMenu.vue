@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {nextTick,onBeforeUnmount,onMounted,ref} from 'vue';
-import {Plus,Radio} from 'lucide-vue-next';
+import {Radio} from 'lucide-vue-next';
 const props=defineProps<{live:boolean;disabled:boolean;reason?:string}>();
 const emit=defineEmits<{start:[];end:[]}>();
 const expanded=ref(false),root=ref<HTMLElement|null>(null),trigger=ref<HTMLButtonElement|null>(null),item=ref<HTMLButtonElement|null>(null);
@@ -15,9 +15,8 @@ onBeforeUnmount(()=>{document.removeEventListener('pointerdown',outside);documen
 </script>
 <template>
  <div ref="root" class="stream-create">
-  <button type="button" class="yt-icon-button broadcast-status" :class="{live}" :data-live="live" :aria-label="live ? '방송 중 · 방송 관리' : '방송 대기 · 방송 관리'" :title="live ? '방송 중' : '방송 대기'" aria-haspopup="menu" :aria-expanded="expanded" aria-controls="stream-create-menu" @click="toggle"><Radio :size="24"/></button>
-  <button ref="trigger" type="button" class="stream-create-trigger" aria-haspopup="menu" :aria-expanded="expanded" aria-controls="stream-create-menu" @click="toggle"><Plus :size="22"/><span>만들기</span></button>
-  <div v-if="expanded" id="stream-create-menu" class="stream-create-menu" role="menu" aria-label="만들기">
+  <button ref="trigger" type="button" class="yt-icon-button broadcast-status" :class="{live}" :data-live="live" :aria-label="live ? '방송 중 · 방송 관리' : '방송 대기 · 방송 관리'" :title="live ? '방송 중' : '방송 대기'" aria-haspopup="menu" :aria-expanded="expanded" aria-controls="stream-create-menu" @click="toggle"><Radio :size="24"/></button>
+  <div v-if="expanded" id="stream-create-menu" class="stream-create-menu" role="menu" aria-label="방송 관리">
    <button ref="item" type="button" role="menuitem" :aria-disabled="disabled" :aria-describedby="disabled&&reason?'stream-create-reason':undefined" @click="start"><Radio :size="22"/><span>{{live?'방송 종료':'라이브 스트리밍 시작'}}</span></button>
    <p v-if="disabled&&reason" id="stream-create-reason">{{reason}}</p>
   </div>
