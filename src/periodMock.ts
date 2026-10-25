@@ -17,7 +17,8 @@ function mockFixture(now: number): PeriodFixture {
       const r=(j:number)=>rand(k*97+i*13+j);
       let start:number,end:number|null;
       if(k===0){if(!ch.live)return;start=now-(1+i)*3600_000;end=null;}
-      else {if(r(1)>0.7)return;start=kstStart(day)+(18+i%3)*3600_000;end=start+(2+Math.floor(r(2)*3))*3600_000;}
+      else {if(r(1)>0.7)return;start=kstStart(day)+(18+i%3)*3600_000;// Keep synthetic history before the current live and never mark a future ending as finished.
+        end=Math.min(start+(2+Math.floor(r(2)*3))*3600_000,ch.live?now-(1+i)*3600_000:now);}
       const liveId=`${ch.id}-${day}`,stop=Math.min(end??now,now);
       if(stop<=start)return;
       fixture.lives.push({ liveId,channelId:ch.id,channelName:ch.name,startedAt:new Date(start).toISOString(),endedAt:end===null?null:new Date(end).toISOString() });

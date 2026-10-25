@@ -3,11 +3,18 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const ts=require('typescript');
-async function source(name){
+const moduleUrls=new Map();
+async function moduleUrl(name){
+ if(moduleUrls.has(name))return moduleUrls.get(name);
  const text=fs.readFileSync(path.join(__dirname,'../src',name),'utf8');
- const {outputText}=ts.transpileModule(text,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}});
- return import('data:text/javascript;base64,'+Buffer.from(outputText).toString('base64'));
+ let {outputText}=ts.transpileModule(text,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}});
+ for(const match of [...outputText.matchAll(/from\s+(['"])(\.\/[^'"]+)\1/g)]){
+  const dependency=path.join(path.dirname(name),match[2]+'.ts');
+  outputText=outputText.replaceAll(match[0],`from '${await moduleUrl(dependency)}'`);
+ }
+ const url='data:text/javascript;base64,'+Buffer.from(outputText).toString('base64');moduleUrls.set(name,url);return url;
 }
+async function source(name){return import(await moduleUrl(name));}
 test('basis cases and display decisions do not infer categories, missing decisions or roles',async()=>{
  const {basisCaseCount,reportStatus}=await source('reportSummary.ts');
  assert.equal(basisCaseCount(['case-a','case-b','case-c','case-a']),3);
@@ -60,4 +67,19 @@ test('period messages and requests use half-open timestamps and conserve daily t
  for(const key of ['scanned','hidden','held'])assert.equal(both.lives.reduce((n,l)=>n+l[key],0),both.daily.reduce((n,d)=>n+d[key],0));
  assert.equal(both.daily[1].held,7);
  assert.equal(both.lives.find(l=>l.liveId==='cross').kickReviews.pending,1);
+});
+
+
+test('generated midnight fixtures keep one active live per channel and conserve totals',async()=>{
+ const {mockPeriodStats,kstDay,addDays,kstStart}=await source('periodMock.ts');
+ for(const now of [kstStart('2026-10-25')+60000,kstStart('2026-10-25')+14*3600000]){
+  const today=kstDay(now),stats=mockPeriodStats(addDays(today,-3),today,now);
+  for(const channel of new Set(stats.lives.map(l=>l.channelId))){
+   const lives=stats.lives.filter(l=>l.channelId===channel).sort((a,b)=>a.startedAt.localeCompare(b.startedAt));
+   assert(lives.filter(l=>l.endedAt===null).length<=1);
+   for(let i=1;i<lives.length;i++)assert(Date.parse(lives[i-1].endedAt)<=Date.parse(lives[i].startedAt));
+  }
+  for(const l of stats.lives)if(l.endedAt)assert(Date.parse(l.endedAt)<=now);
+  for(const key of ['scanned','hidden','held'])assert.equal(stats.lives.reduce((n,l)=>n+l[key],0),stats.daily.reduce((n,d)=>n+d[key],0));
+ }
 });
