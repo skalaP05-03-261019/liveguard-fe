@@ -1392,3 +1392,4 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .studio-shell .studio-broadcast-summary{padding:4px 0 12px;margin-bottom:16px;border-bottom:1px solid #eee;min-width:0}.studio-shell .studio-broadcast-summary>b{display:block;font-size:17px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}.studio-shell .studio-broadcast-summary .studio-live-line{margin:5px 0 0;gap:6px;font-size:12px;line-height:1.5}
 .studio-shell .studio-broadcast-summary>h1{margin:0;font-size:24px;font-weight:600;line-height:1.5;letter-spacing:-.5px;overflow-wrap:anywhere}.studio-shell .studio-broadcast-summary>h1+b{margin-top:8px;font-size:15px;font-weight:400;color:#606060}
 @media(max-width:600px){.studio-shell .studio-broadcast-summary>h1{font-size:20px}}
+.brand-channel-avatar{background:#ece7ff!important;color:#111;display:inline-flex;align-items:center;justify-content:center}.studio-shell .sidebar.compact .brand-channel-avatar svg{width:22px;height:22px}
