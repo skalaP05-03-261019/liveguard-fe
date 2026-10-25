@@ -644,7 +644,8 @@ test('streamer monitoring keeps chat and both decision queues visible; tracking 
  assert.equal(await page.locator('.chat-detail').count(),0);
  assert.equal(await page.locator('.chat-row[role=button]').count(),0,'chat rows are not selectable on the streamer screen');
  const chat=await page.locator('.chat-panel').boundingBox(),stream=await page.locator('.stream-panel').boundingBox();
- assert.equal(Math.round(chat.width),Math.round(stream.width));
+ assert(stream.width>=chat.width);
+ const grid=await page.locator('.live-monitoring-grid').boundingBox();assert(stream.y+stream.height<=grid.y,'broadcast summary is above all three columns');
  // 채팅 시각은 시:분, 마우스를 올리면 날짜까지.
  const time=page.locator('.chat-row .chat-time').first();
  assert.match(await time.innerText(),/^\d{2}:\d{2}$/);assert.match(await time.getAttribute('title'),/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);

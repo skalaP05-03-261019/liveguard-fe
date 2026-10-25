@@ -1297,3 +1297,10 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 
 .sys-shell .sys-layout{min-height:calc(100dvh - 64px)}
 .studio-shell .ai-evidence{background:#fafafa;border-color:#e5e5e5}
+
+.studio-shell .studio-broadcast-summary{margin-bottom:20px}
+.studio-shell .studio-broadcast-summary .stream-caption{padding:16px 20px}
+.studio-shell .studio-broadcast-summary .yt-channel-avatar{width:40px;height:40px;flex:none}
+.studio-shell .studio-broadcast-summary .stream-caption b{white-space:normal;overflow-wrap:anywhere}
+.studio-shell .live-monitoring-grid .monitor-grid.chat-only{grid-template-areas:'chat';grid-template-rows:auto}
+@media(max-width:600px){.studio-shell .studio-broadcast-summary{margin-bottom:16px}.studio-shell .studio-broadcast-summary .stream-caption{padding:14px}}
