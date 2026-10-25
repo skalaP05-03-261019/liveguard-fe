@@ -364,9 +364,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
 
           <section v-if="!live && !loading" class="card secondary-page studio-empty"><Radio :size="30"/><h2>진행 중인 방송이 없습니다</h2><p>방송을 시작하면 시청자 채팅과 AI 조사 결과를 확인할 수 있습니다.</p></section>
           <template v-else-if="live">
-            <div class="studio-live-line"><span :class="ended ? 'ended' : 'on'">{{ended ? '종료' : '● LIVE'}}</span> 방송 {{live.liveId.slice(0,8)}} · {{asTime(live.startedAt)}} 시작<template v-if="ended"> · 방송이 종료되어 결정할 수 없습니다</template></div>
-
-              <div v-if="page==='monitor'" class="stream-panel card studio-broadcast-summary"><div class="stream-caption"><span class="yt-channel-avatar studio-stream-icon"><Radio :size="20" :stroke-width="1.7"/></span><div><b>{{BROADCAST_TITLE}}</b><small>{{channelName}} · <span class="live-badge">{{ended ? '방송 종료' : '● 실시간'}}</span></small></div></div></div>
+            <div class="studio-broadcast-summary"><b>{{BROADCAST_TITLE}}</b><div class="studio-live-line"><span>{{channelName}}</span><span>· {{asTime(live.startedAt)}} 시작</span><span v-if="ended" class="ended">· 방송 종료 — 결정할 수 없습니다</span></div></div>
             <p v-if="arrivalAnnouncement" class="monitor-arrival-announcement" role="status">{{arrivalAnnouncement}}</p>
             <div v-if="page==='monitor'" class="live-monitoring-grid queue-page">
                 <StatusSummaryWidget v-for="q in monitorQueues" :key="q.kind" :title="q.title" :kind="q.kind" :count="q.items.length" :empty-text="q.empty" :fresh="q.items.some(r=>freshReviews.has(r.reviewId))" :ended="ended" @focusin="queueTab=q.kind" @click="queueTab=q.kind">

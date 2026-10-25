@@ -1292,7 +1292,7 @@ test('admin counts distinct basis cases with multiple types and separates invali
  });
  await logoutPage(page);
  await page.getByRole('button',{name:'시스템 운영자 전용',exact:true}).click();await page.getByRole('button',{name:'로그인',exact:true}).click();
- await page.locator('.sys-filter').getByRole('button',{name:/행복한게임방/}).click();
+ await page.locator('.sys-filter').getByRole('button',{name:/LIVE:GUARD/}).click();
  assert.equal(await page.locator('.request-table td:nth-child(5)').innerText(),'3건');
  await captureReview(page,'contract-basis-desktop');
  await page.setViewportSize({width:390,height:844});

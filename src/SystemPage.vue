@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { BROADCAST_CHANNEL_NAME, BROADCAST_TITLE } from './broadcastPresentation';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { Activity, AlertTriangle, CalendarRange, CheckCircle2, Clock3, Menu, Radio, ShieldCheck, XCircle } from 'lucide-vue-next';
 import type { Component } from 'vue';
@@ -52,7 +53,7 @@ const LIVE_BASE = { scanned: 1480, hidden: 27 };
 const mock = store.mock.state;
 const caseNames = computed(() => Object.fromEntries(mock.cases.map(c => [c.caseId, store.mock.aliasOf(c.userId)])));
 const ownerOf = (caseId: string) => mock.cases.find(c => c.caseId === caseId)?.userId ?? '';
-const liveChannel = computed<SysChannel>(() => ({ id: LIVE_CHANNEL_ID, name: '행복한게임방', streamer: '행복한게임방', live: true, viewers: 2341, scanned: LIVE_BASE.scanned + mock.messages.length, hidden: LIVE_BASE.hidden + mock.messages.filter(m => m.visibility === 'HIDDEN').length, held: mock.messages.filter(m => m.visibility === 'HELD').length }));
+const liveChannel = computed<SysChannel>(() => ({ id: LIVE_CHANNEL_ID, name: BROADCAST_CHANNEL_NAME, streamer: BROADCAST_CHANNEL_NAME, live: true, viewers: 2341, scanned: LIVE_BASE.scanned + mock.messages.length, hidden: LIVE_BASE.hidden + mock.messages.filter(m => m.visibility === 'HIDDEN').length, held: mock.messages.filter(m => m.visibility === 'HELD').length }));
 const liveReports = computed<SysReport[]>(() => mock.reviews.filter(r => r.kind === 'KICK').map(r => {
   const d = mock.decisions[r.reviewId], progress = mock.kickProgress[r.reviewId] ?? '';
   return {
@@ -124,7 +125,7 @@ const attention = computed(() => {
 // 채팅관제 Tracking: 실제 API는 관리자용 방송 채팅·사건 조회가 없어 빈 데이터를 넘긴다.
 const tracking = computed(() => props.api
   ? { channelName: '', messages: [], reviews: [], cases: [], caseNames: {}, logs: [], kickProgress: {}, traces: null }
-  : { channelName: '행복한게임방', messages: mock.messages, reviews: mock.reviews, cases: mock.cases, caseNames: caseNames.value, logs: mock.logs, kickProgress: mock.kickProgress, traces: mock.traces });
+  : { channelName: BROADCAST_CHANNEL_NAME, messages: mock.messages, reviews: mock.reviews, cases: mock.cases, caseNames: caseNames.value, logs: mock.logs, kickProgress: mock.kickProgress, traces: mock.traces });
 // 방송별 비교(RateBars.vue): 비정상·판정 대기 비율을 같은 눈금에서 비교하고 강퇴 대기 수를 붙인다
 const rateRows = computed(() => shownChannels.value.map(c => ({ id: c.id, name: c.name, live: c.live, scanned: c.scanned, hidden: c.hidden, held: c.held, kickPending: count(allReports.value.filter(r => r.channelId === c.id), 'PENDING') })));
 const channelStats = computed(() => shownChannels.value.map(c => {
@@ -143,10 +144,11 @@ const channelStats = computed(() => shownChannels.value.map(c => {
       <button v-for="t in tabs" :key="t.key" type="button" role="tab" :aria-label="t.label" :title="t.label" :aria-selected="tab===t.key" :class="{on: tab===t.key}" @click="selectTab(t.key)"><component :is="t.icon" :size="22" :stroke-width="1.8"/><span>{{t.label}}</span></button>
     </nav>
     <main ref="mainElement" class="main-content sys-main" tabindex="-1" :inert="!navWide && navOpen">
+      <div class="configured-broadcast"><span>시연 방송</span><b>{{BROADCAST_TITLE}}</b><small>{{BROADCAST_CHANNEL_NAME}}</small></div>
       <template v-if="tab==='tracking'">
       <div class="sys-head">
         <div><h1>채팅관제 Tracking</h1><p>채팅 한 줄을 누르면 백엔드 1차 분류, AI Agent 조사·판정, 백엔드 검증, 운영자 결정까지 어떤 경로로 처리됐는지 확인합니다. 조회 전용입니다.</p></div>
-        <span class="sys-mock">{{api ? '관리자용 방송 채팅·사건 조회 API가 없습니다' : '행복한게임방 데모 방송과 연동'}}</span>
+        <span class="sys-mock">{{api ? '관리자용 방송 채팅·사건 조회 API가 없습니다' : `${BROADCAST_CHANNEL_NAME} 데모 방송과 연동`}}</span>
       </div>
       <ChatTracking :channel-name="tracking.channelName" :messages="tracking.messages" :reviews="tracking.reviews" :cases="tracking.cases" :case-names="tracking.caseNames" :logs="tracking.logs" :kick-progress="tracking.kickProgress" :traces="tracking.traces"/>
       </template>
@@ -154,7 +156,7 @@ const channelStats = computed(() => shownChannels.value.map(c => {
       <template v-else>
       <div class="sys-head">
         <div><h1>실시간 관제</h1><p>방송 중인 채널에서 LIVE:GUARD Agent가 내린 판단과 강퇴 승인 요청 처리 상황을 봅니다.<template v-if="offAir"> 방송 중이 아닌 채널 {{offAir}}개는 제외했습니다.</template></p></div>
-        <span class="sys-mock">{{api ? '여러 방송 통합 조회 API가 없습니다' : '행복한게임방은 데모 상태와 연동'}}</span>
+        <span class="sys-mock">{{api ? '여러 방송 통합 조회 API가 없습니다' : `${BROADCAST_CHANNEL_NAME}는 데모 상태와 연동`}}</span>
       </div>
       <div class="sys-filter" role="group" aria-label="방송 필터"><button :class="{on: channelFilter==='ALL'}" @click="channelFilter='ALL'">전체 방송</button><button v-for="c in channels" :key="c.id" :class="{on: channelFilter===c.id}" @click="channelFilter=c.id"><i v-if="c.live" class="live-dot" aria-label="방송 중"/>{{c.name}}</button></div>
 

@@ -1,3 +1,4 @@
+import { BROADCAST_CHANNEL_NAME } from './broadcastPresentation';
 import { LIVE_CHANNEL_ID, sysChannels } from './systemMock';
 import { addDays, aggregatePeriodStats, kstDay, kstStart, type PeriodFixture, type PeriodStats } from './periodAggregation';
 export { addDays, daysBetween, kstDay, kstStart } from './periodAggregation';
@@ -7,7 +8,7 @@ export type { PeriodLive, PeriodDay, PeriodStats } from './periodAggregation';
 // message sentAt/review createdAt in [from,to), using current visibility. Never slice
 // a real broadcast total proportionally or attribute a cross-midnight broadcast to its start day.
 const rand = (seed: number) => { const v=Math.sin(seed*12.9898)*43758.5453;return v-Math.floor(v); };
-const channels=[{ id:LIVE_CHANNEL_ID,name:'행복한게임방',live:true },...sysChannels.map(c=>({ id:c.id,name:c.name,live:c.live }))];
+const channels=[{ id:LIVE_CHANNEL_ID,name:BROADCAST_CHANNEL_NAME,live:true },...sysChannels.map(c=>({ id:c.id,name:c.name,live:c.live }))];
 const BASE_RATE=[2.1,2.3,2.2,1.7,1.4];
 function mockFixture(now: number): PeriodFixture {
   const today=kstDay(now),fixture:PeriodFixture={ lives:[],messages:[],reviews:[] };
