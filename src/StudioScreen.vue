@@ -4,6 +4,8 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { AlertCircle, BookOpen, ChevronDown, ChevronRight, ClipboardCheck, FileClock, LogOut, Menu, MessagesSquare, Pause, Play, Radio, RefreshCcw, ShieldCheck, Sparkles, Users, UserX } from 'lucide-vue-next';
 import ViewerManage from './ViewerManage.vue';
+import OperatorTools from './OperatorTools.vue';
+import type { ShortcutAction, OperatorAlert } from './operatorTools';
 import ModeBadge from './ModeBadge.vue';
 import AiEvidence from './AiEvidence.vue';
 import { groupByViewer, type ViewerCase, type ViewerFinding, type ViewerReview } from './viewerManage';
@@ -256,6 +258,31 @@ const shownChats = computed(() => {
   return chatRows.value.filter(m => f.match(m) && (!q || m.text.includes(q) || m.authorAlias.includes(q)));
 });
 
+async function navigateTool(action: ShortcutAction) {
+ if(!props.live||props.ended||props.busy)return;
+ if(action==='search'){
+  goto('chats');await nextTick();document.querySelector<HTMLInputElement>('[aria-label="채팅 기록 검색"]')?.focus();return;
+ }
+ const items=shownQueue.value.items;if(!items.length){goto('reviews');return;}
+ const active=page.value==='reviews'?items.findIndex(r=>isOpen(r)):-1;
+ if(action==='toggle'){
+  if(page.value!=='reviews'){goto('reviews');}
+  else toggleReview(items[Math.max(0,active)]);
+ }else{
+  const index=active<0?(action==='next'?0:items.length-1):Math.max(0,Math.min(items.length-1,active+(action==='next'?1:-1)));
+  openIds[shownQueue.value.kind]=items[index].reviewId;goto('reviews');
+ }
+ await nextTick();document.querySelector<HTMLElement>('.studio-review.open .review-head')?.focus();
+}
+async function openToolAlert(reviewId:string,kind:OperatorAlert['kind']){
+ const r=props.reviews.find(r=>r.reviewId===reviewId&&r.liveId===props.live?.liveId);
+ if(!r||props.ended)return;
+ if(kind==='failure'){
+  showFlow(r.caseId);await nextTick();
+  document.querySelector<HTMLElement>(`[data-case-id="${CSS.escape(r.caseId)}"] .vm-expand`)?.focus();return;
+ }
+ if(r.status==='PENDING'){openDecision(r);await nextTick();document.querySelector<HTMLElement>('.studio-review.open .review-head')?.focus();}
+}
 function openDecision(r: LiveReview) { queueTab.value = r.kind; openIds[r.kind] = r.reviewId; goto('reviews'); }
 
 // 시청자 관리: 사건·검토를 시청자 이름으로 묶는다. 무효가 된 검토는 빼고 보여 준다.
@@ -302,6 +329,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
         <main class="main-content">
           <div class="status-strip"><div><Sparkles :size="16"/><b>{{pageTitles[page]}}</b></div>
             <div class="status-controls"><button v-if="!mock" @click="emit('refresh')"><RefreshCcw :size="14"/> 새로고침</button><button v-if="!mock && !loading && (!live || ended)" class="primary" :disabled="busy" @click="emit('start')">방송 시작</button><button v-if="!mock && live && !ended" :disabled="busy" @click="emit('end')">방송 종료</button></div></div>
+          <OperatorTools :live-id="live?.liveId??''" :ended="ended" :reviews="reviews" :progress="kickProgress" @navigate="navigateTool" @open="openToolAlert"/>
           <p v-if="error" class="error-inline" role="alert"><AlertCircle :size="17"/> {{error}}</p>
           <p v-if="notice" class="studio-notice" role="status">{{notice}}</p>
           <p v-for="k in kickStates" :key="k.review.reviewId" class="kick-progress" role="status"><span>강퇴 처리 · {{nameOf(k.review.caseId)}}: <b>{{k.state}}</b></span><slot name="kick-actions" :review-id="k.review.reviewId" :state="k.state"/></p>

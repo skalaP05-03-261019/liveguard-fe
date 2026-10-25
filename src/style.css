@@ -1143,3 +1143,27 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
  .monitor-log-table th:not(:nth-child(1)):not(:nth-child(3)):not(:nth-child(6)),.monitor-log-table td:not(:nth-child(1)):not(:nth-child(3)):not(:nth-child(6)){display:none}
  .mobile-row-detail p{overflow-wrap:anywhere}
 }
+
+/* 웹 관제 알림과 탐색 도구: 설정은 브라우저 로컬에만 저장 */
+.operator-tools{margin:10px 0 14px;font-size:13px;min-width:0}
+.operator-tools-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.operator-tools button{border-radius:6px;background:var(--chip);padding:7px 10px;min-height:34px;text-align:left}
+.operator-tools button:hover{background:var(--chip-hover)}
+.operator-tools small,.operator-settings p,.operator-setting-status{color:var(--text-2);line-height:1.5}
+.operator-tools-bar b{margin-left:4px;color:var(--amber)}
+.operator-alerts,.operator-settings{border:1px solid var(--line);background:var(--surface);padding:12px;border-radius:8px;margin-top:8px}
+.operator-alerts ul{list-style:none;padding:0;margin:0 0 10px;display:grid;gap:6px}
+.operator-alerts li{display:flex;justify-content:space-between;gap:8px}
+.operator-alerts li button:first-child{flex:1}
+.operator-settings{display:grid;gap:10px}
+.operator-settings label{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.operator-settings input[type=number]{width:65px}
+.operator-settings input:not([type=checkbox]){padding:6px;border:1px solid var(--line);border-radius:4px;background:var(--surface)}
+.operator-key-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.operator-key-grid label{justify-content:space-between}
+.operator-key-grid input{width:40px;text-align:center}
+.operator-settings>div:last-child{display:flex;gap:8px;flex-wrap:wrap}
+.operator-announcement{margin-top:8px;padding:8px 10px;border-radius:6px;background:var(--amber-bg);color:var(--amber);line-height:1.5}
+.operator-announcement button{margin-left:8px}
+.operator-setting-status{margin-top:8px}
+@media(max-width:590px){.operator-key-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.operator-tools-bar small{width:100%}.operator-alerts li{align-items:start}.operator-announcement button{margin:4px 4px 0 0}}
