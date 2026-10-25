@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
-import { Bell, CheckCircle2, ChevronDown, Ellipsis, Forward, LogOut, Menu, Mic, Search, SendHorizontal, ShieldCheck, Smile, ThumbsDown, ThumbsUp } from 'lucide-vue-next';
+import { Bell, CheckCircle2, ChevronDown, Ellipsis, Forward, Menu, Mic, Search, SendHorizontal, ShieldCheck, Smile, ThumbsDown, ThumbsUp } from 'lucide-vue-next';
 import YtPlayer from './YtPlayer.vue';
-import ModeBadge from './ModeBadge.vue';
+import AccountMenu from './AccountMenu.vue';
 import ChatTimeoutNotice from './ChatTimeoutNotice.vue';
 import { timeoutEndText } from './chatTime';
 import { authorNotice, visibilityLabels, type Message } from './contracts';
@@ -116,8 +116,7 @@ function dislike() { disliked.value = !disliked.value; if (disliked.value) liked
       <div class="yt-masthead-start"><span class="yt-icon-button" aria-hidden="true"><Menu :size="22"/></span><a class="yt-logo" href="#"><span class="yt-logo-mark"><ShieldCheck :size="15"/></span><b>LIVE<span>:</span>GUARD</b><sup>KR</sup></a></div>
       <div class="yt-search"><div class="yt-search-box"><input ref="searchRef" v-model="query" placeholder="채팅 검색" aria-label="채팅 검색"/><button title="채팅 검색" @click="searchRef?.focus()"><Search :size="20"/></button></div><button class="yt-icon-button filled" title="음성으로 검색"><Mic :size="20"/></button></div>
       <div class="yt-masthead-end">
-        <ModeBadge :mock="mock" :online="online"/>
-        <span class="yt-me" :style="{background: avatarColor(nickname)}" :title="nickname">{{nickname.slice(0,1)}}</span><button class="yt-icon-button" title="로그아웃" @click="emit('logout')"><LogOut :size="20"/></button>
+        <AccountMenu :nickname="nickname" account-label="시청자 계정" @logout="emit('logout')"/>
       </div>
     </header>
 

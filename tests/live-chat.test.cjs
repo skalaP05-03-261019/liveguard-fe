@@ -406,13 +406,13 @@ test('mock and API viewers share desktop geometry and theater controls without i
  assert.doesNotMatch(await api.locator('.yt-description').innerText(),/2,341|1시간 전/);
  // #28: 장식 요소는 같은 자리에 있고 값만 다르다. 계약에 없는 값(시청자·구독자 수)은 API에서 숨긴다.
  for(const page of [mock,api]){
-  for(const sel of ['.yt-masthead-end .mode-badge','.yt-channel-avatar','.yt-subscribe','.yt-actions .yt-segment'])assert.equal(await page.locator(sel).count(),1,sel);
+  for(const sel of ['.yt-masthead-end .account-menu-trigger','.yt-channel-avatar','.yt-subscribe','.yt-actions .yt-segment'])assert.equal(await page.locator(sel).count(),1,sel);
   assert.equal(await page.locator('.yt-actions .yt-pill').count(),2);
   assert.equal(await page.locator('.yt-live-dot').innerText(),'실시간');
   assert.match(await page.locator('.yt-time').innerText(),/^\d+:\d{2}:\d{2}$/);
   assert.match(await page.locator('.yt-description b').innerText(),/^방송 시작: /);
  }
- assert.equal(await mock.locator('.mode-badge').innerText(),'MOCK 데이터');assert.match(await api.locator('.mode-badge').innerText(),/^(ON AIR|OFF AIR)$/);
+ for(const page of [mock,api])assert.equal(await page.locator('.mode-badge').count(),0);
  assert.equal(await mock.locator('.yt-watching').count(),1);assert.equal(await api.locator('.yt-watching').count(),0);
  assert.equal(await api.getByTitle('새로고침',{exact:true}).count(),0);
  assert.equal(await api.locator('.yt-masthead-end [title="만들기"],.yt-masthead-end [title="알림"]').count(),0);
@@ -1102,9 +1102,9 @@ test('API admin shows the same system screen as the mock with empty data and no 
   sections:await page.locator('.sys-section h2').allInnerTexts()
  });
  assert.deepEqual(await shape(api),await shape(mock));
- assert.equal(await api.locator('.mode-badge').innerText(),'OFF AIR');assert.equal(await mock.locator('.mode-badge').innerText(),'MOCK 데이터');
+ assert.equal(await api.locator('.mode-badge').count(),0);assert.equal(await mock.locator('.mode-badge').count(),0);
  await captureReview(api,'off-air-gray');
- if(evidence)await api.locator('.mode-badge').screenshot({path:path.join(evidence,'off-air-badge.png')});
+
  // 차트도 가짜 0 없이 비워 둔다
  assert.equal(await api.locator('.sys-chart-card .stacked-empty').filter({hasText:'연동 API 없음'}).count(),2);
  assert.equal(await api.locator('.sys-chart-card .stacked-legend, .sys-base').count(),0);
@@ -1586,4 +1586,20 @@ for(const mode of ['mock','api'])test(`admin drawer and account menu work in ${m
  await captureReview(page,`admin-${mode}-account-390`);
  await page.getByRole('menuitem',{name:'로그아웃',exact:true}).click();
  await page.getByRole('button',{name:'시스템 운영자 전용',exact:true}).waitFor();
+});
+
+for(const mode of ['mock','api'])test(`viewer account popup replaces status and logout controls in ${mode}`,async()=>{
+ const page=mode==='mock'?await openMock():await open();
+ const header=page.locator('.yt-masthead');
+ assert.equal(await header.locator('.mode-badge').count(),0);
+ assert.equal(await page.getByRole('button',{name:'로그아웃',exact:true}).count(),0);
+ const trigger=page.getByRole('button',{name:'계정 메뉴',exact:true});
+ for(const width of [1280,390,360]){
+ await page.setViewportSize({width,height:844});await trigger.click();
+ await page.getByRole('menu',{name:'계정',exact:true}).getByText('시청자 계정',{exact:true}).waitFor();
+ await captureReview(page,`viewer-${mode}-account-${width}`);
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ await page.keyboard.press('Escape');assert.equal(await trigger.evaluate(e=>e===document.activeElement),true);
+ }
+ await logoutPage(page);await page.getByRole('button',{name:'시청자로 시작하기',exact:true}).waitFor();
 });
