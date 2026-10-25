@@ -398,7 +398,7 @@ test('mock and API viewers share desktop geometry and theater controls without i
   assert.match(await page.locator('.yt-time').innerText(),/^\d+:\d{2}:\d{2}$/);
   assert.match(await page.locator('.yt-description b').innerText(),/^방송 시작: /);
  }
- assert.equal(await mock.locator('.mode-badge').innerText(),'MOCK 데이터');assert.match(await api.locator('.mode-badge').innerText(),/^(ON AIR|연결 대기)$/);
+ assert.equal(await mock.locator('.mode-badge').innerText(),'MOCK 데이터');assert.match(await api.locator('.mode-badge').innerText(),/^(ON AIR|OFF AIR)$/);
  assert.equal(await mock.locator('.yt-watching').count(),1);assert.equal(await api.locator('.yt-watching').count(),0);
  assert.equal(await api.getByTitle('새로고침',{exact:true}).count(),1);assert.equal(await mock.getByTitle('새로고침',{exact:true}).count(),0);
  await capture(mock,'shared-viewer-mock-desktop');await capture(api,'shared-viewer-api-desktop');
@@ -1085,7 +1085,7 @@ test('API admin shows the same system screen as the mock with empty data and no 
   sections:await page.locator('.sys-section h2').allInnerTexts()
  });
  assert.deepEqual(await shape(api),await shape(mock));
- assert.equal(await api.locator('.mode-badge').innerText(),'연결 대기');assert.equal(await mock.locator('.mode-badge').innerText(),'MOCK 데이터');
+ assert.equal(await api.locator('.mode-badge').innerText(),'OFF AIR');assert.equal(await mock.locator('.mode-badge').innerText(),'MOCK 데이터');
  // 차트도 가짜 0 없이 비워 둔다
  assert.equal(await api.locator('.sys-chart-card .stacked-empty').filter({hasText:'연동 API 없음'}).count(),2);
  assert.equal(await api.locator('.sys-chart-card .stacked-legend, .sys-base').count(),0);
