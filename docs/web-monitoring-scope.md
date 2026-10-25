@@ -78,3 +78,5 @@ CHAT_EVIDENCE_DIR=docs/evidence/followups node --test --test-name-pattern='admin
 ```
 
 실제 로컬 100세션·100채팅/초 결과와 검증 범위는 [정합성·평가 보고서](contract-alignment.md)를 참고한다. 이는 웹 도구의 새로운 인증/외부 플랫폼 계약이 있다는 뜻이 아니다.
+
+추가로 [이슈 종료 조건 자체 점검](issue-closure-audit.md)에서 이전 방송 요청의 탐색/제출 보호와 편집기·방송 종료 검증을 보강했다. 최신 누적 결과는 브라우저 65개 + 모델 7개 통과다. #53의 확대 범위가 남아 있으므로 자동 종료에서는 제외하고 #54만 PR 머지 시 종료 대상으로 둔다.

@@ -80,7 +80,7 @@ watch(() => shownMessages.value.map(m => m.messageId), async (ids, previous) => 
 });
 
 // 운영자 결정 대기: 강퇴 승인 → 문맥 검토, 각각 오래 기다린 순서
-const pending = computed(() => props.reviews.filter(r => r.status === 'PENDING')
+const pending = computed(() => props.reviews.filter(r => r.status === 'PENDING' && r.liveId === props.live?.liveId)
   .sort((a, b) => Number(b.kind === 'KICK') - Number(a.kind === 'KICK') || Date.parse(iso(a.createdAt)) - Date.parse(iso(b.createdAt))));
 // 같은 시청자가 같은 문장을 보낸 다른 사건. 문장이 같으면 이미 결정한 검토가 다시 열린 것처럼 보이므로 함께 보여 준다.
 const sameText = (t: string | null) => (t ?? '').replace(/\s+/g, ' ').trim();
@@ -124,8 +124,9 @@ const choice = reactive<Record<string, ContextDecision | KickDecision>>({});
 const contextChoices: { value: ContextDecision; label: string }[] = [{ value: 'CONFIRM_NORMAL', label: '정상 확정' }, { value: 'CONFIRM_VIOLATION', label: '위반 확정' }, { value: 'DEFER', label: '보류' }];
 const kickChoices: { value: KickDecision; label: string }[] = [{ value: 'APPROVE', label: '강퇴 승인' }, { value: 'REJECT', label: '강퇴 기각' }];
 // 결정 사유는 받지 않는다(Backend A-26: 사유는 선택이고 운영자 화면에는 입력란이 없다). 결정 값과 위반 유형만 보낸다.
-const canSubmit = (r: LiveReview) => !props.busy && !props.ended && !!choice[r.reviewId] && (choice[r.reviewId] !== 'CONFIRM_VIOLATION' || categoriesOf(r).length > 0);
+const canSubmit = (r: LiveReview) => r.status === 'PENDING' && r.liveId === props.live?.liveId && !props.busy && !props.ended && !!choice[r.reviewId] && (choice[r.reviewId] !== 'CONFIRM_VIOLATION' || categoriesOf(r).length > 0);
 function submit(r: LiveReview) {
+  if (!canSubmit(r)) return;
   const value = choice[r.reviewId];
   if (!value) return;
   emit('decide', r, value, '', value === 'CONFIRM_VIOLATION' ? categoriesOf(r) : []);

@@ -1336,3 +1336,29 @@ test('web failure alerts exclude unknown results and open the matching case with
  await page.evaluate(async()=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');useLiveGuard().mock.state.reviews.find(r=>r.kind==='KICK').status='INVALIDATED';});
  await page.getByRole('button',{name:/^관제 알림 [0-9]+$/}).click();assert.equal(await page.getByRole('button',{name:'강퇴 실행 실패 확인 →',exact:true}).count(),0);
 });
+
+
+test('closure audit: shortcuts ignore editable fields, decided requests and previous live data',async()=>{
+ const page=await openMockModerator();await page.evaluate(()=>document.activeElement?.blur?.());await page.keyboard.press('/');
+ await page.getByLabel('채팅 기록 검색',{exact:true}).waitFor();
+ for(const tag of ['textarea','select','div']){
+  await page.evaluate(tag=>{const e=document.createElement(tag);e.id='audit-editor';if(tag==='div')e.contentEditable='true';if(tag==='select')e.appendChild(new Option('선택','one'));document.body.appendChild(e);e.focus();},tag);
+  await page.keyboard.press('j');assert.equal(await page.locator('.queue-page').count(),0,tag);
+  await page.locator('#audit-editor').evaluate(e=>e.remove());
+ }
+ await page.evaluate(async()=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');for(const r of useLiveGuard().mock.state.reviews)r.status='DECIDED';});
+ await page.evaluate(()=>document.activeElement?.blur?.());await page.keyboard.press('j');await page.locator('.queue-page').waitFor();
+ assert.equal(await page.locator('.studio-review').count(),0);
+ await page.evaluate(async()=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');const m=useLiveGuard().mock.state;m.reviews.find(r=>r.kind==='KICK').status='PENDING';m.live.liveId='audit-new-live';m.live.channelId='audit-new-channel';});
+ await page.keyboard.press('j');assert.equal(await page.locator('.studio-review').count(),0);
+ assert.equal(await page.getByRole('button',{name:'제출',exact:true}).count(),0);
+});
+
+test('closure audit: operator shortcuts stop after the live ends',async()=>{
+ const page=await open('operator');await waitFor(()=>clients.size>=2);
+ await page.evaluate(()=>document.activeElement?.blur?.());await page.keyboard.press('/');await page.getByLabel('채팅 기록 검색',{exact:true}).waitFor();
+ await gotoMonitor(page);emit('LIVE_ENDED',{liveId:'live-1'});
+ await page.locator('.studio-live-line .ended').waitFor();
+ await page.evaluate(()=>document.activeElement?.blur?.());await page.keyboard.press('/');
+ assert.equal(await page.getByLabel('채팅 기록 검색',{exact:true}).count(),0);
+});
