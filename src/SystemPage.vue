@@ -7,7 +7,6 @@ import { categoryLabels, type Category, type Verdict } from './contracts';
 import AccountMenu from './AccountMenu.vue';
 import { KICK_SUMMARY } from './mockLive';
 import ChatTracking from './ChatTracking.vue';
-import ModeBadge from './ModeBadge.vue';
 import StackedBar, { type BarSegment } from './StackedBar.vue';
 import RateBars from './RateBars.vue';
 import PeriodStats from './PeriodStats.vue';
@@ -137,7 +136,7 @@ const channelStats = computed(() => shownChannels.value.map(c => {
 <template>
   <div class="app-shell sys-shell">
     <header class="topbar"><div class="topbar-title"><button ref="navTrigger" type="button" class="yt-icon-button" :aria-label="navVisible ? '메뉴 닫기' : '메뉴 열기'" :aria-expanded="navVisible" aria-controls="system-navigation" @click="toggleNav"><Menu :size="22"/></button><span class="yt-logo"><span class="yt-logo-mark"><ShieldCheck :size="15"/></span><b>LIVE<span>:</span>GUARD</b></span><span class="console-tag">System</span></div>
-      <div class="topbar-right"><ModeBadge :mock="!api"/><AccountMenu :nickname="store.me?.nickname??'관리자'" account-label="시스템 운영자 계정" @logout="store.logout()"/></div></header>
+      <div class="topbar-right"><AccountMenu :nickname="store.me?.nickname??'관리자'" account-label="시스템 운영자 계정" @logout="store.logout()"/></div></header>
     <div class="sys-layout" :class="{'nav-collapsed':!navVisible}"><button v-if="!navWide && navOpen" type="button" class="sys-drawer-backdrop" aria-label="메뉴 닫기 배경" @click="closeNav(true)"/>
     <!-- 왼쪽 메뉴: 아이콘과 이름, 고른 항목은 회색 배경 -->
     <nav id="system-navigation" ref="navElement" class="sys-side" :class="{open:navVisible}" :inert="!navVisible" :aria-hidden="!navVisible" role="tablist" aria-orientation="vertical" aria-label="시스템 운영자 화면">
