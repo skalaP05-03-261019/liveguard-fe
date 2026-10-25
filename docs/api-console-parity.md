@@ -6,7 +6,7 @@
 
 5173번 Vite 개발 서버는 소스 변경을 바로 반영하지만, 3000번은 Docker 안의 정적 빌드를 제공합니다. 이전 3000번 자산에는 종·통합 화면·OFF AIR 코드가 없었습니다. 프론트엔드만 `docker compose build frontend`와 `docker compose up -d --no-deps frontend`로 갱신했습니다. 빌드 소스는 `liveguard-fe`, `VITE_USE_API=true`입니다. BE·Agent·DB는 재시작하지 않았습니다.
 
-현재 3000번 자산은 `/assets/index-mVaK6NcA.js`이며 종·통합 화면·OFF AIR 코드가 포함돼 있습니다. 향후 프론트 소스를 수정해도 Docker는 자동 갱신되지 않으므로 3000번 반영을 다시 확인해야 합니다.
+현재 3000번 자산은 `/assets/index-BhqcoxPT.js`이며 종·통합 화면·OFF AIR 코드가 포함돼 있습니다. 향후 프론트 소스를 수정해도 Docker는 자동 갱신되지 않으므로 3000번 반영을 다시 확인해야 합니다.
 
 ## 실제 API 화면 체크
 
@@ -48,3 +48,20 @@
 SSE 차단은 검사 브라우저에만 적용했습니다. 실행 중인 방송·서버 연결을 중단하지 않았습니다.
 
 ![OFF AIR](evidence/api-console-parity/06-off-air.png)
+
+
+## 로그아웃 아이콘 통일
+
+스트리머와 시스템 운영자의 텍스트·파란 테두리 버튼을 시청자와 같은 `yt-icon-button` + 20px LogOut으로 통일했습니다. 툴팁과 접근성 이름은 로그아웃으로 유지하고 실제 로그아웃 핸들러는 변경하지 않았습니다. 목업/API 관련 기존 브라우저 테스트 4개와 빌드를 통과했습니다. Docker 갱신 후 실제 세 역할로 로그인해 모두 40×40px 버튼·20px 아이콘·텍스트 없음으로 확인했습니다.
+
+시청자:
+
+![시청자](evidence/logout-icons/viewer.png)
+
+스트리머:
+
+![스트리머](evidence/logout-icons/moderator.png)
+
+시스템 운영자:
+
+![시스템 운영자](evidence/logout-icons/admin.png)
