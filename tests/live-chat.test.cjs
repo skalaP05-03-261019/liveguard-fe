@@ -1604,21 +1604,41 @@ for(const mode of ['mock','api'])test(`viewer account popup replaces status and 
  await logoutPage(page);await page.getByRole('button',{name:'시청자로 시작하기',exact:true}).waitFor();
 });
 
-for(const mode of ['mock','api'])test(`viewer assistant creates exactly 30 local preview chats and cancels in ${mode}`,async()=>{
+for(const mode of ['mock','api'])test(`viewer assistant sends 30 chats through the normal chat flow in ${mode}`,async()=>{
  const page=mode==='mock'?await openMock():await open('author','2026-10-25T00:00:00Z');
- if(mode==='api')await page.clock.pauseAt(new Date('2026-10-25T00:01:00Z'));
+ if(mode==='api'){await page.getByLabel('채팅 메시지',{exact:true}).waitFor();await page.clock.pauseAt(new Date('2026-10-25T00:01:00Z'));}
  let posts=0;page.on('request',r=>{if(r.method()==='POST'&&new URL(r.url()).pathname.endsWith('/messages'))posts++;});
+ await page.getByLabel('채팅 메시지',{exact:true}).fill('내 작성 중 초안');
  const trigger=page.getByRole('button',{name:'Gemini 시연 도우미 열기',exact:true});await trigger.click();
  const panel=page.getByRole('dialog',{name:'어떤 것을 도와드릴까요?',exact:true});
  const prompt=panel.getByRole('button',{name:'시연을 위해 목업 채팅을 만들어줘. 1초에 1개씩 30개만',exact:true});
  await prompt.click();await page.clock.runFor(999);assert.equal(await panel.locator('li').count(),0);
- await page.clock.runFor(1);assert.equal(await panel.locator('li').count(),1);
- assert.equal(await prompt.isDisabled(),true);await page.clock.runFor(29000);assert.equal(await panel.locator('li').count(),30);
- await page.clock.runFor(3000);assert.equal(await panel.locator('li').count(),30);assert.equal(posts,0);
- await captureReview(page,`assistant-${mode}-desktop`);
- await prompt.click();await page.clock.runFor(1000);await panel.getByRole('button',{name:'생성 중지',exact:true}).click();await page.clock.runFor(2000);assert.equal(await panel.locator('li').count(),1);
- await page.setViewportSize({width:360,height:844});await captureReview(page,`assistant-${mode}-360`);
+ await page.clock.runFor(1);await waitFor(async()=>await panel.locator('li').count()===1);
+ assert.equal(await prompt.isDisabled(),true);
+ for(let n=2;n<=30;n++){await page.clock.runFor(1000);await waitFor(async()=>await panel.locator('li').count()===n);}
+ await page.clock.runFor(3000);assert.equal(await panel.locator('li').count(),30);assert.equal(posts,mode==='api'?30:0);
+ assert.equal(await page.locator('.yt-chat-items').getByText('[시연 30/30] 좋은 방송 감사합니다',{exact:true}).count(),1);
+ assert.equal(await page.getByLabel('채팅 메시지',{exact:true}).inputValue(),'내 작성 중 초안');
+ await captureReview(page,`assistant-chat-${mode}-desktop`);
+ await prompt.click();await page.clock.runFor(1000);await waitFor(async()=>await panel.locator('li').count()===1);
+ await panel.getByRole('button',{name:'생성 중지',exact:true}).click();await page.clock.runFor(2000);assert.equal(await panel.locator('li').count(),1);
+ await page.setViewportSize({width:360,height:844});await captureReview(page,`assistant-chat-${mode}-360`);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
- await prompt.click();await page.keyboard.press('Escape');assert.equal(await trigger.evaluate(e=>e===document.activeElement),true);
+ await prompt.click();await page.keyboard.press('Escape');await panel.waitFor({state:'detached'});await waitFor(async()=>await trigger.evaluate(e=>e===document.activeElement));
  await page.clock.runFor(3000);await trigger.click();assert.equal(await panel.locator('li').count(),0);
+});
+
+test('viewer assistant stops after API failure or broadcast end and cannot run without a broadcast',async()=>{
+ state.active=false;const empty=await open('author');await empty.getByText('진행 중인 방송이 없습니다',{exact:true}).waitFor();
+ await empty.getByRole('button',{name:'Gemini 시연 도우미 열기',exact:true}).click();
+ assert.equal(await empty.locator('.viewer-assistant-prompt').isDisabled(),true);
+ await empty.context().close();
+ state.active=true;const page=await open('author','2026-10-25T00:00:00Z');await page.getByLabel('채팅 메시지',{exact:true}).waitFor();await page.clock.pauseAt(new Date('2026-10-25T00:01:00Z'));
+ await page.getByRole('button',{name:'Gemini 시연 도우미 열기',exact:true}).click();
+ const prompt=page.locator('.viewer-assistant-prompt');
+ state.postError={code:'TEMPORARY_UNAVAILABLE',message:'Try later',retryable:true};await prompt.click();await page.clock.runFor(1000);
+ await waitFor(async()=>await page.locator('.viewer-assistant [role="alert"]').count()===1);
+ await page.clock.runFor(5000);assert.equal(state.posts,1);assert.equal(await page.locator('.viewer-assistant-chats li').count(),0);
+ state.postError=null;await prompt.click();await page.clock.runFor(1000);await waitFor(async()=>await page.locator('.viewer-assistant-chats li').count()===1);
+ const before=state.posts;state.active=false;emit('LIVE_ENDED',{liveId:'live-1'});await waitFor(async()=>await prompt.isDisabled());await page.clock.runFor(5000);assert.equal(state.posts,before);
 });

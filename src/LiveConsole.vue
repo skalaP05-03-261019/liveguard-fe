@@ -220,6 +220,15 @@ async function send(){
  try{await api.sendLive(live.value.liveId,value,outgoing.id);text.value='';outgoing=null;await refresh();}
  catch(e){fail(e);}finally{busy.value=false;}
 }
+// Uses the normal authenticated chat endpoint; never changes the user's draft.
+async function sendDemoChat(value:string):Promise<boolean>{
+ if(chatDisabled.value||!live.value)return false;
+ const liveId=live.value.liveId;
+ if(!await sessionValid()||chatDisabled.value||live.value?.liveId!==liveId)return false;
+ busy.value=true;error.value='';
+ try{await api.sendLive(liveId,value,uuid());await refresh();return true;}
+ catch(e){fail(e);return false;}finally{busy.value=false;}
+}
 const requests=new Map<string,{serialized:string;id:string}>();
 async function decide(r:LiveReview,value:string,reason:string,categories:Category[]){
  if(!await sessionValid())return;
@@ -256,7 +265,7 @@ onMounted(()=>{load();window.addEventListener('focus',checkSession);if(authChann
 onBeforeUnmount(()=>{generation++;disconnect();window.removeEventListener('focus',checkSession);authChannel?.close();if(timer)clearInterval(timer);if(clockTimer)clearInterval(clockTimer);});
 </script>
 <template>
- <ViewerScreen v-if="!operator&&!admin" v-model:draft="text" :messages="visibleMessages" :nickname="store.me?.nickname??'시청자'" :scope-key="`${store.me?.userId}:${live?.liveId??''}`" :clock="clock" :ready="accessReady" :loading="loading" :has-live="!!live" :blocked="blocked" :ended="ended" :busy="busy" :timed-out="timedOut" :timeout-until="timeoutUntil" :timeout-reason="timeoutReason" :started-at="live?.startedAt" :online="online" :error="error" :notice="notice" @send="send" @logout="store.logout()"/>
+ <ViewerScreen :send-demo-chat="sendDemoChat" v-if="!operator&&!admin" v-model:draft="text" :messages="visibleMessages" :nickname="store.me?.nickname??'시청자'" :scope-key="`${store.me?.userId}:${live?.liveId??''}`" :clock="clock" :ready="accessReady" :loading="loading" :has-live="!!live" :blocked="blocked" :ended="ended" :busy="busy" :timed-out="timedOut" :timeout-until="timeoutUntil" :timeout-reason="timeoutReason" :started-at="live?.startedAt" :online="online" :error="error" :notice="notice" @send="send" @logout="store.logout()"/>
  <StudioScreen v-else-if="operator" :nickname="store.me?.nickname??'스트리머'" :live="live" :ended="ended" :loading="loading" :online="online" :messages="visibleMessages" :reviews="reviews" :cases="caseHistory" :case-names="caseNames" :logs="logs" :kick-progress="kickProgress" :archive="archive" :archive-more="archiveMore" :archive-loading="archiveLoading" :busy="busy" :error="error" :notice="notice"
   @decide="decide" @revoke="revoke" @start="start" @end="end" @logout="store.logout()" @page="onPage" @load-older="loadArchive(false)"/>
  <!-- 시스템 운영자: 목업과 같은 화면. 백엔드에 시스템 운영자 권한과 여러 방송 조회 API가 없어 데이터 칸은 비어 있다 -->

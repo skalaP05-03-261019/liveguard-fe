@@ -14,6 +14,7 @@ import { avatarColor } from './avatar';
 // 호출자가 준 것만 보이고, 계약에 없는 실제 API는 비워 둔다(#28).
 const props = withDefaults(defineProps<{
   messages: Message[];
+  sendDemoChat?: (text:string)=>Promise<boolean>;
   nickname: string;
   scopeKey: string;
   clock: number;
@@ -115,7 +116,7 @@ function dislike() { disliked.value = !disliked.value; if (disliked.value) liked
   <div class="viewer-shell" :class="{'api-viewer': !mock}">
     <header class="yt-masthead">
       <div class="yt-masthead-start"><span class="yt-icon-button" aria-hidden="true"><Menu :size="22"/></span><a class="yt-logo" href="#"><span class="yt-logo-mark"><ShieldCheck :size="15"/></span><b>LIVE<span>:</span>GUARD</b><sup>KR</sup></a></div>
-      <div class="yt-search"><div class="yt-search-box"><input ref="searchRef" v-model="query" placeholder="채팅 검색" aria-label="채팅 검색"/><button title="채팅 검색" @click="searchRef?.focus()"><Search :size="20"/></button></div><ViewerAssistant :scope-key="scopeKey"/></div>
+      <div class="yt-search"><div class="yt-search-box"><input ref="searchRef" v-model="query" placeholder="채팅 검색" aria-label="채팅 검색"/><button title="채팅 검색" @click="searchRef?.focus()"><Search :size="20"/></button></div><ViewerAssistant :scope-key="scopeKey" :disabled="!ready||loading||!hasLive||blocked||ended||timedOut" :send-chat="sendDemoChat"/></div>
       <div class="yt-masthead-end">
         <AccountMenu :nickname="nickname" account-label="시청자 계정" @logout="emit('logout')"/>
       </div>
