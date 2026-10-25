@@ -1609,7 +1609,7 @@ for(const mode of ['mock','api'])test(`viewer assistant sends 30 chats through t
  if(mode==='api'){await page.getByLabel('채팅 메시지',{exact:true}).waitFor();await page.clock.pauseAt(new Date('2026-10-25T00:01:00Z'));}
  let posts=0;page.on('request',r=>{if(r.method()==='POST'&&new URL(r.url()).pathname.endsWith('/messages'))posts++;});
  await page.getByLabel('채팅 메시지',{exact:true}).fill('내 작성 중 초안');
- const trigger=page.getByRole('button',{name:'Gemini 시연 도우미 열기',exact:true});await trigger.click();
+ const trigger=page.getByRole('button',{name:'시연 도우미 열기',exact:true});await trigger.click();
  const panel=page.getByRole('dialog',{name:'어떤 것을 도와드릴까요?',exact:true});
  const prompt=panel.getByRole('button',{name:'시연을 위해 목업 채팅을 만들어줘. 1초에 1개씩 30개만',exact:true});
  await prompt.click();await page.clock.runFor(999);assert.equal(await panel.locator('li').count(),0);
@@ -1630,11 +1630,11 @@ for(const mode of ['mock','api'])test(`viewer assistant sends 30 chats through t
 
 test('viewer assistant stops after API failure or broadcast end and cannot run without a broadcast',async()=>{
  state.active=false;const empty=await open('author');await empty.getByText('진행 중인 방송이 없습니다',{exact:true}).waitFor();
- await empty.getByRole('button',{name:'Gemini 시연 도우미 열기',exact:true}).click();
+ await empty.getByRole('button',{name:'시연 도우미 열기',exact:true}).click();
  assert.equal(await empty.locator('.viewer-assistant-prompt').isDisabled(),true);
  await empty.context().close();
  state.active=true;const page=await open('author','2026-10-25T00:00:00Z');await page.getByLabel('채팅 메시지',{exact:true}).waitFor();await page.clock.pauseAt(new Date('2026-10-25T00:01:00Z'));
- await page.getByRole('button',{name:'Gemini 시연 도우미 열기',exact:true}).click();
+ await page.getByRole('button',{name:'시연 도우미 열기',exact:true}).click();
  const prompt=page.locator('.viewer-assistant-prompt');
  state.postError={code:'TEMPORARY_UNAVAILABLE',message:'Try later',retryable:true};await prompt.click();await page.clock.runFor(1000);
  await waitFor(async()=>await page.locator('.viewer-assistant [role="alert"]').count()===1);

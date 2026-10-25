@@ -18,17 +18,19 @@ onMounted(()=>document.addEventListener('keydown',key));
 onBeforeUnmount(()=>{stop();document.removeEventListener('keydown',key);});
 </script>
 <template>
- <button ref="trigger" type="button" class="yt-icon-button viewer-assistant-trigger" aria-label="Gemini 시연 도우미 열기" aria-haspopup="dialog" :aria-expanded="open" @click="show"><svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><defs><linearGradient id="viewer-assistant-gradient" x1="0" y1="1" x2="1" y2="0"><stop stop-color="#4285f4"/><stop offset=".45" stop-color="#9b72cb"/><stop offset=".72" stop-color="#d96570"/><stop offset="1" stop-color="#fbbc04"/></linearGradient></defs><path fill="url(#viewer-assistant-gradient)" d="M16 1C14 10 10 14 1 16c9 2 13 6 15 15 2-9 6-13 15-15C22 14 18 10 16 1Z"/></svg></button>
+ <button ref="trigger" type="button" class="yt-icon-button viewer-assistant-trigger" aria-label="시연 도우미 열기" aria-haspopup="dialog" :aria-expanded="open" @click="show"><svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><defs><linearGradient id="viewer-assistant-gradient" x1="0" y1="1" x2="1" y2="0"><stop stop-color="#4285f4"/><stop offset=".45" stop-color="#9b72cb"/><stop offset=".72" stop-color="#d96570"/><stop offset="1" stop-color="#fbbc04"/></linearGradient></defs><path fill="url(#viewer-assistant-gradient)" d="M16 1C14 10 10 14 1 16c9 2 13 6 15 15 2-9 6-13 15-15C22 14 18 10 16 1Z"/></svg></button>
  <Teleport to="body"><template v-if="open">
  <div class="viewer-assistant-shade" @click="close"/>
  <section ref="panel" class="viewer-assistant" role="dialog" aria-modal="true" aria-labelledby="viewer-assistant-title">
- <header><b>Gemini <small>시연 도우미</small></b><button ref="closeButton" type="button" class="yt-icon-button" aria-label="시연 도우미 닫기" @click="close"><X :size="22"/></button></header>
- <div class="viewer-assistant-content"><h2 id="viewer-assistant-title">어떤 것을 도와드릴까요?</h2><p>버튼을 누르면 현재 로그인한 계정으로 시연 문장 30개를 실제 채팅창에 전송합니다. Gemini API 연결 전에는 준비된 예시 문장을 사용합니다.</p>
- <button type="button" class="viewer-assistant-prompt" :disabled="running||pending||disabled||!sendChat" @click="start">시연을 위해 목업 채팅을 만들어줘. 1초에 1개씩 30개만</button>
+ <header><b>시연 도우미</b><button ref="closeButton" type="button" class="yt-icon-button" aria-label="시연 도우미 닫기" @click="close"><X :size="22"/></button></header>
+ <div class="viewer-assistant-content" :class="{'has-chats':chats.length>0}">
+ <div class="viewer-assistant-welcome"><svg viewBox="0 0 32 32" width="38" height="38" aria-hidden="true"><path fill="url(#viewer-assistant-gradient)" d="M16 1C14 10 10 14 1 16c9 2 13 6 15 15 2-9 6-13 15-15C22 14 18 10 16 1Z"/></svg><h2 id="viewer-assistant-title">어떤 것을 도와드릴까요?</h2></div>
+ <div class="viewer-assistant-actions"><span class="viewer-assistant-eyebrow">이렇게 시연해 보세요</span><button type="button" class="viewer-assistant-prompt" :disabled="running||pending||disabled||!sendChat" @click="start">시연을 위해 목업 채팅을 만들어줘. 1초에 1개씩 30개만</button>
+ <p class="viewer-assistant-disclosure">준비된 예시 문장을 현재 계정으로 실제 채팅창에 전송합니다.</p></div>
  <div class="viewer-assistant-progress" role="status">{{running?'채팅창에 전송 중':chats.length===30?'전송 완료':'전송한 시연 채팅'}} · {{chats.length}} / 30</div>
  <p v-if="disabled">방송 중이며 채팅할 수 있는 상태에서 실행할 수 있습니다.</p><p v-if="failure" role="alert">{{failure}}</p>
  <button v-if="running" type="button" class="viewer-assistant-stop" @click="stop">생성 중지</button>
- <p v-if="!chats.length" class="viewer-assistant-empty">버튼을 누르면 1초 뒤 첫 채팅을 전송합니다.</p>
+
  <ol ref="list" class="viewer-assistant-chats" aria-label="전송한 시연 채팅"><li v-for="(chat,i) in chats" :key="i"><span>{{chat}}</span><small>전송됨</small></li></ol>
  </div></section>
  </template></Teleport>
