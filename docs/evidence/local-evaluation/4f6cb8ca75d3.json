@@ -1,0 +1,126 @@
+{
+  "run": "4f6cb8ca75d3",
+  "startedAt": "2026-10-25T04:40:32.888Z",
+  "mode": "actual-local-spring-pass-traffic",
+  "requested": {
+    "participants": 100,
+    "seconds": 10,
+    "rate": 100
+  },
+  "checks": [
+    {
+      "name": "duplicate_start_returns_409",
+      "pass": true
+    },
+    {
+      "name": "login_without_csrf_denied",
+      "pass": true
+    },
+    {
+      "name": "invalid_csrf_denied",
+      "pass": true
+    },
+    {
+      "name": "GET_/api/lives/4ede1dec-4382-4ef2-946d-274d2d926cab/messages_denied_403",
+      "pass": true
+    },
+    {
+      "name": "GET_/api/lives/4ede1dec-4382-4ef2-946d-274d2d926cab/events_denied_403",
+      "pass": true
+    },
+    {
+      "name": "POST_/api/lives/4ede1dec-4382-4ef2-946d-274d2d926cab/messages_denied_403",
+      "pass": true
+    },
+    {
+      "name": "GET_/api/guard/events_denied_403",
+      "pass": true
+    },
+    {
+      "name": "GET_/api/reviews_denied_403",
+      "pass": true
+    },
+    {
+      "name": "GET_/api/guard/events_denied_403",
+      "pass": true
+    },
+    {
+      "name": "GET_/api/lives/4ede1dec-4382-4ef2-946d-274d2d926cab/messages_denied_403",
+      "pass": true
+    },
+    {
+      "name": "POST_/api/lives/4ede1dec-4382-4ef2-946d-274d2d926cab/end_denied_403",
+      "pass": true
+    },
+    {
+      "name": "hidden_stream_only_author_and_moderator",
+      "pass": true
+    },
+    {
+      "name": "hidden_absent_from_other_viewer_rest",
+      "pass": true
+    },
+    {
+      "name": "streamer_membership_is_not_moderator_raw_access",
+      "pass": true
+    },
+    {
+      "name": "client_message_id_is_idempotent",
+      "pass": true
+    }
+  ],
+  "unverified": [
+    "production HTTPS cookie attributes",
+    "real LLM/PII latency and cost",
+    "long-duration memory stability",
+    "real kick approval and revalidation under load",
+    "agreed production SLOs"
+  ],
+  "credentialsRecorded": false,
+  "fixture": {
+    "channelA": "21463b75-06d1-4df3-ae95-6ffb95773e42",
+    "channelB": "b0c0a420-0fd7-4d14-9cb1-3ad585146683",
+    "createdUsers": 105,
+    "existingUsersModified": false,
+    "cleanup": "test broadcasts ended; synthetic rows retained for reproducibility"
+  },
+  "backendImage": "16052a41ada91c10254576f3a9d667bb88290fb5880252b4f024d5e26923de9c",
+  "observedPolicyVersions": [
+    "v3.2"
+  ],
+  "localCookieAttributes": [
+    {
+      "name": "XSRF-TOKEN",
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "JSESSIONID",
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "result": "failed",
+  "failure": {
+    "name": "Error",
+    "message": "TIMEOUT_all_sse_delivery"
+  },
+  "finishedAt": "2026-10-25T04:41:18.336Z",
+  "interpretation": {
+    "invalidPassCorpus": true,
+    "reason": "Random UUIDs in message text matched PII rules; all-to-all SSE delivery is not expected for private messages. Not evidence of SSE loss.",
+    "observedStoredVisibility": {
+      "PUBLIC": 1075,
+      "HIDDEN": 6,
+      "HELD": 22
+    },
+    "observedReasonCodes": {
+      "PII_PENDING": 27,
+      "PROFANITY_INCLUDED": 1,
+      "none": 1075
+    },
+    "nextRun": "Use digit-free synthetic corpus and require PUBLIC for each phase POST."
+  }
+}

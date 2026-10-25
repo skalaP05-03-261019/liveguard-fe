@@ -2,6 +2,7 @@
 // 실제 API(liveId) 연결. 시청자는 ViewerScreen, 운영자는 목업과 같은 StudioScreen에 데이터를 넘긴다.
 import {ref,computed,onMounted,onBeforeUnmount} from 'vue';
 import {api} from './api/client';
+import {EventVersions} from './eventVersions';
 import {ApiError,authorNotice,type Category,type Live,type LiveCase,type LiveReview,type Message,type MessagePage} from './contracts';
 import {useLiveGuard} from './stores/liveGuard';
 import {uuid} from './uuid';
@@ -69,6 +70,7 @@ async function loadArchive(reset:boolean){
 function onPage(p:string){if(p==='viewers')resolveNames().catch(fail);if(p==='chats')loadArchive(true);}
 const caseNames=computed(()=>Object.fromEntries(caseHistory.value.flatMap(c=>{const n=nameOf(c.targetMessageIds[0]);return n?[[c.caseId,n]]:[];})));
 let generation=0;let refreshSequence=0;
+const versions=new EventVersions();
 const seen=new Set<string>();let streams:EventSource[]=[];let timer:ReturnType<typeof setInterval>|undefined;let clockTimer:ReturnType<typeof setInterval>|undefined;let loadingLive=false;
 function fail(e:unknown){
  if(e instanceof ApiError){
@@ -83,7 +85,7 @@ async function sessionValid(){
  const previous=store.me?.userId;
  const current=await api.me();
  if(current.userId!==previous){
-  generation++;disconnect();resetAccess();messages.value=[];reviews.value=[];caseHistory.value=[];logs.value=[];live.value=null;names.value={};archive.value=[];archiveMore.value=false;kickProgress.value={};tried.clear();seen.clear();outgoing=null;text.value='';
+  generation++;disconnect();resetAccess();messages.value=[];reviews.value=[];caseHistory.value=[];logs.value=[];live.value=null;names.value={};archive.value=[];archiveMore.value=false;kickProgress.value={};tried.clear();seen.clear();versions.clear();outgoing=null;text.value='';
   await store.syncIdentity(current);
   notice.value='다른 창에서 로그인 계정이 변경되어 화면을 갱신했습니다. 역할별 데모는 서로 다른 호스트나 브라우저 프로필을 사용하세요.';
   void load();return false;
@@ -126,8 +128,19 @@ async function refreshOnce(readMessages: boolean, readGuard: boolean){
   const [page,cards,history]=await Promise.all([readMessages?api.liveMessages(id):null,readGuard&&operator.value?api.liveReviews(id):null,readGuard&&operator.value?api.liveCases(id):null]);
   if(expected!==generation||sequence!==refreshSequence||live.value?.liveId!==id)return false;
   if(blocked.value)notice.value='';
-  if(page){messages.value=[...page.items].reverse();syncTimeout(page);blocked.value=false;accessReady.value=true;}
-  if(cards)reviews.value=cards;if(history)caseHistory.value=history;
+  if(page){
+   const current=new Map(messages.value.map(m=>[m.messageId,m]));
+   messages.value=[...page.items].reverse().flatMap(m=>{
+    if(m.version<(versions.version('message',m.messageId)??-1)){
+     const previous=current.get(m.messageId);
+     return previous&&previous.version>=(versions.version('message',m.messageId)??-1)?[previous]:[];
+    }
+    versions.observe('message',m.messageId,m.version);return [m];
+   });
+   syncTimeout(page);blocked.value=false;accessReady.value=true;
+  }
+  if(cards){reviews.value=cards;for(const r of cards)versions.observe('review',r.reviewId,r.version);}
+  if(history){caseHistory.value=history;for(const c of history)versions.observe('case',c.caseId,c.version);}
   if(readGuard&&operator.value)resolveNames().catch(()=>{});
   return true;
  }catch(e){if(expected===generation&&sequence===refreshSequence)fail(e);return false;}
@@ -150,6 +163,7 @@ function connect(){
   try{
    const v=JSON.parse((e as MessageEvent).data);
    if(!v.eventId||seen.has(v.eventId))return;seen.add(v.eventId);if(seen.size>1000)seen.delete(seen.values().next().value!);
+   if(!versions.accept(e.type,v))return;
    logs.value.unshift({id:v.eventId,time:v.occurredAt,event:e.type,detail:JSON.stringify(v.payload),caseId:v.payload?.caseId,reviewId:v.payload?.reviewId});logs.value=logs.value.slice(0,200);
    if(e.type==='LIVE_ENDED'){markEnded();return;}
    if(e.type==='LIVE_ACCESS_BLOCKED'&&!operator.value){blockAccess();return;}
@@ -157,7 +171,6 @@ function connect(){
     // 재조회가 지연·실패해도 이미 공개되어 있던 타인 원문을 즉시 제거한다.
     refreshSequence++;messages.value=messages.value.filter(m=>m.messageId!==v.payload.messageId||m.isMine);
    }
-   // 명세는 reviewKind, 현재 BE는 kind로 보낸다.
    // 명세는 reviewKind, 현재 BE는 kind로 보낸다.
    if(e.type==='REVIEW_DECIDED'&&(v.payload.reviewKind??v.payload.kind)==='KICK')kickProgress.value[v.payload.reviewId]=v.payload.value==='APPROVE'?'결정 접수 · 실행 결과 대기':'강퇴 기각 · 기존 제재 유지';
    const actionName=({KICK:'강퇴',HIDE:'메시지 숨김',TIMEOUT:'채팅 제한',RELEASE_HELD:'메시지 복원'} as Record<string,string>)[v.payload.type]??'조치';
@@ -189,7 +202,7 @@ async function load(){
  loadingLive=true;const expected=generation;const channel=store.channelId;
  try{
   const current=await api.currentLive(channel);if(expected!==generation||store.channelId!==channel)return;
-  if(current.liveId!==live.value?.liveId){generation++;disconnect();resetAccess();messages.value=[];reviews.value=[];caseHistory.value=[];logs.value=[];names.value={};archive.value=[];archiveMore.value=false;kickProgress.value={};tried.clear();seen.clear();text.value='';outgoing=null;notice.value='';}
+  if(current.liveId!==live.value?.liveId){generation++;disconnect();resetAccess();messages.value=[];reviews.value=[];caseHistory.value=[];logs.value=[];names.value={};archive.value=[];archiveMore.value=false;kickProgress.value={};tried.clear();seen.clear();versions.clear();text.value='';outgoing=null;notice.value='';}
   live.value=current;ended.value=!!current.endedAt;
   if(ended.value){markEnded();return;}
   if(await refresh()){error.value='';if(!streams.length)connect();}

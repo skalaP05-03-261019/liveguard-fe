@@ -11,6 +11,7 @@ import ModeBadge from './ModeBadge.vue';
 import StackedBar, { type BarSegment } from './StackedBar.vue';
 import RateBars from './RateBars.vue';
 import PeriodStats from './PeriodStats.vue';
+import { basisCaseCount, reportStatus, reportStatusLabels } from './reportSummary';
 import { KICK_COLORS, judgmentSegments } from './chartColors';
 import { LIVE_CHANNEL_ID, sysChannels, sysLogs, sysReports, type SysChannel, type SysLog, type SysReport, type ReportStatus } from './systemMock';
 
@@ -47,8 +48,9 @@ const liveReports = computed<SysReport[]>(() => mock.reviews.filter(r => r.kind 
   const d = mock.decisions[r.reviewId], progress = mock.kickProgress[r.reviewId] ?? '';
   return {
     id: r.reviewId, channelId: LIVE_CHANNEL_ID, userAlias: store.mock.aliasOf(ownerOf(r.caseId)), summary: KICK_SUMMARY,
+    basisCaseIds: [...new Set(r.basisCaseIds)],
     categories: r.basisCaseIds.flatMap(id => mock.cases.find(c => c.caseId === id)?.confirmedFindings.map(f => f.category) ?? []),
-    reportedAt: String(r.createdAt), status: (!d ? 'PENDING' : d.value === 'APPROVE' ? 'APPROVED' : 'REJECTED') as ReportStatus,
+    reportedAt: String(r.createdAt), status: reportStatus(r.status, d),
     decidedAt: d?.decidedAt ?? null, decisionReason: d?.reason ?? null,
     execution: progress.startsWith('강퇴 적용 완료') ? 'EXECUTED' : progress.startsWith('강퇴 실행 실패') ? 'FAILED' : null
   };
@@ -95,10 +97,12 @@ const judgment = computed(() => judgmentOf(shownChannels.value));
 const judgmentTotal = computed(() => judgment.value.reduce((n, s) => n + s.value, 0));
 // ② 강퇴 승인 요청 처리 현황: 모수는 강퇴 승인 요청 수(비정상 채팅 전체가 아니다)
 const kickSegments = computed<BarSegment[]>(() => [
-  { key: 'APPROVED', label: '스트리머 승인', value: count(reports.value, 'APPROVED'), color: KICK_COLORS.APPROVED },
+  { key: 'APPROVED', label: '승인', value: count(reports.value, 'APPROVED'), color: KICK_COLORS.APPROVED },
   { key: 'PENDING', label: '결정 대기', value: count(reports.value, 'PENDING'), color: KICK_COLORS.PENDING },
-  { key: 'REJECTED', label: '스트리머 기각', value: count(reports.value, 'REJECTED'), color: KICK_COLORS.REJECTED }
+  { key: 'REJECTED', label: '기각', value: count(reports.value, 'REJECTED'), color: KICK_COLORS.REJECTED }
 ]);
+const unclassifiedReports = computed(() => reports.value.filter(r => r.status==='INVALIDATED' || r.status==='UNAVAILABLE'));
+const kickTotal = computed(() => kickSegments.value.reduce((sum,s) => sum+s.value,0));
 const kickSummary = computed(() => {
   const pending = reports.value.filter(r => r.status === 'PENDING').sort((a, b) => a.reportedAt.localeCompare(b.reportedAt));
   const approvalRate = rate(reports.value);
@@ -158,26 +162,28 @@ const channelStats = computed(() => shownChannels.value.map(c => {
           <StackedBar :segments="judgment" label="전체 채팅 판정 현황" :empty="api ? '연동 API 없음' : channels.length ? '검사한 채팅 없음' : '방송 중인 채널 없음'"/>
         </article>
         <article class="card sys-chart-card">
-          <header><h2>강퇴 승인 요청 처리 현황</h2><span v-if="reports.length" class="sys-base">{{nf.format(reports.length)}}건 기준</span></header>
-          <p class="sys-chart-note">확정 위반 3건으로 생긴 강퇴 승인 요청을 스트리머가 처리한 결과입니다. <span v-if="reports.length">승인율 <b>{{kickSummary.approval}}</b> · <span :class="{'sys-waiting': kickSummary.waiting}">{{kickSummary.oldest}}</span></span></p>
+          <header><h2>강퇴 승인 요청 처리 현황</h2><span v-if="kickTotal" class="sys-base">{{nf.format(kickTotal)}}건 기준</span></header>
+          <p class="sys-chart-note">확정 위반 3건으로 생긴 강퇴 승인 요청을 검토자가 처리한 결과입니다. <span v-if="reports.length">승인율 <b>{{kickSummary.approval}}</b> · <span :class="{'sys-waiting': kickSummary.waiting}">{{kickSummary.oldest}}</span></span></p>
           <StackedBar :segments="kickSegments" label="강퇴 승인 요청 처리 현황" :empty="api ? '연동 API 없음' : channels.length ? '강퇴 승인 요청 없음' : '방송 중인 채널 없음'"/>
+        <p v-if="unclassifiedReports.length" class="sys-chart-note" role="status">무효·결정 미확인 {{unclassifiedReports.length}}건은 승인·기각·대기 분포와 승인율에서 제외했습니다. 요청 표에서 별도로 확인하세요.</p>
+
         </article>
       </section>
 
       <section ref="requestSection" class="card sys-section request-section" tabindex="-1" aria-label="강퇴 승인 요청 추적">
-        <header class="sys-section-head"><div><h2>강퇴 승인 요청 추적</h2><p>확정 위반 3건이 쌓여 생긴 강퇴 요청을 스트리머가 승인했는지, 강퇴가 실제로 적용됐는지 확인합니다.</p></div>
-          <div class="sys-chips" role="group" aria-label="결정 상태 필터"><button v-for="f in ([['ALL','전체'],['PENDING','대기'],['APPROVED','승인'],['REJECTED','기각']] as const)" :key="f[0]" :class="{on: statusFilter===f[0]}" @click="statusFilter=f[0]; executionOnly=false">{{f[1]}} <b>{{f[0]==='ALL' ? reports.length : count(reports, f[0])}}</b></button></div></header>
+        <header class="sys-section-head"><div><h2>강퇴 승인 요청 추적</h2><p>확정 위반 3건이 쌓여 생긴 강퇴 요청을 검토자가 승인했는지, 강퇴가 실제로 적용됐는지 확인합니다.</p></div>
+          <div class="sys-chips" role="group" aria-label="결정 상태 필터"><button v-for="f in ([['ALL','전체'],['PENDING','대기'],['APPROVED','승인'],['REJECTED','기각'],['INVALIDATED','무효'],['UNAVAILABLE','미확인']] as const)" :key="f[0]" :class="{on: statusFilter===f[0]}" @click="statusFilter=f[0]; executionOnly=false">{{f[1]}} <b>{{f[0]==='ALL' ? reports.length : count(reports, f[0])}}</b></button></div></header>
         <p v-if="executionOnly" class="request-filter-note" role="status">확인된 실행 실패만 표시 중 <button @click="executionOnly=false">필터 해제</button></p>
         <div class="table-scroll"><table class="data-table sys-table request-table">
-          <thead><tr><th>요청</th><th>방송</th><th>대상 사용자</th><th>요청 사유</th><th>기준 사건</th><th>스트리머 결정</th><th>결정까지</th><th>강퇴 실행</th></tr></thead>
+          <thead><tr><th>요청</th><th>방송</th><th>대상 사용자</th><th>요청 사유</th><th>기준 사건</th><th>검토 결정</th><th>결정까지</th><th>강퇴 실행</th></tr></thead>
           <tbody>
             <tr v-for="r in shownReports" :key="r.id">
-              <td class="nowrap">{{asTime(r.reportedAt)}}<details class="mobile-row-detail"><summary>요청 상세</summary><p>{{channelName(r.channelId)}} · {{r.userAlias}}</p><p>{{r.summary}}</p><p>{{r.categories.map(catName).join(' · ')}} · 기준 사건 {{r.categories.length}}건</p><p>{{r.status==='PENDING' ? `${span(r.reportedAt, now)}째 대기` : r.decidedAt ? `결정까지 ${span(r.reportedAt, new Date(r.decidedAt).getTime())}` : ''}}</p></details></td>
+              <td class="nowrap">{{asTime(r.reportedAt)}}<details class="mobile-row-detail"><summary>요청 상세</summary><p>{{channelName(r.channelId)}} · {{r.userAlias}}</p><p>{{r.summary}}</p><p>{{r.categories.map(catName).join(' · ')}} · 기준 사건 {{basisCaseCount(r.basisCaseIds)}}건</p><p>{{r.status==='PENDING' ? `${span(r.reportedAt, now)}째 대기` : r.decidedAt ? `결정까지 ${span(r.reportedAt, new Date(r.decidedAt).getTime())}` : ''}}</p></details></td>
               <td class="nowrap">{{channelName(r.channelId)}}</td>
               <td class="nowrap"><b>{{r.userAlias}}</b></td>
               <td class="sys-reason">{{r.summary}}<small>{{r.categories.map(catName).join(' · ')}}</small></td>
-              <td class="num">{{r.categories.length}}건</td>
-              <td class="nowrap"><span class="decision" :class="r.status.toLowerCase()"><Clock3 v-if="r.status==='PENDING'" :size="15"/><CheckCircle2 v-else-if="r.status==='APPROVED'" :size="15"/><XCircle v-else :size="15"/>{{r.status==='PENDING' ? '대기 중' : r.status==='APPROVED' ? '승인' : '기각'}}</span><small v-if="r.status==='REJECTED'" class="disagree">AI와 다른 판단</small></td>
+              <td class="num">{{basisCaseCount(r.basisCaseIds)}}건</td>
+              <td class="nowrap"><span class="decision" :class="r.status.toLowerCase()"><Clock3 v-if="r.status==='PENDING'" :size="15"/><CheckCircle2 v-else-if="r.status==='APPROVED'" :size="15"/><XCircle v-else-if="r.status==='REJECTED'" :size="15"/><AlertTriangle v-else :size="15"/>{{reportStatusLabels[r.status]}}</span><small v-if="r.status==='REJECTED'" class="disagree">AI와 다른 판단</small></td>
               <td class="nowrap">{{r.status==='PENDING' ? `${span(r.reportedAt, now)}째` : r.decidedAt ? span(r.reportedAt, new Date(r.decidedAt).getTime()) : '-'}}</td>
               <td class="nowrap"><span v-if="r.execution==='EXECUTED'" class="exec ok"><CheckCircle2 :size="14"/>실행 완료</span><span v-else-if="r.execution==='FAILED'" class="exec fail"><AlertTriangle :size="14"/>실행 실패</span><span v-else-if="r.status==='APPROVED'" class="exec wait"><Clock3 :size="14"/>실행 대기</span><span v-else class="muted-dash">-</span></td>
             </tr>

@@ -1,11 +1,12 @@
 import type { Category, Verdict } from './contracts';
 
 // 시스템 운영자 화면용 Mock. 행복한게임방(현재 Mock 채널)은 스토어의 실제 상태를 쓰고, 나머지 방송은 아래 고정 예시를 쓴다.
-export type ReportStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+import type { ReportStatus } from './reportSummary';
+export type { ReportStatus } from './reportSummary';
 export type Execution = 'EXECUTED' | 'FAILED' | null;
 // scanned = 검사한 채팅, hidden = 위반 확정으로 숨김(HIDDEN), held = 판정 대기(HELD: AI 조사 중 또는 운영자 문맥 검토 대기). 나머지는 정상(PUBLIC)
 export interface SysChannel { id: string; name: string; streamer: string; live: boolean; viewers: number; scanned: number; hidden: number; held: number }
-export interface SysReport { id: string; channelId: string; userAlias: string; summary: string; categories: Category[]; reportedAt: string; status: ReportStatus; decidedAt: string | null; decisionReason: string | null; execution: Execution }
+export interface SysReport { id: string; channelId: string; userAlias: string; summary: string; categories: Category[]; basisCaseIds: string[]; reportedAt: string; status: ReportStatus; decidedAt: string | null; decisionReason: string | null; execution: Execution }
 export interface SysLog { id: string; channelId: string; at: string; userAlias: string; text: string; category: Category | null; verdict: Verdict; action: string }
 
 export const LIVE_CHANNEL_ID = 'live-mock';
@@ -19,7 +20,8 @@ export const sysChannels: SysChannel[] = [
 ];
 
 const r = (id: string, channelId: string, userAlias: string, summary: string, categories: Category[], reportedMin: number, status: ReportStatus, decidedMin: number | null, decisionReason: string | null, execution: Execution): SysReport =>
-  ({ id, channelId, userAlias, summary, categories, reportedAt: ago(reportedMin), status, decidedAt: decidedMin === null ? null : ago(decidedMin), decisionReason, execution });
+  // These fixed examples each represent three distinct basis cases, regardless of category count.
+  ({ id, channelId, userAlias, summary, categories, basisCaseIds: [1,2,3].map(n => `${id}-case-${n}`), reportedAt: ago(reportedMin), status, decidedAt: decidedMin === null ? null : ago(decidedMin), decisionReason, execution });
 
 export const sysReports: SysReport[] = [
   r('rp-01', 'ch-lol', '트롤장인', '같은 팀원을 반복해서 조롱하고 욕설을 이어 갔습니다. 10분 채팅 제한 뒤에도 괴롭힘이 계속되었습니다.', ['PROFANITY', 'HARASSMENT', 'HARASSMENT'], 95, 'APPROVED', 88, '같은 시청자를 반복 공격한 것이 확인되어 추방합니다.', 'EXECUTED'),

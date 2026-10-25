@@ -1,0 +1,315 @@
+{
+  "run": "c24f4d4453eb",
+  "startedAt": "2026-10-25T04:43:44.907Z",
+  "mode": "actual-local-spring-pass-traffic",
+  "corpus": "unique digit-free synthetic syllables; each POST must return PUBLIC",
+  "requested": {
+    "participants": 100,
+    "seconds": 10,
+    "rate": 100
+  },
+  "checks": [
+    {
+      "name": "duplicate_start_returns_409",
+      "pass": true
+    },
+    {
+      "name": "login_without_csrf_denied",
+      "pass": true
+    },
+    {
+      "name": "invalid_csrf_denied",
+      "pass": true
+    },
+    {
+      "name": "GET_/api/lives/35de95f0-bcec-48b8-b67d-e47095c4d1ac/messages_denied_403",
+      "pass": true
+    },
+    {
+      "name": "GET_/api/lives/35de95f0-bcec-48b8-b67d-e47095c4d1ac/events_denied_403",
+      "pass": true
+    },
+    {
+      "name": "POST_/api/lives/35de95f0-bcec-48b8-b67d-e47095c4d1ac/messages_denied_403",
+      "pass": true
+    },
+    {
+      "name": "GET_/api/guard/events_denied_403",
+      "pass": true
+    },
+    {
+      "name": "GET_/api/reviews_denied_403",
+      "pass": true
+    },
+    {
+      "name": "GET_/api/guard/events_denied_403",
+      "pass": true
+    },
+    {
+      "name": "GET_/api/lives/35de95f0-bcec-48b8-b67d-e47095c4d1ac/messages_denied_403",
+      "pass": true
+    },
+    {
+      "name": "POST_/api/lives/35de95f0-bcec-48b8-b67d-e47095c4d1ac/end_denied_403",
+      "pass": true
+    },
+    {
+      "name": "hidden_stream_only_author_and_moderator",
+      "pass": true
+    },
+    {
+      "name": "hidden_absent_from_other_viewer_rest",
+      "pass": true
+    },
+    {
+      "name": "streamer_membership_is_not_moderator_raw_access",
+      "pass": true
+    },
+    {
+      "name": "client_message_id_is_idempotent",
+      "pass": true
+    },
+    {
+      "name": "hidden_during_load_only_delivered_to_author",
+      "pass": true
+    },
+    {
+      "name": "browser_remains_operable_and_latest_message_visible",
+      "pass": true
+    },
+    {
+      "name": "stored_phase_messages_match_unique_accepted_messages",
+      "pass": true
+    },
+    {
+      "name": "phase_public_corpus_created_no_guard_cases",
+      "pass": true
+    },
+    {
+      "name": "POST_/api/lives/35de95f0-bcec-48b8-b67d-e47095c4d1ac/messages_denied_403",
+      "pass": true
+    },
+    {
+      "name": "second_profanity_has_timeout",
+      "pass": true
+    },
+    {
+      "name": "GET_/api/auth/me_denied_401",
+      "pass": true
+    },
+    {
+      "name": "logged_out_session_cannot_be_reused",
+      "pass": true
+    },
+    {
+      "name": "POST_/api/lives/35de95f0-bcec-48b8-b67d-e47095c4d1ac/messages_denied_409",
+      "pass": true
+    },
+    {
+      "name": "new_live_has_distinct_id_and_empty_history",
+      "pass": true
+    },
+    {
+      "name": "timeout_and_category_history_not_inherited_to_new_live",
+      "pass": true
+    }
+  ],
+  "unverified": [
+    "production HTTPS cookie attributes",
+    "real LLM/PII latency and cost",
+    "long-duration memory stability",
+    "real kick approval and revalidation under load",
+    "agreed production SLOs"
+  ],
+  "credentialsRecorded": false,
+  "fixture": {
+    "channelA": "b7888dd1-5b85-4943-946f-2d3d95841f02",
+    "channelB": "3de2c3c6-a402-4665-92e5-deed1e9ca18c",
+    "createdUsers": 105,
+    "existingUsersModified": false,
+    "cleanup": "test broadcasts ended; synthetic rows retained for reproducibility"
+  },
+  "backendImage": "16052a41ada91c10254576f3a9d667bb88290fb5880252b4f024d5e26923de9c",
+  "observedPolicyVersions": [
+    "v3.2"
+  ],
+  "localCookieAttributes": [
+    {
+      "name": "XSRF-TOKEN",
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "JSESSIONID",
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "performance": {
+    "burst": {
+      "messages": 100,
+      "completionMs": 526.193792
+    },
+    "sustained": {
+      "messages": 1000,
+      "requestedRate": 100,
+      "completionMs": 10000.095582999998,
+      "observedCompletionRate": 99.99904417913604
+    },
+    "postLatencyMs": {
+      "count": 1100,
+      "p50": 210.13683299999866,
+      "p95": 420.18995799999993,
+      "p99": 479.1186659999994,
+      "max": 523.7867500000002
+    },
+    "sseDeliveryMs": {
+      "count": 110000,
+      "p50": 215.992792,
+      "p95": 420.59166600000026,
+      "p99": 484.4307910000007,
+      "max": 560.2212500000005
+    },
+    "frameIntervalMs": {
+      "count": 635,
+      "p50": 16.699999999999818,
+      "p95": 16.700000000000728,
+      "p99": 16.800000000000182,
+      "max": 16.80000000000109
+    },
+    "longTaskMs": {
+      "count": 0,
+      "p50": null,
+      "p95": null,
+      "p99": null,
+      "max": null
+    },
+    "driverSearchAndClearMs": {
+      "count": 1,
+      "p50": 121.95012499999939,
+      "p95": 121.95012499999939,
+      "p99": 121.95012499999939,
+      "max": 121.95012499999939
+    },
+    "heap": {
+      "beforeBytes": 11200000,
+      "afterBytes": 11200000,
+      "note": "no forced GC; short run only"
+    },
+    "browserApiRequests": {
+      "/api/auth/me": 43,
+      "/api/channels/b7888dd1-5b85-4943-946f-2d3d95841f02/lives/current": 3,
+      "/api/lives/35de95f0-bcec-48b8-b67d-e47095c4d1ac/messages": 40,
+      "/api/lives/35de95f0-bcec-48b8-b67d-e47095c4d1ac/events": 1
+    },
+    "receivedPerSubscriber": [
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100,
+      1100
+    ],
+    "duplicateEvents": 0,
+    "allSubscribersReceived": true,
+    "thresholds": "baseline only; no agreed production SLO"
+  },
+  "result": "completed-observed-baseline",
+  "finishedAt": "2026-10-25T04:44:01.384Z"
+}
