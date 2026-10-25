@@ -1363,3 +1363,12 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 @keyframes system-drawer-in{from{transform:translateX(-100%)}to{transform:translateX(0)}}
 @media(prefers-reduced-motion:reduce){.sys-shell .sys-side.open{animation:none}}
 @media(max-width:600px){.sys-shell .topbar{gap:6px}.sys-shell .topbar-title{gap:6px}.sys-shell .yt-logo b{font-size:16px}}
+
+.viewer-assistant-shade{position:fixed;inset:0;background:#0005;z-index:99}
+.viewer-assistant{position:fixed;right:0;top:0;bottom:0;z-index:100;width:min(420px,100vw);background:#fff;box-shadow:-6px 0 28px #0002;color:#0f0f0f;display:flex;flex-direction:column;animation:assistant-enter .2s ease-out}
+.viewer-assistant>header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #eee}
+.viewer-assistant>header b{font-size:20px}.viewer-assistant>header small{font-size:12px;font-weight:400;color:#606060}
+.viewer-assistant-content{padding:24px 20px;overflow-y:auto;min-height:0;flex:1}.viewer-assistant h2{font-size:24px;line-height:1.4;margin:0 0 12px}.viewer-assistant p{font-size:13px;color:#606060;line-height:1.7}
+.viewer-assistant-prompt{width:100%;padding:16px;border:1px solid #dadce0;border-radius:16px;background:#f8f9fa;color:#202124;text-align:left;font-size:14px;line-height:1.7;cursor:pointer}.viewer-assistant-prompt:hover{background:#eef3fc}.viewer-assistant-prompt:disabled{opacity:.55;cursor:default}.viewer-assistant-progress{margin-top:22px;font-size:13px;color:#606060}.viewer-assistant-stop{margin-top:12px;border:1px solid #ddd;border-radius:20px;padding:8px 16px;background:#fff}.viewer-assistant-chats{padding:0;list-style:none;max-height:48dvh;overflow-y:auto}.viewer-assistant-chats li{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #eee;font-size:13px;line-height:1.6}.viewer-assistant-chats small{color:#777;flex:none}.viewer-assistant button:focus-visible{outline:2px solid #065fd4;outline-offset:2px}
+@keyframes assistant-enter{from{transform:translateX(100%)}to{transform:translateX(0)}}
+@media(prefers-reduced-motion:reduce){.viewer-assistant{animation:none}}

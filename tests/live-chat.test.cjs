@@ -1603,3 +1603,22 @@ for(const mode of ['mock','api'])test(`viewer account popup replaces status and 
  }
  await logoutPage(page);await page.getByRole('button',{name:'시청자로 시작하기',exact:true}).waitFor();
 });
+
+for(const mode of ['mock','api'])test(`viewer assistant creates exactly 30 local preview chats and cancels in ${mode}`,async()=>{
+ const page=mode==='mock'?await openMock():await open('author','2026-10-25T00:00:00Z');
+ if(mode==='api')await page.clock.pauseAt(new Date('2026-10-25T00:01:00Z'));
+ let posts=0;page.on('request',r=>{if(r.method()==='POST'&&new URL(r.url()).pathname.endsWith('/messages'))posts++;});
+ const trigger=page.getByRole('button',{name:'Gemini 시연 도우미 열기',exact:true});await trigger.click();
+ const panel=page.getByRole('dialog',{name:'어떤 것을 도와드릴까요?',exact:true});
+ const prompt=panel.getByRole('button',{name:'시연을 위해 목업 채팅을 만들어줘. 1초에 1개씩 30개만',exact:true});
+ await prompt.click();await page.clock.runFor(999);assert.equal(await panel.locator('li').count(),0);
+ await page.clock.runFor(1);assert.equal(await panel.locator('li').count(),1);
+ assert.equal(await prompt.isDisabled(),true);await page.clock.runFor(29000);assert.equal(await panel.locator('li').count(),30);
+ await page.clock.runFor(3000);assert.equal(await panel.locator('li').count(),30);assert.equal(posts,0);
+ await captureReview(page,`assistant-${mode}-desktop`);
+ await prompt.click();await page.clock.runFor(1000);await panel.getByRole('button',{name:'생성 중지',exact:true}).click();await page.clock.runFor(2000);assert.equal(await panel.locator('li').count(),1);
+ await page.setViewportSize({width:360,height:844});await captureReview(page,`assistant-${mode}-360`);
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ await prompt.click();await page.keyboard.press('Escape');assert.equal(await trigger.evaluate(e=>e===document.activeElement),true);
+ await page.clock.runFor(3000);await trigger.click();assert.equal(await panel.locator('li').count(),0);
+});
