@@ -238,7 +238,7 @@ test('kick SSE wins over in-flight history and a new broadcast does not inherit 
  state.delayHistory=800;emit('CHAT',{});await new Promise(r=>setTimeout(r,100));state.kicked.add('author');emit('LIVE_ACCESS_BLOCKED',{});
  await page.getByRole('heading',{name:'이 방송의 이용이 제한되었습니다'}).waitFor();await new Promise(r=>setTimeout(r,1000));assert.equal(await page.locator('video').count(),0);assert.equal(await page.getByText('cached 원문',{exact:true}).count(),0);
  state.delayHistory=0;state.kicked.clear();state.liveId='live-2';state.messages=[];
- await page.getByRole('button',{name:'새로고침',exact:true}).click();await waitFor(async()=>await page.getByLabel('채팅 메시지',{exact:true}).isEnabled());assert.equal(await page.locator('video').count(),1);
+ await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await waitFor(async()=>await page.getByLabel('채팅 메시지',{exact:true}).isEnabled());assert.equal(await page.locator('video').count(),1);
 });
 
 test('live end disables chat and removes the player',async()=>{
@@ -248,13 +248,13 @@ test('live end disables chat and removes the player',async()=>{
 
 test('server revocation clears the kick screen and its stale notice within the same broadcast',async()=>{
  state.kicked.add('author');const page=await open();await page.getByRole('heading',{name:'이 방송의 이용이 제한되었습니다'}).waitFor();
- state.kicked.clear();await page.getByRole('button',{name:'새로고침',exact:true}).click();await waitFor(async()=>await page.getByLabel('채팅 메시지',{exact:true}).isEnabled());
+ state.kicked.clear();await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await waitFor(async()=>await page.getByLabel('채팅 메시지',{exact:true}).isEnabled());
  assert.equal(await page.locator('video').count(),1);assert.equal(await page.getByText('강퇴되어 이번 방송이 끝날 때까지 채팅과 시청이 제한됩니다.',{exact:true}).count(),0);
 });
 
 test('delayed current-live response cannot reopen a broadcast after LIVE_ENDED',async()=>{
  const page=await open();await waitFor(async()=>await page.getByLabel('채팅 메시지',{exact:true}).isEnabled());await waitFor(()=>clients.size>0);
- state.delayCurrent=600;const reads=state.currentReads;await page.getByRole('button',{name:'새로고침',exact:true}).click();await waitFor(()=>state.currentReads>reads);
+ state.delayCurrent=600;const reads=state.currentReads;await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await waitFor(()=>state.currentReads>reads);
  state.active=false;emit('LIVE_ENDED',{});await page.getByRole('heading',{name:'방송이 종료되었습니다'}).waitFor();await new Promise(r=>setTimeout(r,800));
  assert.equal(await page.locator('video').count(),0);assert.equal(await page.getByLabel('채팅 메시지',{exact:true}).isDisabled(),true);
 });
@@ -400,7 +400,7 @@ test('mock and API viewers share desktop geometry and theater controls without i
  assert.doesNotMatch(await api.locator('.yt-description').innerText(),/2,341|1시간 전/);
  // #28: 장식 요소는 같은 자리에 있고 값만 다르다. 계약에 없는 값(시청자·구독자 수)은 API에서 숨긴다.
  for(const page of [mock,api]){
-  for(const sel of ['.yt-masthead-end .mode-badge','.yt-masthead-end .yt-deco[title="알림"]','.yt-channel-avatar','.yt-subscribe','.yt-actions .yt-segment'])assert.equal(await page.locator(sel).count(),1,sel);
+  for(const sel of ['.yt-masthead-end .mode-badge','.yt-channel-avatar','.yt-subscribe','.yt-actions .yt-segment'])assert.equal(await page.locator(sel).count(),1,sel);
   assert.equal(await page.locator('.yt-actions .yt-pill').count(),2);
   assert.equal(await page.locator('.yt-live-dot').innerText(),'실시간');
   assert.match(await page.locator('.yt-time').innerText(),/^\d+:\d{2}:\d{2}$/);
@@ -408,7 +408,9 @@ test('mock and API viewers share desktop geometry and theater controls without i
  }
  assert.equal(await mock.locator('.mode-badge').innerText(),'MOCK 데이터');assert.match(await api.locator('.mode-badge').innerText(),/^(ON AIR|OFF AIR)$/);
  assert.equal(await mock.locator('.yt-watching').count(),1);assert.equal(await api.locator('.yt-watching').count(),0);
- assert.equal(await api.getByTitle('새로고침',{exact:true}).count(),1);assert.equal(await mock.getByTitle('새로고침',{exact:true}).count(),0);
+ assert.equal(await api.getByTitle('새로고침',{exact:true}).count(),0);
+ assert.equal(await api.locator('.yt-masthead-end [title="만들기"],.yt-masthead-end [title="알림"]').count(),0);
+ assert.equal(await mock.locator('.yt-masthead-end [title="만들기"],.yt-masthead-end [title="알림"]').count(),0);assert.equal(await mock.getByTitle('새로고침',{exact:true}).count(),0);
  await capture(mock,'shared-viewer-mock-desktop');await capture(api,'shared-viewer-api-desktop');
  await api.getByTitle('영화관 모드 (t)',{exact:true}).click();
  const player=await api.locator('.yt-player-area').boundingBox(),chat=await api.locator('.yt-secondary').boundingBox();
@@ -436,7 +438,7 @@ test('shared API viewer waits for a broadcast before enabling video and sending'
  await page.getByRole('heading',{name:'진행 중인 방송이 없습니다',exact:true}).waitFor();
  assert.equal(await page.locator('video').count(),0);
  assert.equal(await page.getByLabel('채팅 메시지',{exact:true}).isDisabled(),true);
- state.active=true;await page.getByRole('button',{name:'새로고침',exact:true}).click();
+ state.active=true;await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
  await waitFor(async()=>await page.getByLabel('채팅 메시지',{exact:true}).isEnabled());
  assert.equal(await page.locator('video').count(),1);assert.equal(state.posts,0);
 });
@@ -507,7 +509,7 @@ test('API kick rejection is accepted without blocking the viewer and keeps exist
  assert.equal(state.decisions[0].path,'/api/kick-reviews/review-kick/decision');assert.equal(state.decisions[0].body.decision,'REJECT');
  await operator.getByRole('status').filter({hasText:'강퇴 기각 · 기존 제재 유지'}).first().waitFor();
  await kick.waitFor({state:'detached'});
- await viewer.getByRole('button',{name:'새로고침',exact:true}).click();await viewer.locator('[data-message-id="old-1"]').waitFor();
+ await viewer.evaluate(()=>window.dispatchEvent(new Event('focus')));await viewer.locator('[data-message-id="old-1"]').waitFor();
  assert.equal(await viewer.getByRole('heading',{name:'이 방송의 이용이 제한되었습니다'}).count(),0);
  assert.match(await viewer.locator('[data-message-id="old-1"]').innerText(),/숨김/);
 });
@@ -1411,6 +1413,8 @@ test('decision notification bell shows pending details, opens the selected revie
  assert.equal(await page.locator('.operator-tools-bar,.operator-announcement').count(),0);
  assert.equal(await page.getByRole('button',{name:'알림·단축키 설정',exact:true}).count(),0);
  assert.equal(await page.locator('.topbar-right > .decision-notifications').count(),1);
+ assert.equal(await page.locator('.topbar-right').getByRole('button',{name:'새로고침',exact:true}).count(),1);
+ assert.equal(await page.locator('.status-controls').getByRole('button',{name:'새로고침',exact:true}).count(),0);
  const bellBounds=await bell.boundingBox(),profileBounds=await page.locator('.topbar-right > .yt-me').boundingBox();
  assert(bellBounds.x+bellBounds.width<=profileBounds.x,'bell is left of the streamer profile');
  await bell.click();const panel=page.getByRole('dialog',{name:'알림',exact:true});await panel.waitFor();

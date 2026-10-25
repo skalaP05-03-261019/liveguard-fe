@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {nextTick,onBeforeUnmount,onMounted,ref} from 'vue';
-import {Plus,Radio} from 'lucide-vue-next';
+import {Video,Radio} from 'lucide-vue-next';
 const props=defineProps<{disabled:boolean;reason?:string}>();
 const emit=defineEmits<{start:[]}>();
 const expanded=ref(false),root=ref<HTMLElement|null>(null),trigger=ref<HTMLButtonElement|null>(null),item=ref<HTMLButtonElement|null>(null);
@@ -14,7 +14,7 @@ onBeforeUnmount(()=>{document.removeEventListener('pointerdown',outside);documen
 </script>
 <template>
  <div ref="root" class="stream-create">
-  <button ref="trigger" type="button" class="stream-create-trigger" aria-haspopup="menu" :aria-expanded="expanded" aria-controls="stream-create-menu" @click="toggle"><Plus :size="22"/><span>만들기</span></button>
+  <button ref="trigger" type="button" class="stream-create-trigger" aria-haspopup="menu" :aria-expanded="expanded" aria-controls="stream-create-menu" @click="toggle"><Video :size="22"/><span>만들기</span></button>
   <div v-if="expanded" id="stream-create-menu" class="stream-create-menu" role="menu" aria-label="만들기">
    <button ref="item" type="button" role="menuitem" :aria-disabled="disabled" :aria-describedby="disabled&&reason?'stream-create-reason':undefined" @click="start"><Radio :size="22"/><span>라이브 스트리밍 시작</span></button>
    <p v-if="disabled&&reason" id="stream-create-reason">{{reason}}</p>

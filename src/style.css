@@ -1329,4 +1329,4 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .stream-create button:focus-visible{outline:2px solid #065fd4;outline-offset:-3px}
 @media(max-width:600px){.stream-create-trigger{width:36px;height:40px;padding:0}.stream-create-trigger span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}.stream-create-menu{right:8px}.studio-shell .topbar-title .yt-logo b{font-size:15px}.studio-shell .topbar-title{gap:4px}.studio-shell .topbar-right{gap:2px}.studio-shell .mode-badge{padding:0 6px;font-size:10px;margin-right:0}}
 
-@media(max-width:380px){.studio-shell .topbar-title .yt-logo b{display:none}}
+@media(max-width:480px){.studio-shell .topbar-title .yt-logo b{display:none}}

@@ -6,7 +6,7 @@
 
 5173번 Vite 개발 서버는 소스 변경을 바로 반영하지만, 3000번은 Docker 안의 정적 빌드를 제공합니다. 이전 3000번 자산에는 종·통합 화면·OFF AIR 코드가 없었습니다. 프론트엔드만 `docker compose build frontend`와 `docker compose up -d --no-deps frontend`로 갱신했습니다. 빌드 소스는 `liveguard-fe`, `VITE_USE_API=true`입니다. BE·Agent·DB는 재시작하지 않았습니다.
 
-현재 3000번 자산은 `/assets/index-BaIB5Pxh.js`이며 종·통합 화면·OFF AIR 코드가 포함돼 있습니다. 향후 프론트 소스를 수정해도 Docker는 자동 갱신되지 않으므로 3000번 반영을 다시 확인해야 합니다.
+현재 3000번 자산은 `/assets/index-DGGzWUPo.js`이며 종·통합 화면·OFF AIR 코드가 포함돼 있습니다. 향후 프론트 소스를 수정해도 Docker는 자동 갱신되지 않으므로 3000번 반영을 다시 확인해야 합니다.
 
 ## 실제 API 화면 체크
 
@@ -77,3 +77,6 @@ YouTube Studio 참고 스타일을 운영자 두 화면에 적용했습니다. �
 
 
 우상단 만들기 메뉴·라이브 스트리밍 시작을 추가했습니다. 실제 API 화면에서 메뉴와 방송 중 중복 시작 방지를 확인했습니다. 성공·실패는 격리 API 픽스처로 검증했으며 진행 중인 방송은 변경하지 않았습니다. [동작 범위와 캡처](stream-create-menu.md).
+
+
+시청자 헤더의 영상/알림/새로고침을 제거하고 스트리머 헤더에 기존 만들기·종과 새로고침으로 통합했습니다. 실제 세 역할 로그인으로 시청자 0개·스트리머 각 1개를 확인했습니다. [역할별 캡처](role-header-controls.md).
