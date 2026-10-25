@@ -1169,11 +1169,11 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 
 /* YouTube-style decision notification bell and anchored list. */
 .studio-live-line{flex-wrap:wrap;position:relative}
-.decision-notifications{margin-left:auto;line-height:normal;color:var(--text);font-size:14px}
+.decision-notifications{margin-left:0;flex:none;line-height:normal;color:var(--text);font-size:14px}
 .decision-bell{position:relative;display:grid;place-items:center;width:44px;height:44px;border:0;border-radius:50%;background:transparent;color:#0f0f0f;cursor:pointer}
 .decision-bell:hover,.decision-bell.selected{background:#e5e5e5}
 .decision-bell-count{position:absolute;top:0;left:23px;min-width:20px;padding:1px 4px;border:2px solid #fff;border-radius:12px;background:#cc0000;color:#fff;font-size:12px;font-weight:500;line-height:16px;text-align:center}
-.decision-notification-panel{position:absolute;top:calc(100% + 6px);right:0;z-index:60;width:480px;max-width:100%;border-radius:12px;background:#fff;box-shadow:0 4px 28px #0003;overflow:hidden;color:#0f0f0f}
+.decision-notification-panel{position:absolute;top:calc(100% + 6px);right:16px;z-index:60;width:480px;max-width:calc(100vw - 32px);border-radius:12px;background:#fff;box-shadow:0 4px 28px #0003;overflow:hidden;color:#0f0f0f}
 .decision-notification-panel header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #ddd}
 .decision-notification-panel header h2{margin:0;font-size:20px;font-weight:500}
 .decision-notification-panel header button{display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:50%;background:transparent;cursor:pointer}
@@ -1240,3 +1240,10 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 /* OFF AIR shares ON AIR geometry and typography, with a gray fill. */
 .mode-badge.waiting{color:#fff;background:#707070;letter-spacing:.06em}
 .mode-badge.waiting i{background:#fff}
+
+@media(max-width:600px){
+ .studio-shell .topbar{gap:6px}
+ .studio-shell .topbar-right{gap:3px}
+ .studio-shell .topbar-right>.yt-me{display:none}
+ .studio-shell .decision-notification-panel{right:8px;width:480px;max-width:calc(100vw - 16px)}
+}

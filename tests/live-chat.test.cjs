@@ -1399,6 +1399,9 @@ test('decision notification bell shows pending details, opens the selected revie
  const page=await openMockModerator();
  const bell=page.getByRole('button',{name:/^알림 · 결정 대기/});
  assert.equal(await page.locator('.queue-link').count(),0);
+ assert.equal(await page.locator('.topbar-right > .decision-notifications').count(),1);
+ const bellBounds=await bell.boundingBox(),profileBounds=await page.locator('.topbar-right > .yt-me').boundingBox();
+ assert(bellBounds.x+bellBounds.width<=profileBounds.x,'bell is left of the streamer profile');
  await bell.click();const panel=page.getByRole('dialog',{name:'알림',exact:true});await panel.waitFor();
  assert.equal(await bell.getAttribute('aria-expanded'),'true');
  const items=panel.locator('.decision-notification-item');assert(await items.count()>0);
