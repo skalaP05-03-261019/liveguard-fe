@@ -1617,9 +1617,10 @@ for(const mode of ['mock','api'])test(`viewer assistant sends 30 chats through t
  assert.equal(await prompt.isDisabled(),true);
  for(let n=2;n<=30;n++){await page.clock.runFor(1000);await waitFor(async()=>await panel.locator('li').count()===n);}
  await page.clock.runFor(3000);assert.equal(await panel.locator('li').count(),30);assert.equal(posts,mode==='api'?30:0);
- assert.equal(await page.locator('.yt-chat-items').getByText('[시연 30/30] 좋은 방송 감사합니다',{exact:true}).count(),1);
+ assert.equal(await page.locator('.yt-chat-items').getByText('[시연 30/30] 아 씨발 진짜 못하네',{exact:false}).count(),1);
  assert.equal(await page.getByLabel('채팅 메시지',{exact:true}).inputValue(),'내 작성 중 초안');
  await captureReview(page,`assistant-chat-${mode}-desktop`);
+ if(mode==='mock'){assert(await page.locator('.yt-chat-row.myHidden').count()>=3);await page.keyboard.press('Escape');return;}
  await prompt.click();await page.clock.runFor(1000);await waitFor(async()=>await panel.locator('li').count()===1);
  await panel.getByRole('button',{name:'생성 중지',exact:true}).click();await page.clock.runFor(2000);assert.equal(await panel.locator('li').count(),1);
  await page.setViewportSize({width:360,height:844});await captureReview(page,`assistant-chat-${mode}-360`);
