@@ -1243,6 +1243,7 @@ test('admin attention filters, responsive row details and chart scales remain us
   }
   await snapshot(`review-admin-live-${width}`);
  }
+ await page.getByRole('button',{name:'메뉴 열기',exact:true}).click();
  await page.getByRole('tab',{name:'기간 통계',exact:true}).click();
  assert.match(await page.locator('.chart-scale-note').innerText(),/세로축 자동 눈금/);
  assert.equal(await page.locator('.rate-axis span').count(),3);
@@ -1551,4 +1552,38 @@ test('streamer account icon reveals nickname and logout only on open, dismisses 
  await page.keyboard.press('Escape');await panel.waitFor({state:'detached'});assert.equal(await trigger.evaluate(e=>document.activeElement===e),true);
  for(const width of [390,360]){await page.setViewportSize({width,height:844});await trigger.click();await page.screenshot({animations:'disabled'});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await captureReview(page,`account-menu-${width}`);await page.keyboard.press('Escape');}
  await trigger.click();await panel.getByRole('menuitem',{name:'로그아웃',exact:true}).click();await page.getByRole('button',{name:'스트리머로 시작하기',exact:true}).waitFor();
+});
+
+for(const mode of ['mock','api'])test(`admin drawer and account menu work in ${mode}`,async()=>{
+ let page;
+ if(mode==='api')page=await open('admin');
+ else{const context=await browser.newContext({viewport:{width:1280,height:1000}});contexts.push(context);page=await context.newPage();await page.goto(mockBase);await page.getByRole('button',{name:'시스템 운영자 전용',exact:true}).click();await page.getByRole('button',{name:'로그인',exact:true}).click();}
+ await page.locator('.sys-shell').waitFor();
+ await page.getByRole('button',{name:'메뉴 닫기',exact:true}).click();
+ assert.equal(await page.getByRole('tab').count(),0);
+ await page.getByRole('button',{name:'메뉴 열기',exact:true}).click();
+ await page.getByRole('tab',{name:'기간 통계',exact:true}).click();
+ await captureReview(page,`admin-${mode}-desktop`);
+ for(const width of [360,390]){
+ await page.setViewportSize({width,height:844});
+ await page.locator('#system-navigation[aria-hidden="true"]').waitFor({state:'attached'});
+ assert.equal(await page.getByRole('tab').count(),0);
+ await page.getByRole('button',{name:'메뉴 열기',exact:true}).click();
+ assert.equal(await page.getByRole('tab',{selected:true}).innerText(),'기간 통계');
+ await captureReview(page,`admin-${mode}-drawer-${width}`);
+ await page.getByRole('tab',{name:'채팅관제 Tracking',exact:true}).click();
+ assert.equal(await page.getByRole('tab').count(),0);
+ await page.getByRole('button',{name:'메뉴 열기',exact:true}).click();await page.keyboard.press('Escape');
+ assert.equal(await page.getByRole('button',{name:'메뉴 열기',exact:true}).evaluate(e=>e===document.activeElement),true);
+ await page.getByRole('button',{name:'메뉴 열기',exact:true}).click();
+ await page.getByRole('tab',{name:'기간 통계',exact:true}).click();
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ }
+ assert.equal(await page.locator('.topbar .operator-info').count(),0);
+ assert.equal(await page.getByRole('button',{name:'로그아웃',exact:true}).count(),0);
+ await page.getByRole('button',{name:'계정 메뉴',exact:true}).click();
+ await page.getByRole('menu',{name:'계정',exact:true}).getByText('시스템 운영자 계정',{exact:true}).waitFor();
+ await captureReview(page,`admin-${mode}-account-390`);
+ await page.getByRole('menuitem',{name:'로그아웃',exact:true}).click();
+ await page.getByRole('button',{name:'시스템 운영자 전용',exact:true}).waitFor();
 });

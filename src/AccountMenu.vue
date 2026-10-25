@@ -2,7 +2,7 @@
 import {nextTick,onBeforeUnmount,onMounted,ref,watch} from 'vue';
 import {LogOut} from 'lucide-vue-next';
 import {avatarColor} from './avatar';
-const props=defineProps<{nickname:string}>();
+const props=withDefaults(defineProps<{nickname:string;accountLabel?:string}>(),{accountLabel:'스트리머 계정'});
 const emit=defineEmits<{logout:[]}>();
 const expanded=ref(false),root=ref<HTMLElement|null>(null),trigger=ref<HTMLButtonElement|null>(null),logout=ref<HTMLButtonElement|null>(null);
 async function toggle(){expanded.value=!expanded.value;if(expanded.value){await nextTick();logout.value?.focus();}}
@@ -15,9 +15,9 @@ onBeforeUnmount(()=>{document.removeEventListener('pointerdown',outside);documen
 </script>
 <template>
  <div ref="root" class="account-menu">
-  <button ref="trigger" type="button" class="account-menu-trigger yt-icon-button" aria-label="계정 메뉴" title="계정 메뉴" aria-haspopup="menu" aria-controls="streamer-account-menu" :aria-expanded="expanded" @click="toggle"><span class="yt-me" :style="{background:avatarColor(nickname)}" aria-hidden="true">{{nickname.slice(0,1)}}</span></button>
-  <div v-if="expanded" id="streamer-account-menu" class="account-menu-panel" role="menu" aria-label="계정">
-   <div class="account-menu-summary"><span class="yt-me" :style="{background:avatarColor(nickname)}" aria-hidden="true">{{nickname.slice(0,1)}}</span><div><b>{{nickname}}</b><small>스트리머 계정</small></div></div>
+  <button ref="trigger" type="button" class="account-menu-trigger yt-icon-button" aria-label="계정 메뉴" title="계정 메뉴" aria-haspopup="menu" aria-controls="account-dropdown-menu" :aria-expanded="expanded" @click="toggle"><span class="yt-me" :style="{background:avatarColor(nickname)}" aria-hidden="true">{{nickname.slice(0,1)}}</span></button>
+  <div v-if="expanded" id="account-dropdown-menu" class="account-menu-panel" role="menu" aria-label="계정">
+   <div class="account-menu-summary"><span class="yt-me" :style="{background:avatarColor(nickname)}" aria-hidden="true">{{nickname.slice(0,1)}}</span><div><b>{{nickname}}</b><small>{{accountLabel}}</small></div></div>
    <button ref="logout" type="button" role="menuitem" @click="close();emit('logout')"><LogOut :size="20"/><span>로그아웃</span></button>
   </div>
  </div>

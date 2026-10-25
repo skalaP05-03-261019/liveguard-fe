@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { Activity, AlertTriangle, CalendarRange, CheckCircle2, Clock3, LogOut, Radio, ShieldCheck, XCircle } from 'lucide-vue-next';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { Activity, AlertTriangle, CalendarRange, CheckCircle2, Clock3, Menu, Radio, ShieldCheck, XCircle } from 'lucide-vue-next';
 import type { Component } from 'vue';
 import { useLiveGuard } from './stores/liveGuard';
 import { categoryLabels, type Category, type Verdict } from './contracts';
-import { avatarColor } from './avatar';
+import AccountMenu from './AccountMenu.vue';
 import { KICK_SUMMARY } from './mockLive';
 import ChatTracking from './ChatTracking.vue';
 import ModeBadge from './ModeBadge.vue';
@@ -25,6 +25,16 @@ const store = useLiveGuard();
 // 탭: 실시간 관제(방송 중인 채널의 지금 상태) · 기간 통계(고른 기간, 끝난 방송 포함, #41) · 채팅관제 Tracking(채팅별 판정 흐름)
 type SysTab = 'overview' | 'period' | 'tracking';
 const tab = ref<SysTab>('overview');
+const navOpen=ref(false),navCollapsed=ref(false),navTrigger=ref<HTMLButtonElement|null>(null),navElement=ref<HTMLElement|null>(null),mainElement=ref<HTMLElement|null>(null);
+const navMedia=window.matchMedia('(min-width:1100px)'),navWide=ref(navMedia.matches);
+const navVisible=computed(()=>navWide.value?!navCollapsed.value:navOpen.value);
+const resizeNav=(e:MediaQueryListEvent)=>{navWide.value=e.matches;navOpen.value=false;};
+async function toggleNav(){if(navWide.value)navCollapsed.value=!navCollapsed.value;else navOpen.value=!navOpen.value;if(!navWide.value&&navOpen.value){await nextTick();navElement.value?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus();}}
+function closeNav(restore=false){navOpen.value=false;if(restore)navTrigger.value?.focus();}
+function navKey(e:KeyboardEvent){if(e.key==='Escape'&&!e.defaultPrevented&&navOpen.value){e.preventDefault();closeNav(true);}}
+async function selectTab(value:SysTab){tab.value=value;if(!navWide.value){closeNav();await nextTick();mainElement.value?.focus();}}
+onMounted(()=>{navMedia.addEventListener('change',resizeNav);window.addEventListener('keydown',navKey);});
+onBeforeUnmount(()=>{navMedia.removeEventListener('change',resizeNav);window.removeEventListener('keydown',navKey);});
 const tabs: { key: SysTab; label: string; icon: Component }[] = [{ key: 'overview', label: '실시간 관제', icon: Radio }, { key: 'period', label: '기간 통계', icon: CalendarRange }, { key: 'tracking', label: '채팅관제 Tracking', icon: Activity }];
 const now = ref(Date.now());
 let timer: number | undefined;
@@ -126,14 +136,14 @@ const channelStats = computed(() => shownChannels.value.map(c => {
 
 <template>
   <div class="app-shell sys-shell">
-    <header class="topbar"><div class="topbar-title"><span class="yt-logo"><span class="yt-logo-mark"><ShieldCheck :size="15"/></span><b>LIVE<span>:</span>GUARD</b></span><span class="console-tag">System</span></div>
-      <div class="topbar-right"><ModeBadge :mock="!api"/><span class="yt-me" :style="{background: avatarColor(store.me?.nickname ?? '시스템')}">{{(store.me?.nickname ?? '시').slice(0,1)}}</span><span class="operator-info">{{store.me?.nickname}}</span><button class="yt-icon-button" title="로그아웃" aria-label="로그아웃" @click="store.logout()"><LogOut :size="20"/></button></div></header>
-    <div class="sys-layout">
+    <header class="topbar"><div class="topbar-title"><button ref="navTrigger" type="button" class="yt-icon-button" :aria-label="navVisible ? '메뉴 닫기' : '메뉴 열기'" :aria-expanded="navVisible" aria-controls="system-navigation" @click="toggleNav"><Menu :size="22"/></button><span class="yt-logo"><span class="yt-logo-mark"><ShieldCheck :size="15"/></span><b>LIVE<span>:</span>GUARD</b></span><span class="console-tag">System</span></div>
+      <div class="topbar-right"><ModeBadge :mock="!api"/><AccountMenu :nickname="store.me?.nickname??'관리자'" account-label="시스템 운영자 계정" @logout="store.logout()"/></div></header>
+    <div class="sys-layout" :class="{'nav-collapsed':!navVisible}"><button v-if="!navWide && navOpen" type="button" class="sys-drawer-backdrop" aria-label="메뉴 닫기 배경" @click="closeNav(true)"/>
     <!-- 왼쪽 메뉴: 아이콘과 이름, 고른 항목은 회색 배경 -->
-    <nav class="sys-side" role="tablist" aria-orientation="vertical" aria-label="시스템 운영자 화면">
-      <button v-for="t in tabs" :key="t.key" type="button" role="tab" :aria-selected="tab===t.key" :class="{on: tab===t.key}" @click="tab=t.key"><component :is="t.icon" :size="22" :stroke-width="1.8"/><span>{{t.label}}</span></button>
+    <nav id="system-navigation" ref="navElement" class="sys-side" :class="{open:navVisible}" :inert="!navVisible" :aria-hidden="!navVisible" role="tablist" aria-orientation="vertical" aria-label="시스템 운영자 화면">
+      <button v-for="t in tabs" :key="t.key" type="button" role="tab" :aria-selected="tab===t.key" :class="{on: tab===t.key}" @click="selectTab(t.key)"><component :is="t.icon" :size="22" :stroke-width="1.8"/><span>{{t.label}}</span></button>
     </nav>
-    <main class="main-content sys-main">
+    <main ref="mainElement" class="main-content sys-main" tabindex="-1" :inert="!navWide && navOpen">
       <template v-if="tab==='tracking'">
       <div class="sys-head">
         <div><h1>채팅관제 Tracking</h1><p>채팅 한 줄을 누르면 백엔드 1차 분류, AI Agent 조사·판정, 백엔드 검증, 운영자 결정까지 어떤 경로로 처리됐는지 확인합니다. 조회 전용입니다.</p></div>
