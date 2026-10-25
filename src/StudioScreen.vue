@@ -468,7 +468,6 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
               <div v-if="archiveMore" class="chat-db-more"><button type="button" :disabled="archiveLoading" @click="emit('loadOlder')">{{archiveLoading ? '불러오는 중…' : '이전 채팅 더 불러오기'}}</button></div>
             </section>
           </template>
-          <footer class="dashboard-footer"><span>프론트는 <code>/api/**</code>만 사용합니다. <code>/internal/**</code>·MCP·Agent 호출은 백엔드 담당입니다.</span></footer>
         </main>
       </div>
     </div>
