@@ -132,8 +132,8 @@ function toggleCategory(r: LiveReview, c: Category, on: boolean) { const now = c
 // 결정 대기는 강퇴 승인과 문맥 검토를 따로 보여 준다(정책상 별개의 결정).
 // 영역마다 한 줄 목록이고, 고른 건 하나만 펼친다. 처음에는 영역의 맨 위(오래 기다린) 건을 펼친다.
 const queues = computed(() => [
-  { kind: 'KICK' as const, title: '강퇴 승인 대기', note: `유형과 관계없이 확정 위반 ${KICK_THRESHOLD}건이 쌓인 시청자입니다. 승인해도 기준 사건을 다시 확인한 뒤 실행됩니다.`, empty: '강퇴 승인 요청이 없습니다.', items: pending.value.filter(r => r.kind === 'KICK') },
-  { kind: 'CONTEXT' as const, title: '문맥 검토 대기', note: 'AI 제안은 참고용입니다. 공개 여부는 운영자가 결정합니다.', empty: '문맥 검토할 채팅이 없습니다.', items: pending.value.filter(r => r.kind === 'CONTEXT') }
+  { kind: 'KICK' as const, title: '강퇴 승인 대기', empty: '강퇴 승인 요청이 없습니다.', items: pending.value.filter(r => r.kind === 'KICK') },
+  { kind: 'CONTEXT' as const, title: '문맥 검토 대기', empty: '문맥 검토할 채팅이 없습니다.', items: pending.value.filter(r => r.kind === 'CONTEXT') }
 ]);
 const openIds = reactive<Record<LiveReview['kind'], string | null>>({ KICK: null, CONTEXT: null }); // '' = 모두 접음
 function activeOf(kind: LiveReview['kind']) {
@@ -369,7 +369,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
               <div v-if="page==='monitor'" class="stream-panel card studio-broadcast-summary"><div class="stream-caption"><span class="yt-channel-avatar studio-stream-icon"><Radio :size="20" :stroke-width="1.7"/></span><div><b>{{mock ? '오늘도 게임하는 날! 같이 놀아요 🎮' : '오늘의 라이브'}}</b><small>{{channelName}} · <span class="live-badge">{{ended ? '방송 종료' : '● 실시간'}}</span></small></div></div></div>
             <p v-if="arrivalAnnouncement" class="monitor-arrival-announcement" role="status">{{arrivalAnnouncement}}</p>
             <div v-if="page==='monitor'" class="live-monitoring-grid queue-page">
-                <StatusSummaryWidget v-for="q in monitorQueues" :key="q.kind" :title="q.title" :kind="q.kind" :count="q.items.length" :description="q.note" :empty-text="q.empty" :fresh="q.items.some(r=>freshReviews.has(r.reviewId))" :ended="ended" @focusin="queueTab=q.kind" @click="queueTab=q.kind">
+                <StatusSummaryWidget v-for="q in monitorQueues" :key="q.kind" :title="q.title" :kind="q.kind" :count="q.items.length" :empty-text="q.empty" :fresh="q.items.some(r=>freshReviews.has(r.reviewId))" :ended="ended" @focusin="queueTab=q.kind" @click="queueTab=q.kind">
                   <article v-for="r in q.items" :key="r.reviewId" class="studio-review" :class="[r.kind.toLowerCase(), {open: isOpen(r), 'review-arrival': freshReviews.has(r.reviewId)}]" :data-review-id="r.reviewId" :data-version="r.version">
                     <button type="button" class="review-head" :aria-expanded="isOpen(r)" @click="toggleReview(r)">
                       <ChevronDown v-if="isOpen(r)" :size="16"/><ChevronRight v-else :size="16"/>

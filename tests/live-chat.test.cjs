@@ -1504,6 +1504,9 @@ test('empty unified monitoring shows both queues and ended broadcasts clear arri
  await page.getByRole('region',{name:'강퇴 승인 대기',exact:true}).getByText('강퇴 승인 요청이 없습니다.',{exact:true}).waitFor();
  assert.equal(await page.locator('.status-summary-count.is-pending').count(),0);
  assert.equal(await page.locator('.status-summary-empty').count(),2);
+ assert.equal(await page.locator('.status-summary-empty svg,.status-summary-description').count(),0);
+ assert.equal(await page.getByText('AI 제안은 참고용입니다. 공개 여부는 운영자가 결정합니다.',{exact:true}).count(),0);
+ assert.equal(await page.getByText(/유형과 관계없이 확정 위반 3건이 쌓인 시청자입니다/).count(),0);
  assert.equal(await page.locator('.status-summary-action').count(),0);
  await captureReview(page,'monitoring-empty-api');
  state.reviews=[{reviewId:'new-live-review',kind:'CONTEXT',liveId:'live-1',caseId:'case-new',status:'PENDING',version:1,createdAt:timestamp(),aiVerdict:'NEEDS_REVIEW',messages:[],targetMessageIds:[],findings:[],basisCaseIds:[],summary:'AI 결과 없음'}];

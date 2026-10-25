@@ -1313,9 +1313,8 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .studio-shell .has-pending .status-summary-icon{background:#fce8e6;color:#b3261e}
 .studio-shell .status-summary-count{margin:0;background:#f3f4f6;color:#6b7280;font-size:12px;font-weight:600;padding:4px 9px;flex:none}
 .studio-shell .status-summary-count.is-pending{background:#fde7e7;color:#b3261e}
-.studio-shell .status-summary-description{font-size:12px;font-weight:400;line-height:1.7;color:#606060;margin:0 0 16px}
 .studio-shell .status-summary-empty{display:flex;align-items:center;gap:8px;text-align:left;color:#737373;font-size:13px;font-weight:400;line-height:1.6;padding:16px 0 20px}
-.status-summary-empty svg,.status-summary-action svg{flex:none}
+.status-summary-action svg{flex:none}
 .status-summary-action{display:flex;align-items:center;gap:8px;margin:0 0 14px;color:#b3261e;font-size:13px;font-weight:500;line-height:1.6}
 
 .stream-create{flex:none}
