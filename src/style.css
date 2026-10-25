@@ -649,6 +649,25 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .sys-channel-bar{display:grid;grid-template-columns:140px minmax(0,1fr) 250px;align-items:center;gap:12px}
 .sys-channel-name{display:flex;align-items:center;gap:6px;min-width:0;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sys-channel-meta{font-size:12px;color:var(--text-2);text-align:right;white-space:nowrap}
+/* 기간 통계(#41): 기간 선택, 일별 비정상 비율 선 그래프 */
+.period-custom{display:flex;gap:12px;flex-wrap:wrap;margin:-6px 0 12px}
+.period-custom label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-2)}
+.period-custom input{height:32px;border:1px solid var(--line);border-radius:8px;padding:0 8px;font:inherit;color:var(--text);background:#fff}
+.period-range{font-size:13px;color:var(--text-2);margin:0 0 12px}
+.period-range b{color:var(--text);font-weight:600}
+.trend-wrap{position:relative;width:100%}
+.trend-wrap svg{display:block;max-width:100%}
+.trend-wrap svg:focus-visible{outline:2px solid var(--text);outline-offset:2px;border-radius:4px}
+.trend-grid line{stroke:var(--line);stroke-width:1}
+.trend-grid text,.trend-x text{font-size:11px;fill:var(--text-2)}
+.trend-cross{stroke:var(--text-3);stroke-width:1;stroke-dasharray:3 3}
+.trend-marker{stroke:#fff;stroke-width:2}
+.trend-hit{fill:transparent}
+.trend-tip{top:0;bottom:auto}
+.trend-empty{height:120px}
+.period-empty{height:56px}
+.period-table{margin-top:12px}
+.period-table summary{cursor:pointer;font-size:13px;color:var(--text-2);margin-bottom:8px}
 @media(max-width:900px){.sys-charts{grid-template-columns:1fr}}
 @media(max-width:590px){.sys-channel-bar{grid-template-columns:1fr;gap:4px}.sys-channel-meta{text-align:left}}
 .sys-section{padding:18px 20px;margin-bottom:16px}
@@ -1049,6 +1068,12 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
   .sys-layout{grid-template-columns:1fr}
   .sys-side{flex-direction:row;overflow-x:auto;padding:8px 12px;border-right:0;border-bottom:1px solid #e6e6e6}
   .sys-side button{width:auto;white-space:nowrap;padding:10px 12px;font-size:14px}
+}
+/* 휴대폰: 탭 3개(실시간 관제·기간 통계·채팅관제 Tracking)가 한 줄에 들어가게 아이콘을 줄이고 간격을 좁힌다 */
+@media(max-width:590px){
+  .sys-side{gap:2px;padding:6px 8px}
+  .sys-side button{gap:6px;padding:8px;font-size:13px}
+  .sys-side button svg{width:16px;height:16px}
 }
 .tracking-grid{display:grid;grid-template-columns:minmax(300px,1fr) minmax(0,2fr);grid-template-areas:'chat detail';gap:16px;height:calc(100vh - 56px - 210px);min-height:600px}
 .tracking-grid .chat-panel{grid-area:chat;min-height:0}
