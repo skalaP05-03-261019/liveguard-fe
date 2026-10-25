@@ -4,6 +4,7 @@ import {ref,computed,onMounted,onBeforeUnmount} from 'vue';
 import {api} from './api/client';
 import {ApiError,authorNotice,type Category,type Live,type LiveCase,type LiveReview,type Message,type MessagePage} from './contracts';
 import {useLiveGuard} from './stores/liveGuard';
+import {uuid} from './uuid';
 import ViewerScreen from './ViewerScreen.vue';
 import SystemPage from './SystemPage.vue';
 import StudioScreen,{type StudioLog} from './StudioScreen.vue';
@@ -202,7 +203,7 @@ async function send(){
  if(chatDisabled.value)return;
  if(!await sessionValid())return;
  if(!live.value||!text.value.trim()||chatDisabled.value)return;busy.value=true;error.value='';
- const value=text.value.trim();if(!outgoing||outgoing.text!==value)outgoing={text:value,id:crypto.randomUUID()};
+ const value=text.value.trim();if(!outgoing||outgoing.text!==value)outgoing={text:value,id:uuid()};
  try{await api.sendLive(live.value.liveId,value,outgoing.id);text.value='';outgoing=null;await refresh();}
  catch(e){fail(e);}finally{busy.value=false;}
 }
@@ -218,7 +219,7 @@ async function decide(r:LiveReview,value:string,reason:string,categories:Categor
   body.evidenceMessageIds=r.targetMessageIds;
  }
  const serialized=JSON.stringify(body);let req=requests.get(r.reviewId);
- if(!req||req.serialized!==serialized){req={serialized,id:crypto.randomUUID()};requests.set(r.reviewId,req);}
+ if(!req||req.serialized!==serialized){req={serialized,id:uuid()};requests.set(r.reviewId,req);}
  body.clientRequestId=req.id;busy.value=true;error.value='';
  try{const d=await api.decideLive(r,body);notice.value=`결정 접수: ${d.value}. 실제 조치 결과를 기다립니다.`;if(r.kind==='KICK')kickProgress.value[r.reviewId]=value==='APPROVE'?'결정 접수 · 실행 결과 대기':'강퇴 기각 · 기존 제재 유지';await refresh();}
  catch(e){if(e instanceof ApiError&&e.code==='STALE_VERSION')await staleReloaded('다른 운영자가 먼저 검토를 변경했습니다. 최신 상태를 불러왔으니 확인한 뒤 다시 결정해 주세요.');else fail(e);}
@@ -232,7 +233,7 @@ async function revoke(caseId:string,findingId:string,reason:string){
  if(!reason.trim()){error.value='오판 취소 사유를 입력해 주세요.';return;}
  busy.value=true;
  const body={expectedCaseVersion:c.version,reason:reason.trim()};const serialized=JSON.stringify(body);const key='revoke:'+findingId;let req=requests.get(key);
- if(!req||req.serialized!==serialized){req={serialized,id:crypto.randomUUID()};requests.set(key,req);}
+ if(!req||req.serialized!==serialized){req={serialized,id:uuid()};requests.set(key,req);}
  try{await api.revokeFinding(findingId,{...body,clientRequestId:req.id});notice.value='확정 근거를 취소하고 남은 가림 원인·제한을 재계산했습니다.';await refresh();}
  catch(e){if(e instanceof ApiError&&e.code==='STALE_VERSION')await staleReloaded('사건이 먼저 변경되었습니다. 최신 상태를 불러왔으니 확인한 뒤 다시 취소해 주세요.');else fail(e);}finally{busy.value=false;}
 }
