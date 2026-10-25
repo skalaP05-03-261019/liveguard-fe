@@ -1630,11 +1630,13 @@ for(const mode of ['mock','api'])test(`viewer assistant sends 30 chats through t
  assert.equal(await page.getByLabel('채팅 메시지',{exact:true}).inputValue(),'내 작성 중 초안');
  await captureReview(page,`assistant-chat-${mode}-desktop`);
  await prompt.click();await page.clock.runFor(1000);await waitFor(async()=>await panel.locator('li').count()===1);
- await panel.getByRole('button',{name:'생성 중지',exact:true}).click();await page.clock.runFor(2000);assert.equal(await panel.locator('li').count(),1);
+ await panel.getByRole('button',{name:'중단하기',exact:true}).click();await page.clock.runFor(2000);assert.equal(await panel.locator('li').count(),1);
  await page.setViewportSize({width:360,height:844});await captureReview(page,`assistant-chat-${mode}-360`);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
- await prompt.click();await page.keyboard.press('Escape');await panel.waitFor({state:'detached'});await waitFor(async()=>await trigger.evaluate(e=>e===document.activeElement));
- await page.clock.runFor(3000);await trigger.click();assert.equal(await panel.locator('li').count(),0);
+ const backgroundBefore=posts;await prompt.click();await page.keyboard.press('Escape');await panel.waitFor({state:'detached'});await waitFor(async()=>await trigger.evaluate(e=>e===document.activeElement));
+ for(let n=1;n<=3;n++){await page.clock.runFor(1000);await waitFor(()=>Promise.resolve(posts===backgroundBefore+n));}
+ await trigger.click();await waitFor(async()=>await panel.locator('li').count()===3);
+ await panel.getByRole('button',{name:'중단하기',exact:true}).click();const stopped=posts;await page.clock.runFor(3000);assert.equal(posts,stopped);
 });
 
 test('viewer assistant stops after API failure or broadcast end and cannot run without a broadcast',async()=>{
@@ -1664,4 +1666,11 @@ for(const mode of ['mock','api'])test(`streamer collapsed navigation keeps click
  await page.getByRole('button',{name:'메뉴 열기',exact:true}).click();
  assert((await rail.boundingBox()).width>72);
  assert.equal(await rail.getByRole('button',{name:'채팅 관제 운영 정책',exact:true}).getAttribute('aria-current'),'page');
+});
+
+test('mock assistant keeps sending with its panel closed until stopped explicitly',async()=>{
+ const page=await openMock();const trigger=page.getByRole('button',{name:'시연 도우미 열기',exact:true});await trigger.click();
+ const panel=page.getByRole('dialog',{name:'어떤 것을 도와드릴까요?',exact:true});await panel.locator('.viewer-assistant-prompt').click();await panel.getByRole('button',{name:'시연 도우미 닫기',exact:true}).click();
+ await page.clock.runFor(3000);assert.equal(await panel.count(),0);await page.locator('.yt-chat-items').getByText('[시연 3/30] 목소리 잘 들려요',{exact:true}).waitFor();
+ await trigger.click();assert.equal(await panel.locator('li').count(),3);await panel.getByRole('button',{name:'중단하기',exact:true}).click();await page.clock.runFor(3000);assert.equal(await panel.locator('li').count(),3);
 });
