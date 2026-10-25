@@ -1487,9 +1487,16 @@ test('new decision requests highlight once, keep focus and selections, expire an
 test('empty unified monitoring shows both queues and ended broadcasts clear arrival effects',async()=>{
  const page=await open('operator');await page.getByRole('region',{name:'문맥 검토 대기',exact:true}).getByText('문맥 검토할 채팅이 없습니다.',{exact:true}).waitFor();
  await page.getByRole('region',{name:'강퇴 승인 대기',exact:true}).getByText('강퇴 승인 요청이 없습니다.',{exact:true}).waitFor();
+ assert.equal(await page.locator('.status-summary-count.is-pending').count(),0);
+ assert.equal(await page.locator('.status-summary-empty').count(),2);
+ assert.equal(await page.locator('.status-summary-action').count(),0);
  await captureReview(page,'monitoring-empty-api');
  state.reviews=[{reviewId:'new-live-review',kind:'CONTEXT',liveId:'live-1',caseId:'case-new',status:'PENDING',version:1,createdAt:timestamp(),aiVerdict:'NEEDS_REVIEW',messages:[],targetMessageIds:[],findings:[],basisCaseIds:[],summary:'AI 결과 없음'}];
  emit('CONTEXT_REVIEW_REQUIRED',{reviewId:'new-live-review',version:1});await page.locator('.review-arrival').waitFor();
+ assert.equal(await page.locator('.status-summary-count.is-pending').count(),1);
+ await page.getByRole('region',{name:'문맥 검토 대기',exact:true}).getByText('처리 대기 중인 항목이 있습니다.',{exact:true}).waitFor();
+ assert.equal(await page.getByRole('region',{name:'강퇴 승인 대기',exact:true}).locator('.status-summary-count.is-pending').count(),0);
+ await captureReview(page,'summary-one-pending-api');
  state.active=false;emit('LIVE_ENDED',{liveId:'live-1'});await page.locator('.review-arrival').waitFor({state:'detached'});
  assert.equal(await page.getByRole('button',{name:'제출',exact:true}).isDisabled(),true);assert.equal(state.decisions.length,0);
 });

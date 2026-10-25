@@ -2,10 +2,11 @@
 // 운영자(스트리머) Studio 화면. 목업과 실제 API가 같은 화면을 쓴다(#12).
 // 화면은 API v1.0 모양의 데이터와 사용자 동작만 다룬다. API·SSE 연결은 LiveConsole.vue, 목업 판정은 mockLive.ts가 맡는다.
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
-import { AlertCircle, BookOpen, ChevronDown, ChevronRight, ClipboardCheck, FileClock, LogOut, Menu, MessagesSquare, Pause, Play, Radio, RefreshCcw, ShieldCheck, Users, UserX } from 'lucide-vue-next';
+import { AlertCircle, BookOpen, ChevronDown, ChevronRight, ClipboardCheck, FileClock, LogOut, Menu, MessagesSquare, Pause, Play, Radio, RefreshCcw, ShieldCheck, Users } from 'lucide-vue-next';
 import ViewerManage from './ViewerManage.vue';
 import OperatorTools from './OperatorTools.vue';
 import DecisionNotifications from './DecisionNotifications.vue';
+import StatusSummaryWidget from './StatusSummaryWidget.vue';
 import type { ShortcutAction, OperatorAlert } from './operatorTools';
 import ModeBadge from './ModeBadge.vue';
 import AiEvidence from './AiEvidence.vue';
@@ -366,10 +367,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
               <div v-if="page==='monitor'" class="stream-panel card studio-broadcast-summary"><div class="stream-caption"><span class="yt-channel-avatar studio-stream-icon"><Radio :size="20" :stroke-width="1.7"/></span><div><b>{{mock ? '오늘도 게임하는 날! 같이 놀아요 🎮' : '오늘의 라이브'}}</b><small>{{channelName}} · <span class="live-badge">{{ended ? '방송 종료' : '● 실시간'}}</span></small></div></div></div>
             <p v-if="arrivalAnnouncement" class="monitor-arrival-announcement" role="status">{{arrivalAnnouncement}}</p>
             <div v-if="page==='monitor'" class="live-monitoring-grid queue-page">
-                <section v-for="q in monitorQueues" :key="q.kind" class="hitl-section decision-queue" :class="q.kind.toLowerCase()" :aria-label="q.title" @focusin="queueTab=q.kind" @click="queueTab=q.kind">
-                  <header class="section-head"><span class="section-icon human"><UserX v-if="q.kind==='KICK'" :size="17"/><ClipboardCheck v-else :size="17"/></span><h2>{{q.title}}</h2><span class="pending-count">{{q.items.length}}건</span><span v-if="q.items.some(r=>freshReviews.has(r.reviewId))" class="queue-new-indicator">새 요청</span></header>
-                  <p class="queue-note">{{q.note}}</p>
-                  <p v-if="!q.items.length" class="section-empty">{{q.empty}}</p>
+                <StatusSummaryWidget v-for="q in monitorQueues" :key="q.kind" :title="q.title" :kind="q.kind" :count="q.items.length" :description="q.note" :empty-text="q.empty" :fresh="q.items.some(r=>freshReviews.has(r.reviewId))" :ended="ended" @focusin="queueTab=q.kind" @click="queueTab=q.kind">
                   <article v-for="r in q.items" :key="r.reviewId" class="studio-review" :class="[r.kind.toLowerCase(), {open: isOpen(r), 'review-arrival': freshReviews.has(r.reviewId)}]" :data-review-id="r.reviewId" :data-version="r.version">
                     <button type="button" class="review-head" :aria-expanded="isOpen(r)" @click="toggleReview(r)">
                       <ChevronDown v-if="isOpen(r)" :size="16"/><ChevronRight v-else :size="16"/>
@@ -406,7 +404,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
                       </template>
                     </div>
                   </article>
-                </section>
+                </StatusSummaryWidget>
             <section class="monitor-grid chat-only">
 
               <div class="chat-panel card"><div class="panel-heading"><h2>실시간 채팅 <ChevronDown :size="17"/></h2><div class="panel-heading-end"><button v-if="feedOn !== null" class="icon-control" :class="{on: feedOn}" :title="feedOn ? '채팅 흐름 일시정지 (MOCK)' : '채팅 흐름 재생 (MOCK)'" :aria-pressed="feedOn" @click="emit('toggleFeed')"><Pause v-if="feedOn" :size="17"/><Play v-else :size="17"/></button><button class="blocked-toggle" :class="{on: filter==='private'}" :aria-pressed="filter==='private'" @click="filter = filter==='all' ? 'private' : 'all'" :title="filter==='all' ? '임시 비노출·숨김 채팅만 보기' : '전체 채팅 보기'">비공개 채팅 <b>{{privateCount}}</b></button></div></div>

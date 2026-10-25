@@ -6,7 +6,7 @@
 
 5173번 Vite 개발 서버는 소스 변경을 바로 반영하지만, 3000번은 Docker 안의 정적 빌드를 제공합니다. 이전 3000번 자산에는 종·통합 화면·OFF AIR 코드가 없었습니다. 프론트엔드만 `docker compose build frontend`와 `docker compose up -d --no-deps frontend`로 갱신했습니다. 빌드 소스는 `liveguard-fe`, `VITE_USE_API=true`입니다. BE·Agent·DB는 재시작하지 않았습니다.
 
-현재 3000번 자산은 `/assets/index-C97-_TRp.js`이며 종·통합 화면·OFF AIR 코드가 포함돼 있습니다. 향후 프론트 소스를 수정해도 Docker는 자동 갱신되지 않으므로 3000번 반영을 다시 확인해야 합니다.
+현재 3000번 자산은 `/assets/index-Du0a3n4y.js`이며 종·통합 화면·OFF AIR 코드가 포함돼 있습니다. 향후 프론트 소스를 수정해도 Docker는 자동 갱신되지 않으므로 3000번 반영을 다시 확인해야 합니다.
 
 ## 실제 API 화면 체크
 
@@ -71,3 +71,6 @@ SSE 차단은 검사 브라우저에만 적용했습니다. 실행 중인 방송
 
 
 YouTube Studio 참고 스타일을 운영자 두 화면에 적용했습니다. 흰 작업 공간·사이드바·연회색 선택 메뉴·얇은 테두리·정돈된 글자와 간격의 전후 비교는 [스타일 반영 보고서](studio-reference-style.md)를 참고합니다. 실제 API 콘솔 재빌드와 두 운영자 역할 로그인·모바일 확인을 마쳤습니다.
+
+
+강퇴·문맥 대기열에 공통 상태 요약 위젯을 적용했습니다. 실제 API의 0건은 회색 아이콘·배지·빈 안내로 확인했고, 0→1 경고 전환은 격리 API/SSE 테스트로 검증했습니다. 상세는 [위젯 보고서](status-summary-widget.md)를 참고합니다.
