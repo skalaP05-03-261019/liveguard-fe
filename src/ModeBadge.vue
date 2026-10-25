@@ -5,5 +5,5 @@ const props = withDefaults(defineProps<{ mock?: boolean; online?: boolean }>(), 
 </script>
 
 <template>
-  <span class="mode-badge" :class="props.mock ? 'mock' : props.online ? 'online' : 'waiting'" role="status" :aria-label="props.mock ? 'MOCK 데이터' : props.online ? 'ON AIR · 실시간 연결' : 'OFF AIR · 실시간 연결 대기'"><i aria-hidden="true"/>{{props.mock ? 'MOCK 데이터' : props.online ? 'ON AIR' : 'OFF AIR'}}</span>
+  <span class="mode-badge" :class="props.mock ? 'mock' : props.online ? 'online' : 'waiting'" role="status" :aria-label="props.mock ? 'MOCK 데이터' : props.online ? 'ON AIR · 실시간 연결' : 'OFF AIR · 실시간 연결 대기'"><i aria-hidden="true"/><span class="mode-badge-label">{{props.mock ? 'MOCK 데이터' : props.online ? 'ON AIR' : 'OFF AIR'}}</span></span>
 </template>

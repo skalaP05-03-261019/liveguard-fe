@@ -52,3 +52,10 @@
 ![API 빈 상태](evidence/unified-monitoring/monitoring-empty-api.png)
 
 </details>
+
+
+## OFF AIR 배지 후속 변경
+
+사용자 제공 TV 테스트 패턴을 따라 미연결 상태 배지를 정적인 컬러바 배경·검은 반투명 띠·흰 OFF AIR 글자로 변경했습니다. 연결 상태의 ON AIR와 목업 표시는 유지합니다. 색상 막대는 CSS로 그리며 별도 이미지 다운로드가 필요하지 않습니다. 관련 기존 브라우저 테스트 2개와 빌드를 통과했습니다. 아래는 격리 API 테스트 화면에서 캡처한 실제 배지입니다.
+
+![OFF AIR](evidence/off-air/off-air-badge.png)
