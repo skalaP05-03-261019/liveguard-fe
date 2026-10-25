@@ -1527,9 +1527,9 @@ test('create menu switches between API start and end and status follows broadcas
  const trigger=page.locator('.broadcast-status');const status=page.locator('.broadcast-status');assert.equal(await page.getByRole('button',{name:'만들기',exact:true}).count(),0);assert.equal(await status.getAttribute('data-live'),'false');
  assert.equal(await page.getByRole('button',{name:'새로고침',exact:true}).count(),0);
  await trigger.click();await captureReview(page,'create-menu-ready');await page.getByRole('menuitem',{name:'라이브 스트리밍 시작',exact:true}).click();
- await page.locator('.live-monitoring-grid').waitFor();assert.equal(state.liveStarts,1);assert.equal(await status.getAttribute('data-live'),'true');
+ await page.locator('.live-monitoring-grid').waitFor();await page.getByRole('heading',{name:'🔴 실시간 | <라이브 방송> A20 LITE 데뷔',exact:true}).waitFor();assert.equal(await page.locator('.status-strip').count(),0);assert.equal(state.liveStarts,1);assert.equal(await status.getAttribute('data-live'),'true');
  await status.click();const end=page.getByRole('menuitem',{name:'방송 종료',exact:true});await end.waitFor();await captureReview(page,'create-menu-live');await end.click();
- await page.locator('.studio-live-line .ended').waitFor();assert.equal(state.liveEnds,1);assert.equal(await status.getAttribute('data-live'),'false');
+ await page.locator('.studio-live-line .ended').waitFor();await page.getByRole('heading',{name:'방송이 종료되었습니다',exact:true}).waitFor();await captureReview(page,'broadcast-ended-heading');assert.equal(state.liveEnds,1);assert.equal(await status.getAttribute('data-live'),'false');
  await trigger.click();await page.getByRole('menuitem',{name:'라이브 스트리밍 시작',exact:true}).waitFor();assert.equal(state.liveStarts,1);
 });
 

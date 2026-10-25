@@ -356,7 +356,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
       </aside>
       <div class="workspace">
         <main class="main-content">
-          <div class="status-strip"><div><Radio :size="18"/><b>{{pageTitles[page]}}</b></div></div>
+          <div v-if="page!=='monitor' || !live" class="status-strip"><div><Radio :size="18"/><b>{{pageTitles[page]}}</b></div></div>
           <OperatorTools ref="operatorToolsRef" :live-id="live?.liveId??''" :ended="ended" :reviews="reviews" :progress="kickProgress" @navigate="navigateTool" @open="openToolAlert"/>
           <p v-if="error" class="error-inline" role="alert"><AlertCircle :size="17"/> {{error}}</p>
           <p v-if="notice" class="studio-notice" role="status">{{notice}}</p>
@@ -364,7 +364,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
 
           <section v-if="!live && !loading" class="card secondary-page studio-empty"><Radio :size="30"/><h2>진행 중인 방송이 없습니다</h2><p>방송을 시작하면 시청자 채팅과 AI 조사 결과를 확인할 수 있습니다.</p></section>
           <template v-else-if="live">
-            <div class="studio-broadcast-summary"><b>{{BROADCAST_TITLE}}</b><div class="studio-live-line"><span>{{channelName}}</span><span>· {{asTime(live.startedAt)}} 시작</span><span v-if="ended" class="ended">· 방송 종료 — 결정할 수 없습니다</span></div></div>
+            <div class="studio-broadcast-summary"><h1 v-if="page==='monitor'">{{ended ? '방송이 종료되었습니다' : BROADCAST_TITLE}}</h1><b v-if="page!=='monitor' || ended">{{BROADCAST_TITLE}}</b><div class="studio-live-line"><span>{{channelName}}</span><span>· {{asTime(live.startedAt)}} 시작</span><span v-if="ended" class="ended">· 방송 종료 — 결정할 수 없습니다</span></div></div>
             <p v-if="arrivalAnnouncement" class="monitor-arrival-announcement" role="status">{{arrivalAnnouncement}}</p>
             <div v-if="page==='monitor'" class="live-monitoring-grid queue-page">
                 <StatusSummaryWidget v-for="q in monitorQueues" :key="q.kind" :title="q.title" :kind="q.kind" :count="q.items.length" :empty-text="q.empty" :fresh="q.items.some(r=>freshReviews.has(r.reviewId))" :ended="ended" @focusin="queueTab=q.kind" @click="queueTab=q.kind">
