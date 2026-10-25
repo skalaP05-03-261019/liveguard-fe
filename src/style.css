@@ -867,6 +867,7 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .studio-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:4px 0 12px}
 .studio-tabs button{padding:10px 14px;font-size:14px;font-weight:500;color:var(--text-2);border-bottom:2px solid transparent;margin-bottom:-1px}
 .studio-tabs button.on{color:var(--text);border-bottom-color:var(--text)}
+.record-tabs button[aria-selected="true"]{color:var(--text);border-bottom-color:var(--text);font-weight:600}
 .studio-tabs b{font-weight:500;color:var(--text-3);margin-left:4px}
 .case-state{display:inline-block;font-size:12px;font-weight:500;border-radius:4px;padding:3px 8px;white-space:nowrap}
 .case-state.violation{background:#fce8e6;color:#a50e0e}
@@ -1074,6 +1075,11 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .tracking-grid{display:grid;grid-template-columns:minmax(300px,1fr) minmax(0,2fr);grid-template-areas:'chat detail';gap:16px;height:calc(100vh - 56px - 210px);min-height:600px}
 .tracking-grid .chat-panel{grid-area:chat;min-height:0}
 .tracking-channel{margin-left:6px;font-size:12px;font-weight:500;color:var(--text-2)}
+.tracking-resume{flex:none;border:1px solid #a8c9ee;border-radius:16px;background:#edf5ff;color:#0756a3;padding:5px 9px;font-size:11px;font-weight:700;cursor:pointer}
+.tracking-resume:hover,.tracking-resume:focus-visible{background:#dceeff}
+.tracking-grid.is-focused .chat-panel .chat-list .chat-row:not(.selected){opacity:.48;filter:grayscale(1);transition:opacity .18s ease,filter .18s ease}
+.tracking-grid.is-focused .chat-panel .chat-list .chat-row.selected{background:#dceeff;box-shadow:inset 3px 0 #065fd4;opacity:1;filter:none}
+@media(prefers-reduced-motion:reduce){.tracking-grid.is-focused .chat-panel .chat-list .chat-row{transition:none}}
 @media(max-width:950px){.tracking-grid{grid-template-columns:1fr;grid-template-areas:'chat' 'detail';height:auto}.tracking-grid .chat-panel{min-height:360px;max-height:60vh}}
 .policy-new{display:inline-block;margin-left:4px;padding:0 6px;border-radius:4px;background:#e8f0fe;color:#1a56b8;font-size:11px;font-weight:600;vertical-align:1px}
 
@@ -1227,8 +1233,7 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .live-monitoring-grid .basis-log th:nth-child(3){width:38%}
 .live-monitoring-grid .basis-log th:nth-child(4){width:20%}
 
-.side-nav button[aria-label="실시간 모니터링"]{gap:8px;padding:0 10px;font-size:14px}
-.side-nav button[aria-label="실시간 모니터링"] span{white-space:nowrap}
+.side-unread-dot{display:block;flex:none;width:8px;height:8px;margin-left:auto;border-radius:50%;background:#065fd4}
 
 /* OFF AIR shares ON AIR geometry and typography, with a gray fill. */
 .mode-badge.waiting{color:#fff;background:#707070;letter-spacing:.06em}
@@ -1258,7 +1263,6 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .studio-shell .side-nav button.active{background:#f2f2f2;font-weight:500}
 .studio-shell .side-nav button:hover{background:#f2f2f2}
 .studio-shell .side-nav button svg{flex:none;stroke-width:1.7}
-.studio-shell .side-nav button[aria-label="실시간 모니터링"]{font-size:13px;gap:8px;padding:0 10px}
 .studio-shell .sidebar-foot{border-top:0;font-size:11px;color:#606060}
 :is(.studio-shell,.sys-shell) .main-content{padding-top:28px;padding-bottom:24px}
 .studio-shell .status-strip{margin-bottom:24px}
@@ -1297,6 +1301,36 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 
 .sys-shell .sys-layout{min-height:calc(100dvh - 64px)}
 .studio-shell .ai-evidence{background:#fafafa;border-color:#e5e5e5}
+
+/* 문맥 검토: 원문·AI 근거·운영자 결정을 읽는 순서대로 배치한다. */
+.context-review-flow{list-style:none;margin:0;padding:10px 0 0;display:grid;gap:20px}
+.context-review-step{position:relative;min-width:0;padding-left:34px}
+.context-review-step:not(:last-child)::before{content:"";position:absolute;left:11px;top:27px;bottom:-22px;width:1px;background:#d9d9d9}
+.context-review-step-head{display:flex;align-items:flex-start;min-height:24px}
+.context-review-step-number{position:absolute;left:0;top:0;display:grid;place-items:center;width:24px;height:24px;border:1px solid #d9d9d9;border-radius:50%;background:#fff;color:#555;font-size:12px;font-weight:700}
+.context-review-step-head h3{margin:1px 0 2px;font-size:13px;line-height:1.4;font-weight:700}
+.context-review-step-head small{display:block;color:#606060;font-size:11px;line-height:1.5}
+.context-review-step-content{display:grid;gap:8px;margin-top:10px;min-width:0}
+.context-review-step-content .ai-evidence,.context-review-step-content .no-ai-box{margin:0}
+.context-review-step-content .review-context{padding:10px;border:1px solid #ececec;border-radius:6px;background:#fff;font-size:12px}
+.context-review-step-content .review-context>b{display:block;margin-bottom:6px;font-weight:600}
+.context-review-step-content .review-context ol{list-style:none;margin:0;padding:0;max-height:180px;overflow:auto;gap:0}
+.context-review-step-content .review-context li{display:grid;grid-template-columns:36px 36px minmax(0,1fr);gap:6px;padding:5px 0;border-top:1px solid #f1f1f1;overflow-wrap:anywhere}
+.context-review-step-content .review-context li time{color:#737373;font-variant-numeric:tabular-nums}
+.context-review-hint{margin:0;color:#606060;font-size:12px;line-height:1.5}
+.context-review-decision .context-review-step-number{border-color:#1a73e8;color:#1a73e8}
+.context-review-decision .review-foot{margin:0;font-size:11px;line-height:1.5}
+.context-review-body>.review-more{margin:0 0 2px 34px}
+.context-review-body>.review-more[open]{display:grid;gap:8px}
+@media(max-width:760px){.context-review-flow{gap:16px}.context-review-step:not(:last-child)::before{bottom:-18px}}
+.studio-shell .live-monitoring-grid .review-chat-row{display:grid;grid-template-columns:24px minmax(0,1fr) auto 16px;align-items:start;gap:8px;padding:10px 8px;font-size:13px;line-height:1.5}
+.review-chat-row .chat-avatar{margin-top:2px}
+.review-chat-row .chat-line{padding-top:1px;min-width:0;overflow-wrap:anywhere}
+.review-chat-row .chat-line b{font-size:13px;font-weight:600;color:#202020;white-space:normal;margin-right:7px}
+.review-chat-row .chat-text{color:#202020;white-space:pre-wrap}
+.review-chat-row .verdict-badge,.review-chat-row .review-new-badge{display:inline-block;margin:4px 0 0 7px;vertical-align:middle}
+.review-chat-row .chat-time{padding-top:3px;min-width:34px}
+.review-chat-chevron{align-self:center;flex:none;color:#606060}
 
 .studio-shell .studio-broadcast-summary{margin-bottom:20px}
 .studio-shell .studio-broadcast-summary .stream-caption{padding:16px 20px}
@@ -1381,6 +1415,7 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .studio-shell .sidebar.compact .sidebar-channel b,.studio-shell .sidebar.compact .sidebar-channel small,.studio-shell .sidebar.compact .side-nav button span,.studio-shell .sidebar.compact .side-count,.studio-shell .sidebar.compact .sidebar-foot{display:none}
 .studio-shell .sidebar.compact .side-nav{padding:0;gap:8px}
 .studio-shell .sidebar.compact .side-nav button{justify-content:center;padding:12px 0;width:100%;min-height:48px}
+.studio-shell .sidebar.compact .side-unread-dot{position:absolute;top:9px;right:8px;width:7px;height:7px;margin:0}
 .sys-shell .sys-layout.nav-collapsed{grid-template-columns:72px minmax(0,1fr)}
 .sys-shell .sys-side.compact{padding:24px 8px;gap:8px}
 .sys-shell .sys-side.compact button{justify-content:center;padding:12px 0;min-height:48px}

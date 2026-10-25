@@ -159,7 +159,6 @@ function submit(r: LiveReview) {
   if (!value) return;
   emit('decide', r, value, '', value === 'CONFIRM_VIOLATION' ? categoriesOf(r) : []);
 }
-const excerptOf = (r: LiveReview) => r.kind === 'KICK' ? `확정 사건 ${r.basisCaseIds.length}건` : targetText(r) ?? '';
 // 결정이 반영되어 대기 목록에서 빠지면 입력값을 지운다.
 watch(() => pending.value.map(r => r.reviewId), ids => { for (const id of Object.keys(choice)) if (!ids.includes(id)) { delete picked[id]; delete choice[id]; } });
 const basisCases = (r: LiveReview) => r.basisCaseIds.map(id => ({ id, item: caseById.value.get(id) }));
@@ -320,10 +319,6 @@ function openDecision(r: LiveReview) { queueTab.value = r.kind; openIds[r.kind] 
 const viewerRows = computed(() => groupByViewer(
   props.cases.map((c): ViewerCase => ({ caseId: c.caseId, name: nameOf(c.caseId), createdAt: iso(c.createdAt), text: targetText(c), confirmationStatus: c.confirmationStatus, findings: c.confirmedFindings.map(f => ({ findingId: f.findingId, category: f.category, status: f.status })), violationCount: c.violationCount ?? null, version: c.version })),
   props.reviews.filter(r => r.status !== 'INVALIDATED').map((r): ViewerReview => ({ reviewId: r.reviewId, kind: r.kind, status: r.status === 'PENDING' ? 'PENDING' : 'DECIDED', createdAt: iso(r.createdAt), summary: r.summary, caseIds: r.kind === 'CONTEXT' ? [r.caseId] : r.basisCaseIds }))));
-function onViewerDecide(v: ViewerReview, value: string, reason: string) {
-  const r = props.reviews.find(x => x.reviewId === v.reviewId); if (!r) return;
-  emit('decide', r, value as ContextDecision | KickDecision, reason, value === 'CONFIRM_VIOLATION' ? categoriesOf(r) : []);
-}
 function onViewerRevoke(item: ViewerCase, f: ViewerFinding, reason: string) { emit('revoke', item.caseId, f.findingId, reason); }
 
 const casesByTime = computed(() => [...props.cases].sort((a, b) => Date.parse(iso(b.createdAt)) - Date.parse(iso(a.createdAt))));
@@ -347,17 +342,16 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
       <aside id="operator-nav" class="sidebar" :class="{open: !wide && navOpen, docked: wide, compact: wide && navCollapsed}" :aria-hidden="!wide && !navOpen" :inert="!wide && !navOpen">
         <div class="sidebar-channel"><span class="yt-channel-avatar big brand-channel-avatar" role="img" aria-label="LIVE:GUARD 채널"><ShieldCheck :size="48" :stroke-width="1.8"/></span><b>채널 콘텐츠 관제</b><small>{{channelName}}</small></div>
         <nav class="side-nav" aria-label="운영자 메뉴">
-          <button title="실시간 모니터링" aria-label="실시간 모니터링" :class="{active: page==='monitor'}" :aria-current="page==='monitor' ? 'page' : undefined" @click="goto('monitor')"><Radio :size="22" :stroke-width="1.8"/><span>실시간 모니터링</span><b v-if="pending.length" class="side-count">{{pending.length}}</b></button>
+          <button :title="pending.length ? `실시간 모니터링 · 결정 대기 ${pending.length}건` : '실시간 모니터링'" aria-label="실시간 모니터링" :class="{active: page==='monitor'}" :aria-current="page==='monitor' ? 'page' : undefined" @click="goto('monitor')"><Radio :size="22" :stroke-width="1.8"/><span>실시간 모니터링</span><i v-if="pending.length" class="side-unread-dot" aria-hidden="true"/></button>
           <button title="시청자 관리" aria-label="시청자 관리" :class="{active: page==='viewers'}" :aria-current="page==='viewers' ? 'page' : undefined" @click="goto('viewers')"><Users :size="22" :stroke-width="1.8"/><span>시청자 관리</span></button>
-          <button title="사건 이력" aria-label="사건 이력" :class="{active: page==='cases'}" :aria-current="page==='cases' ? 'page' : undefined" @click="goto('cases')"><FileClock :size="22" :stroke-width="1.8"/><span>사건 이력</span></button>
- <button title="채팅 기록" aria-label="채팅 기록" :class="{active: page==='chats'}" :aria-current="page==='chats' ? 'page' : undefined" @click="goto('chats')"><MessagesSquare :size="22" :stroke-width="1.8"/><span>채팅 기록</span></button>
+          <button title="기록" aria-label="기록" :class="{active: page==='cases' || page==='chats'}" :aria-current="page==='cases' || page==='chats' ? 'page' : undefined" @click="goto('cases')"><FileClock :size="22" :stroke-width="1.8"/><span>기록</span></button>
           <button class="sidebar-policy-link" title="채팅 관제 운영 정책" aria-label="채팅 관제 운영 정책" :class="{active: page==='policy'}" :aria-current="page==='policy' ? 'page' : undefined" @click="goto('policy')"><BookOpen :size="22" :stroke-width="1.8"/><span>채팅 관제 운영 정책</span></button>
         </nav>
         <div class="sidebar-foot"><span>운영정책 v3.2 기준</span><span>LIVE:GUARD · API v1.0 (liveId)</span></div>
       </aside>
       <div class="workspace">
         <main class="main-content">
-          <div v-if="(page!=='monitor' || !live) && page!=='cases'" class="status-strip"><div><Radio :size="18"/><b>{{pageTitles[page]}}</b></div></div>
+          <div v-if="(page!=='monitor' || !live) && page!=='cases' && page!=='chats' && page!=='viewers'" class="status-strip"><div><Radio :size="18"/><b>{{pageTitles[page]}}</b></div></div>
           <OperatorTools ref="operatorToolsRef" :live-id="live?.liveId??''" :ended="ended" :reviews="reviews" :progress="kickProgress" @navigate="navigateTool" @open="openToolAlert"/>
           <p v-if="error" class="error-inline" role="alert"><AlertCircle :size="17"/> {{error}}</p>
           <p v-if="notice" class="studio-notice" role="status">{{notice}}</p>
@@ -370,25 +364,42 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
             <div v-if="page==='monitor'" class="live-monitoring-grid queue-page">
                 <StatusSummaryWidget v-for="q in monitorQueues" :key="q.kind" :title="q.title" :kind="q.kind" :count="q.items.length" :empty-text="q.empty" :fresh="q.items.some(r=>freshReviews.has(r.reviewId))" :ended="ended" @focusin="queueTab=q.kind" @click="queueTab=q.kind">
                   <article v-for="r in q.items" :key="r.reviewId" class="studio-review" :class="[r.kind.toLowerCase(), {open: isOpen(r), 'review-arrival': freshReviews.has(r.reviewId)}]" :data-review-id="r.reviewId" :data-version="r.version">
-                    <button type="button" class="review-head" :aria-expanded="isOpen(r)" @click="toggleReview(r)">
-                      <ChevronDown v-if="isOpen(r)" :size="16"/><ChevronRight v-else :size="16"/>
-                      <b>{{nameOf(r.caseId)}}</b><span v-if="freshReviews.has(r.reviewId)" class="review-new-badge">NEW</span>
-                      <span class="review-excerpt">{{excerptOf(r)}}</span>
-                      <span v-if="r.kind==='CONTEXT' && findingsOf(r)[0]" class="verdict-badge" :class="verdictTone(findingsOf(r)[0].verdict)">{{verdictLabels[findingsOf(r)[0].verdict]}}</span><span v-else-if="noAiResult(r)" class="verdict-badge no-ai">AI 결과 없음</span>
-                      <small :title="r.kind==='CONTEXT' && sentAt(r) ? `메시지 보낸 시각 · 검토 요청 ${asTime(r.createdAt)} · 버전 ${r.version}` : `강퇴 승인 요청 시각 · 버전 ${r.version}`">{{asTime(r.kind==='CONTEXT' && sentAt(r) ? sentAt(r) : r.createdAt)}}</small>
+                    <button v-if="r.kind==='CONTEXT'" type="button" class="review-head review-chat-row" :aria-expanded="isOpen(r)" @click="toggleReview(r)">
+                      <span class="chat-avatar" :style="{background: avatarColor(nameOf(r.caseId))}" aria-hidden="true">{{nameOf(r.caseId).slice(0,1)}}</span>
+                      <span class="chat-line"><b>{{nameOf(r.caseId)}}</b><span class="chat-text">{{targetText(r) ?? '원문 없음'}}</span><span v-if="freshReviews.has(r.reviewId)" class="review-new-badge">NEW</span><span v-if="findingsOf(r)[0]" class="verdict-badge" :class="verdictTone(findingsOf(r)[0].verdict)">{{verdictLabels[findingsOf(r)[0].verdict]}}</span><span v-else-if="noAiResult(r)" class="verdict-badge no-ai">AI 결과 없음</span></span>
+                      <time class="chat-time" :datetime="iso(sentAt(r) ?? r.createdAt)" :title="asTime(sentAt(r) ?? r.createdAt)">{{hourMinute(iso(sentAt(r) ?? r.createdAt))}}</time>
+                      <ChevronDown v-if="isOpen(r)" class="review-chat-chevron" :size="16"/><ChevronRight v-else class="review-chat-chevron" :size="16"/>
                     </button>
-                    <div v-if="isOpen(r)" class="review-body">
+                    <button v-else type="button" class="review-head" :aria-expanded="isOpen(r)" @click="toggleReview(r)"><ChevronDown v-if="isOpen(r)" :size="16"/><ChevronRight v-else :size="16"/><b>{{nameOf(r.caseId)}}</b></button>
+                    <div v-if="isOpen(r)" class="review-body" :class="{'context-review-body': r.kind==='CONTEXT'}">
                       <template v-if="r.kind==='CONTEXT'">
-                        <blockquote v-if="targetText(r)" class="review-target">{{targetText(r)}}</blockquote>
-                        <div v-if="noAiResult(r)" class="no-ai-box" role="note" aria-label="AI 결과 없음"><b>AI 결과 없음</b><p>{{r.summary || NO_AI_NOTICE}}</p><small>AI 판정이 마감(기본 3분) 안에 오지 않았거나 분석이 실패해 AI 결과 없이 검토가 열렸습니다. 메시지는 계속 임시 비노출입니다. 결정하면 백엔드가 바로 적용합니다. 그 전에 판정이 늦게 오면 이 카드에 AI 제안이 붙습니다.</small></div>
-                        <AiEvidence v-else :findings="findingsOf(r)" :mock="mock"/>
-                        <div class="review-choice" role="radiogroup" aria-label="결정"><label v-for="opt in contextChoices" :key="opt.value" :class="{on: choice[r.reviewId]===opt.value}"><input type="radio" :name="'choice-' + r.reviewId" :value="opt.value" v-model="choice[r.reviewId]" :disabled="busy || ended"/>{{opt.label}}</label></div>
-                        <fieldset v-if="choice[r.reviewId]==='CONFIRM_VIOLATION'" class="review-categories"><legend>적용할 위반 유형</legend><label v-for="(name, key) in categoryLabels" :key="key"><input type="checkbox" :checked="categoriesOf(r).includes(key)" :disabled="busy || ended" @change="toggleCategory(r, key, ($event.target as HTMLInputElement).checked)"/>{{name}}</label></fieldset>
-                        <div class="review-submit"><button class="primary" :disabled="!canSubmit(r)" @click="submit(r)">제출</button></div>
+                        <ol class="context-review-flow" aria-label="문맥 검토 판단 흐름">
+                          <li class="context-review-step">
+                            <div class="context-review-step-head"><span class="context-review-step-number" aria-hidden="true">1</span><div><h3>주변 대화 확인</h3><small>위 채팅의 전후 문맥을 확인합니다.</small></div></div>
+                            <div class="context-review-step-content">
+                              <div v-if="r.messages.some(m => !r.targetMessageIds.includes(m.messageId))" class="review-context"><b>주변 메시지 · U1은 검토 대상 작성자</b><ol><li v-for="m in r.messages.filter(m => !r.targetMessageIds.includes(m.messageId))" :key="m.messageId"><time>{{hourMinute(iso(m.sentAt))}}</time><b>{{m.authorAlias}}</b><span>{{m.text}}</span></li></ol></div>
+                              <p v-else class="context-review-hint">제공된 주변 메시지가 없습니다. 위 채팅과 AI 근거를 함께 확인해 주세요.</p>
+                            </div>
+                          </li>
+                          <li class="context-review-step">
+                            <div class="context-review-step-head"><span class="context-review-step-number" aria-hidden="true">2</span><div><h3>AI 판단과 근거 확인</h3><small>AI 제안은 운영자 결정을 대신하지 않습니다.</small></div></div>
+                            <div class="context-review-step-content">
+                              <div v-if="noAiResult(r)" class="no-ai-box" role="note" aria-label="AI 결과 없음"><b>AI 결과 없음</b><p>{{r.summary || NO_AI_NOTICE}}</p><small>AI 판정이 마감(기본 3분) 안에 오지 않았거나 분석이 실패했습니다. 늦게 도착한 판정은 이 카드에 표시됩니다.</small></div>
+                              <AiEvidence v-else :findings="findingsOf(r)" :mock="mock"/>
+                            </div>
+                          </li>
+                          <li class="context-review-step context-review-decision">
+                            <div class="context-review-step-head"><span class="context-review-step-number" aria-hidden="true">3</span><div><h3>운영자 최종 결정</h3><small>제출하면 결정에 따른 채팅 공개·제한 상태가 적용됩니다.</small></div></div>
+                            <div class="context-review-step-content">
+                              <div class="review-choice" role="radiogroup" aria-label="결정"><label v-for="opt in contextChoices" :key="opt.value" :class="{on: choice[r.reviewId]===opt.value}"><input type="radio" :name="'choice-' + r.reviewId" :value="opt.value" v-model="choice[r.reviewId]" :disabled="busy || ended"/>{{opt.label}}</label></div>
+                              <fieldset v-if="choice[r.reviewId]==='CONFIRM_VIOLATION'" class="review-categories"><legend>적용할 위반 유형</legend><label v-for="(name, key) in categoryLabels" :key="key"><input type="checkbox" :checked="categoriesOf(r).includes(key)" :disabled="busy || ended" @change="toggleCategory(r, key, ($event.target as HTMLInputElement).checked)"/>{{name}}</label></fieldset>
+                              <p class="review-foot">정상 확정: 공개 · 위반 확정: 숨김 및 기준표의 채팅 제한 · 보류: 임시 비노출 유지</p>
+                              <div class="review-submit"><button class="primary" :disabled="!canSubmit(r)" @click="submit(r)">제출</button></div>
+                            </div>
+                          </li>
+                        </ol>
                         <details class="review-more"><summary>자세히</summary>
                           <p v-if="repeatsOf(r).length" class="review-repeats">같은 시청자가 같은 문장을 {{repeatsOf(r).length}}번 더 보냈습니다: <span v-for="x in repeatsOf(r)" :key="x.caseId">{{x.time}} {{x.status}}</span></p>
-                          <div class="review-context"><b>마스킹된 주변 문맥 · U1 = 검토 대상 작성자</b><ol><li v-for="m in r.messages" :key="m.messageId" :class="{target: r.targetMessageIds.includes(m.messageId)}"><b>{{m.authorAlias}}</b> {{m.text}}</li></ol></div>
-                          <p class="review-foot">정상 확정은 공개, 위반 확정은 숨김과 기준표의 채팅 제한, 보류는 임시 비노출을 유지합니다.</p>
                           <button type="button" class="review-flow-link" @click="showFlow(r.caseId)">처리 흐름 보기 →</button>
                         </details>
                       </template>
@@ -418,9 +429,10 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
             </section>
             </div>
 
-            <ViewerManage v-else-if="page==='viewers'" :rows="viewerRows" :busy="busy || ended" scope="현재 방송" @decide="onViewerDecide" @revoke="onViewerRevoke"/>
+            <ViewerManage v-else-if="page==='viewers'" :rows="viewerRows" :busy="busy || ended" scope="현재 방송" @revoke="onViewerRevoke" @open-case="showFlow" @open-review="openToolAlert($event, 'new')"/>
 
             <section v-else-if="page==='cases'" class="secondary-page card case-history"><div class="secondary-heading"><div><h2><FileClock :size="24"/> 사건 이력</h2><p>사건을 펼치면 채팅부터 판정·결정·조치까지 시간 흐름을 확인할 수 있습니다.</p></div></div>
+                <div class="studio-tabs record-tabs" role="tablist" aria-label="기록 종류"><button role="tab" aria-selected="true" @click="goto('cases')">판정·조치 이력</button><button role="tab" aria-selected="false" @click="goto('chats')">전체 채팅</button></div>
                 <div class="vm-chips" role="group" aria-label="사건 상태 필터"><button v-for="f in caseFilters" :key="f.key" :class="{on: caseFilter===f.key}" :aria-pressed="caseFilter===f.key" @click="caseFilter=f.key">{{f.label}} <b>{{caseCount(f.key)}}</b></button></div>
                 <div class="table-scroll"><table class="data-table case-table"><thead><tr><th class="vm-toggle-col"></th><th>시각</th><th>시청자</th><th>메시지 (마스킹)</th><th>상태</th></tr></thead><tbody>
                   <template v-for="c in shownCases" :key="c.caseId"><tr class="case-row" :class="{open: openCase===c.caseId}" :data-case-id="c.caseId" @click="toggleCase(c.caseId)"><td class="vm-toggle-col"><button class="vm-expand" :aria-expanded="openCase===c.caseId" :aria-label="`${nameOf(c.caseId)} 사건 처리 흐름 ${openCase===c.caseId ? '닫기' : '보기'}`" @click.stop="toggleCase(c.caseId)"><ChevronDown v-if="openCase===c.caseId" :size="18"/><ChevronRight v-else :size="18"/></button></td><td class="nowrap">{{asTime(c.createdAt)}}</td><td class="nowrap">{{nameOf(c.caseId)}}</td><td class="log-text">{{targetText(c) ?? '-'}}</td><td><span class="case-state" :class="caseStateOf(c).tone">{{caseStateOf(c).label}}</span></td></tr>
@@ -455,6 +467,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
               <ul class="studio-rules"><li>유형과 관계없이 최근 24시간의 서로 다른 확정 사건이 {{KICK_THRESHOLD}}건 이상이면 강퇴 승인 요청이 만들어집니다.</li><li>운영자가 승인하면 기준 사건을 다시 확인한 뒤 실행합니다. 효력은 <b>이번 방송 종료까지</b>입니다.</li><li>승인·기각으로 결정된 요청에 쓰인 사건은 소진되어 다음 강퇴 심사에서 다시 세지 않습니다.</li><li>기준 사건이 오판 취소되면 그 강퇴 요청은 무효가 되고, 이미 실행된 강퇴도 풀립니다. 결정된 뒤 무효가 된 요청의 나머지 사건도 소진 상태로 남습니다.</li></ul></section>
 
             <section v-else-if="page==='chats'" class="secondary-page card"><div class="secondary-heading"><div><h2><MessagesSquare :size="24"/> 채팅 기록</h2><p>이번 방송의 채팅을 한곳에서 찾아봅니다. 숨김·검토 중인 채팅도 운영자에게는 보입니다.</p></div><span>{{chatRows.length}}건</span></div>
+              <div class="studio-tabs record-tabs" role="tablist" aria-label="기록 종류"><button role="tab" aria-selected="false" @click="goto('cases')">판정·조치 이력</button><button role="tab" aria-selected="true" @click="goto('chats')">전체 채팅</button></div>
               <div class="chat-db-tools"><input v-model="chatQuery" type="search" placeholder="메시지·시청자 검색" aria-label="채팅 기록 검색"/><div class="vm-chips" role="group" aria-label="채팅 상태 필터"><button v-for="f in chatFilters" :key="f.key" :class="{on: chatFilter===f.key}" :aria-pressed="chatFilter===f.key" @click="chatFilter=f.key">{{f.label}} <b>{{chatCount(f.key)}}</b></button></div></div>
               <div class="table-scroll"><table class="data-table chat-db"><thead><tr><th>시각</th><th>시청자</th><th>메시지</th><th>공개 상태</th><th>사건</th></tr></thead><tbody>
                 <tr v-for="m in shownChats" :key="m.messageId" :data-message-id="m.messageId"><td class="nowrap">{{asTime(m.sentAt)}}</td><td class="nowrap">{{m.authorAlias}}</td><td class="chat-db-text">{{m.text}}</td><td class="nowrap"><span v-if="m.visibility!=='PUBLIC'" class="state-pill" :class="m.visibility.toLowerCase()">{{visibilityLabels[m.visibility]}}</span><span v-else class="vm-muted">공개</span></td>

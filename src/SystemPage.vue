@@ -22,7 +22,7 @@ import { LIVE_CHANNEL_ID, sysChannels, sysLogs, sysReports, type SysChannel, typ
 const props = withDefaults(defineProps<{ api?: boolean }>(), { api: false });
 const NO_API = '여러 방송 조회 API가 없어 표시할 데이터가 없습니다.';
 const store = useLiveGuard();
-// 탭: 실시간 관제(방송 중인 채널의 지금 상태) · 기간 통계(고른 기간, 끝난 방송 포함, #41) · 채팅관제 Tracking(채팅별 판정 흐름)
+// 탭: 실시간 관제(방송 중인 채널의 지금 상태) · 채팅관제 Tracking(채팅별 판정 흐름) · 대시보드(고른 기간, 끝난 방송 포함, #41)
 type SysTab = 'overview' | 'period' | 'tracking';
 const tab = ref<SysTab>('overview');
 const navOpen=ref(false),navCollapsed=ref(false),navTrigger=ref<HTMLButtonElement|null>(null),navElement=ref<HTMLElement|null>(null),mainElement=ref<HTMLElement|null>(null);
@@ -35,7 +35,7 @@ function navKey(e:KeyboardEvent){if(e.key==='Escape'&&!e.defaultPrevented&&navOp
 async function selectTab(value:SysTab){tab.value=value;if(!navWide.value){closeNav();await nextTick();mainElement.value?.focus();}}
 onMounted(()=>{navMedia.addEventListener('change',resizeNav);window.addEventListener('keydown',navKey);});
 onBeforeUnmount(()=>{navMedia.removeEventListener('change',resizeNav);window.removeEventListener('keydown',navKey);});
-const tabs: { key: SysTab; label: string; icon: Component }[] = [{ key: 'overview', label: '실시간 관제', icon: Radio }, { key: 'period', label: '기간 통계', icon: CalendarRange }, { key: 'tracking', label: '채팅관제 Tracking', icon: Activity }];
+const tabs: { key: SysTab; label: string; icon: Component }[] = [{ key: 'overview', label: '실시간 관제', icon: Radio }, { key: 'tracking', label: '채팅관제 Tracking', icon: Activity }, { key: 'period', label: '대시보드', icon: CalendarRange }];
 const now = ref(Date.now());
 let timer: number | undefined;
 onMounted(() => { timer = window.setInterval(() => { now.value = Date.now(); }, 30000); });
@@ -80,6 +80,8 @@ const offAir = computed(() => allChannels.value.length - channels.value.length);
 const onAir = (channelId: string) => channels.value.some(c => c.id === channelId);
 const channelName = (id: string) => channels.value.find(c => c.id === id)?.name ?? id;
 const channelFilter = ref<string>('ALL');
+const trackingChannel = ref<string>(props.api ? '' : LIVE_CHANNEL_ID);
+const selectedTrackingChannel = computed(() => channels.value.find(c => c.id === trackingChannel.value));
 const statusFilter = ref<'ALL' | ReportStatus>('ALL');
 const executionOnly = ref(false);
 const requestSection = ref<HTMLElement | null>(null);
@@ -125,7 +127,9 @@ const attention = computed(() => {
 // 채팅관제 Tracking: 실제 API는 관리자용 방송 채팅·사건 조회가 없어 빈 데이터를 넘긴다.
 const tracking = computed(() => props.api
   ? { channelName: '', messages: [], reviews: [], cases: [], caseNames: {}, logs: [], kickProgress: {}, traces: null }
-  : { channelName: BROADCAST_CHANNEL_NAME, messages: mock.messages, reviews: mock.reviews, cases: mock.cases, caseNames: caseNames.value, logs: mock.logs, kickProgress: mock.kickProgress, traces: mock.traces });
+  : trackingChannel.value === LIVE_CHANNEL_ID
+    ? { channelName: BROADCAST_CHANNEL_NAME, messages: mock.messages, reviews: mock.reviews, cases: mock.cases, caseNames: caseNames.value, logs: mock.logs, kickProgress: mock.kickProgress, traces: mock.traces }
+    : { channelName: selectedTrackingChannel.value?.name ?? '', messages: [], reviews: [], cases: [], caseNames: {}, logs: [], kickProgress: {}, traces: null });
 // 방송별 비교(RateBars.vue): 비정상·판정 대기 비율을 같은 눈금에서 비교하고 강퇴 대기 수를 붙인다
 const rateRows = computed(() => shownChannels.value.map(c => ({ id: c.id, name: c.name, live: c.live, scanned: c.scanned, hidden: c.hidden, held: c.held, kickPending: count(allReports.value.filter(r => r.channelId === c.id), 'PENDING') })));
 const channelStats = computed(() => shownChannels.value.map(c => {
@@ -144,13 +148,15 @@ const channelStats = computed(() => shownChannels.value.map(c => {
       <button v-for="t in tabs" :key="t.key" type="button" role="tab" :aria-label="t.label" :title="t.label" :aria-selected="tab===t.key" :class="{on: tab===t.key}" @click="selectTab(t.key)"><component :is="t.icon" :size="22" :stroke-width="1.8"/><span>{{t.label}}</span></button>
     </nav>
     <main ref="mainElement" class="main-content sys-main" tabindex="-1" :inert="!navWide && navOpen">
-      <div class="configured-broadcast"><span>시연 방송</span><b>{{BROADCAST_TITLE}}</b><small>{{BROADCAST_CHANNEL_NAME}}</small></div>
       <template v-if="tab==='tracking'">
       <div class="sys-head">
-        <div><h1>채팅관제 Tracking</h1><p>채팅 한 줄을 누르면 백엔드 1차 분류, AI Agent 조사·판정, 백엔드 검증, 운영자 결정까지 어떤 경로로 처리됐는지 확인합니다. 조회 전용입니다.</p></div>
-        <span class="sys-mock">{{api ? '관리자용 방송 채팅·사건 조회 API가 없습니다' : `${BROADCAST_CHANNEL_NAME} 데모 방송과 연동`}}</span>
+        <div><h1>채팅관제 Tracking</h1><p>채팅 한 줄을 누르면 실제로 거친 경로를 확인합니다. 필터 통과·규칙 확정은 Agent를 호출하지 않고, AI 조사 후에도 경로에 따라 자동 반영되거나 운영자 결정으로 넘어갑니다. 조회 전용입니다.</p></div>
+        <span class="sys-mock">{{api ? '관리자용 방송 채팅·사건 조회 API가 없습니다' : selectedTrackingChannel?.id===LIVE_CHANNEL_ID ? `${BROADCAST_CHANNEL_NAME} 데모 방송과 연동` : '선택한 방송의 채팅별 추적 데이터가 없습니다'}}</span>
       </div>
-      <ChatTracking :channel-name="tracking.channelName" :messages="tracking.messages" :reviews="tracking.reviews" :cases="tracking.cases" :case-names="tracking.caseNames" :logs="tracking.logs" :kick-progress="tracking.kickProgress" :traces="tracking.traces"/>
+      <div class="sys-filter" role="group" aria-label="추적할 방송 선택"><button v-for="c in channels" :key="c.id" type="button" :class="{on:trackingChannel===c.id}" :aria-pressed="trackingChannel===c.id" @click="trackingChannel=c.id">{{c.name}}</button><span v-if="!channels.length" class="sys-mock">조회 가능한 방송이 없습니다</span></div>
+      <div v-if="selectedTrackingChannel" class="configured-broadcast"><span>선택한 방송</span><b>{{selectedTrackingChannel.id===LIVE_CHANNEL_ID ? BROADCAST_TITLE : selectedTrackingChannel.name}}</b><small>{{selectedTrackingChannel.streamer}}</small></div>
+      <p v-if="selectedTrackingChannel && selectedTrackingChannel.id!==LIVE_CHANNEL_ID" class="sys-chart-note">이 방송의 채팅별 추적 데이터는 아직 연결되지 않았습니다.</p>
+      <ChatTracking :key="trackingChannel" :channel-name="tracking.channelName" :messages="tracking.messages" :reviews="tracking.reviews" :cases="tracking.cases" :case-names="tracking.caseNames" :logs="tracking.logs" :kick-progress="tracking.kickProgress" :traces="tracking.traces"/>
       </template>
       <PeriodStats v-else-if="tab==='period'" :api="api"/>
       <template v-else>
