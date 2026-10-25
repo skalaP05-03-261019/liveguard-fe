@@ -1093,6 +1093,10 @@ test('admin dashboard charts split chat judgment from kick approval and rank cha
  assert.match(await page.getByRole('tooltip').innerText(),/^정상 · [0-9,]+건 · [0-9.]+%$/);
  // 방송별 분포는 비정상 비율이 높은 순
  const rates=(await page.locator('.sys-channel-meta').allInnerTexts()).map(t=>Number(/비정상 ([0-9.]+)%/.exec(t)[1]));
- assert.equal(rates.length,5);assert.deepEqual(rates,[...rates].sort((a,b)=>b-a));
+ // 실시간 관제는 방송 중인 채널만: 목업 5개 중 방송 종료인 코딩 라이브는 빠진다
+ assert.equal(rates.length,4);assert.deepEqual(rates,[...rates].sort((a,b)=>b-a));
+ assert.match(await page.locator('.sys-head').first().innerText(),/방송 중이 아닌 채널 1개는 제외했습니다/);
+ assert.equal(await page.locator('.sys-main').getByText('코딩 라이브').count(),0);
+ assert.equal(await page.getByRole('tab',{name:'실시간 관제',exact:true}).getAttribute('aria-selected'),'true');
  await capture(page,'admin-dashboard-charts');
 });
