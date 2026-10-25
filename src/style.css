@@ -896,8 +896,7 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 /* 채팅 칸은 결정 대기가 있던 때와 같은 너비·높이를 유지하고, 오른쪽 칸에 채팅 상세를 둔다 */
 /* 실시간 관제(스트리머): 영상 정보와 실시간 채팅만. 채팅별 판정 흐름은 시스템 운영자 화면의 '채팅관제 Tracking' 탭에 있다. */
 .monitor-grid.chat-only{grid-template-columns:minmax(0,1fr);grid-template-areas:'stream' 'chat'}
-.queue-link{margin:-2px 0 -2px 6px;padding:0 10px;line-height:16px;border-radius:12px;background:#fff1c2;border:1px solid #e7c35c;color:#5c3d00;font-size:12px;font-weight:600}
-.queue-link:hover{background:#ffe7a0}
+
 .queue-page{max-width:980px}
 .queue-page .hitl-section{max-height:none;overflow:visible}
 
@@ -1167,3 +1166,36 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .operator-announcement button{margin-left:8px}
 .operator-setting-status{margin-top:8px}
 @media(max-width:590px){.operator-key-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.operator-tools-bar small{width:100%}.operator-alerts li{align-items:start}.operator-announcement button{margin:4px 4px 0 0}}
+
+/* YouTube-style decision notification bell and anchored list. */
+.studio-live-line{flex-wrap:wrap;position:relative}
+.decision-notifications{margin-left:auto;line-height:normal;color:var(--text);font-size:14px}
+.decision-bell{position:relative;display:grid;place-items:center;width:44px;height:44px;border:0;border-radius:50%;background:transparent;color:#0f0f0f;cursor:pointer}
+.decision-bell:hover,.decision-bell.selected{background:#e5e5e5}
+.decision-bell-count{position:absolute;top:0;left:23px;min-width:20px;padding:1px 4px;border:2px solid #fff;border-radius:12px;background:#cc0000;color:#fff;font-size:12px;font-weight:500;line-height:16px;text-align:center}
+.decision-notification-panel{position:absolute;top:calc(100% + 6px);right:0;z-index:60;width:480px;max-width:100%;border-radius:12px;background:#fff;box-shadow:0 4px 28px #0003;overflow:hidden;color:#0f0f0f}
+.decision-notification-panel header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #ddd}
+.decision-notification-panel header h2{margin:0;font-size:20px;font-weight:500}
+.decision-notification-panel header button{display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:50%;background:transparent;cursor:pointer}
+.decision-notification-panel header button:hover{background:#eee}
+.decision-notification-body{max-height:min(480px,55dvh);overflow-y:auto;overscroll-behavior:contain}
+.decision-notification-body h3{margin:0;padding:18px 24px 8px;font-size:16px;font-weight:500}
+.decision-notification-body h3 span{margin-left:6px;color:#606060;font-size:13px;font-weight:400}
+.decision-notification-body ul{padding:0;margin:0;list-style:none}
+.decision-notification-item{display:flex;align-items:flex-start;gap:14px;width:100%;padding:18px 22px 18px 12px;border:0;background:#fff;color:inherit;text-align:left;cursor:pointer}
+.decision-notification-item:hover{background:#f2f2f2}
+.decision-notification-dot{flex:none;width:6px;height:6px;border-radius:50%;background:#065fd4;margin-top:22px}
+.decision-notification-avatar{display:grid;place-items:center;flex:none;width:48px;height:48px;border-radius:50%;background:#edf3ff;color:#065fd4}
+.decision-notification-avatar.kick{background:#fff0ef;color:#b3261e}
+.decision-notification-copy{display:grid;gap:6px;min-width:0;line-height:1.5;font-size:14px}
+.decision-notification-copy b{font-size:15px;font-weight:500}
+.decision-notification-copy time{color:#606060;font-size:12px}
+.decision-notification-empty{padding:24px;color:#606060;line-height:1.6}
+.decision-notification-panel footer{padding:14px 24px;border-top:1px solid #eee;font-size:12px;color:#606060;line-height:1.5}
+.decision-notifications button:focus-visible{outline:2px solid #065fd4;outline-offset:-3px}
+@media(max-width:600px){.decision-notification-item{gap:10px;padding-right:16px}.decision-notification-panel{width:100%}.decision-notification-body{max-height:50dvh}}
+
+.decision-notification-actions{display:flex;align-items:center;gap:2px}
+.decision-notification-copy small{font-size:12px;color:#606060}
+
+@media(max-width:380px){.studio-shell .topbar{padding-left:8px;padding-right:8px}.studio-shell .topbar-title{gap:6px}.studio-shell .yt-logo b{font-size:16px}.studio-shell .mode-badge{padding:0 6px}}
