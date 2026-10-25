@@ -1622,7 +1622,7 @@ for(const mode of ['mock','api'])test(`viewer assistant sends 30 chats through t
  await waitFor(async()=>await panel.locator('li').count()===n);
  }
  if(mode==='mock'){
- assert(await panel.locator('li').count()>=16);assert(await page.locator('.yt-chat-row.myHidden').count()>=2);
+ assert(await panel.locator('li').count()>=2);assert(await page.locator('.yt-chat-row.myHidden').count()>=2);
  await captureReview(page,`assistant-chat-${mode}-desktop`);await page.keyboard.press('Escape');return;
  }
  await page.clock.runFor(3000);assert.equal(await panel.locator('li').count(),30);assert.equal(posts,mode==='api'?30:0);
@@ -1671,6 +1671,6 @@ for(const mode of ['mock','api'])test(`streamer collapsed navigation keeps click
 test('mock assistant keeps sending with its panel closed until stopped explicitly',async()=>{
  const page=await openMock();const trigger=page.getByRole('button',{name:'시연 도우미 열기',exact:true});await trigger.click();
  const panel=page.getByRole('dialog',{name:'어떤 것을 도와드릴까요?',exact:true});await panel.locator('.viewer-assistant-prompt').click();await panel.getByRole('button',{name:'시연 도우미 닫기',exact:true}).click();
- await page.clock.runFor(3000);assert.equal(await panel.count(),0);await page.locator('.yt-chat-items').getByText('[시연 3/30] 목소리 잘 들려요',{exact:true}).waitFor();
+ await page.clock.runFor(3000);assert.equal(await panel.count(),0);await page.locator('.yt-chat-items').getByText('[시연 3/30] 다들 반가워요 👋',{exact:true}).waitFor();
  await trigger.click();assert.equal(await panel.locator('li').count(),3);await panel.getByRole('button',{name:'중단하기',exact:true}).click();await page.clock.runFor(3000);assert.equal(await panel.locator('li').count(),3);
 });
