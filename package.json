@@ -10,7 +10,8 @@
     "dev": "vite --host 0.0.0.0",
     "build": "vue-tsc --noEmit && vite build",
     "test:chat": "node --test tests/live-chat.test.cjs",
-    "preview": "vite preview --host 0.0.0.0"
+    "preview": "vite preview --host 0.0.0.0",
+    "test:contracts": "node --test tests/contract-alignment.test.cjs"
   },
   "dependencies": {
     "lucide-vue-next": "^0.468.0",

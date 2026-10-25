@@ -42,9 +42,9 @@ const empty = (text: string) => props.api ? '연동 API 없음' : !range.value ?
 const judgment = computed(() => judgmentSegments(sum(l => l.scanned), sum(l => l.hidden), sum(l => l.held)));
 const judgmentTotal = computed(() => sum(l => l.scanned));
 const kick = computed<BarSegment[]>(() => [
-  { key: 'APPROVED', label: '스트리머 승인', value: sum(l => l.kickReviews.approved), color: KICK_COLORS.APPROVED },
+  { key: 'APPROVED', label: '승인', value: sum(l => l.kickReviews.approved), color: KICK_COLORS.APPROVED },
   { key: 'PENDING', label: '결정 대기', value: sum(l => l.kickReviews.pending), color: KICK_COLORS.PENDING },
-  { key: 'REJECTED', label: '스트리머 기각', value: sum(l => l.kickReviews.rejected), color: KICK_COLORS.REJECTED }
+  { key: 'REJECTED', label: '기각', value: sum(l => l.kickReviews.rejected), color: KICK_COLORS.REJECTED }
 ]);
 const kickTotal = computed(() => kick.value.reduce((n, s) => n + s.value, 0));
 const approval = computed(() => { const a = kick.value[0].value, d = a + kick.value[2].value; return d ? `${Math.round(a / d * 100)}%` : '-'; });
@@ -71,7 +71,7 @@ const when = (iso: string) => new Date(iso).toLocaleString('ko-KR', { timeZone: 
 
 <template>
   <div class="sys-head">
-    <div><h1>기간 통계</h1><p>끝난 방송을 포함한 기간 통계 · 한국 시간 기준</p></div>
+    <div><h1>기간 통계</h1><p>끝난 방송 포함 · 기간 내 채팅·요청 · 한국 시간 기준</p></div>
     <span class="sys-mock">{{api ? '기간 집계 API가 없습니다 (Backend 요청 중)' : '목업 예시 데이터'}}</span>
   </div>
   <div class="sys-filter" role="group" aria-label="기간"><button v-for="p in presets" :key="p[0]" type="button" :class="{on: preset===p[0]}" :aria-pressed="preset===p[0]" @click="preset=p[0]">{{p[1]}}</button></div>
@@ -85,7 +85,7 @@ const when = (iso: string) => new Date(iso).toLocaleString('ko-KR', { timeZone: 
   <section class="sys-charts" aria-label="기간 주요 지표">
     <article class="card sys-chart-card">
       <header><h2>기간 채팅 판정 현황</h2><span v-if="judgmentTotal" class="sys-base">{{nf.format(judgmentTotal)}}건 기준</span></header>
-      <details class="metric-definition"><summary>판정 기준</summary><p>기간 안 방송에서 검사한 채팅입니다. 판정 대기는 AI 조사 또는 운영자 문맥 검토 중인 채팅입니다.</p></details>
+      <details class="metric-definition"><summary>판정 기준</summary><p>선택 기간 안에 보낸 채팅을 조회 시점 가시성으로 집계한 목업입니다. 판정 대기는 AI 조사 또는 운영자 문맥 검토 중인 채팅입니다.</p></details>
       <StackedBar :segments="judgment" label="기간 채팅 판정 현황" :empty="empty('검사한 채팅 없음')"/>
     </article>
     <article class="card sys-chart-card">
@@ -96,18 +96,18 @@ const when = (iso: string) => new Date(iso).toLocaleString('ko-KR', { timeZone: 
   </section>
 
   <section class="card sys-section">
-    <header class="sys-section-head"><div><h2>일별 비정상 비율</h2><p>날짜별로 검사한 채팅 중 비정상(위반 확정) 비율입니다. 방송이 없던 날은 선이 끊깁니다.</p></div></header>
+    <header class="sys-section-head"><div><h2>일별 비정상 비율</h2><p>날짜별로 검사한 채팅 중 비정상(위반 확정) 비율입니다. 집계할 채팅이 없는 날은 선이 끊깁니다.</p></div></header>
     <TrendLine :points="trend" label="일별 비정상 비율" :color="JUDGMENT_COLORS.abnormal" :empty="empty('검사한 채팅 없음')"/>
     <details v-if="trend.length && stats" class="period-table period-daily"><summary>일별 표 보기</summary>
       <div class="table-scroll"><table class="data-table sys-table">
         <thead><tr><th>날짜</th><th class="num">검사한 채팅</th><th class="num">비정상</th><th class="num">판정 대기</th><th class="num">비정상 비율</th></tr></thead>
-        <tbody><tr v-for="d in stats.daily" :key="d.date"><td class="nowrap">{{dot(d.date)}}</td><td class="num">{{nf.format(d.scanned)}}</td><td class="num">{{nf.format(d.hidden)}}</td><td class="num">{{nf.format(d.held)}}</td><td class="num">{{d.scanned ? `${(d.hidden / d.scanned * 100).toFixed(1)}%` : '방송 없음'}}</td></tr></tbody>
+        <tbody><tr v-for="d in stats.daily" :key="d.date"><td class="nowrap">{{dot(d.date)}}</td><td class="num">{{nf.format(d.scanned)}}</td><td class="num">{{nf.format(d.hidden)}}</td><td class="num">{{nf.format(d.held)}}</td><td class="num">{{d.scanned ? `${(d.hidden / d.scanned * 100).toFixed(1)}%` : '채팅 없음'}}</td></tr></tbody>
       </table></div>
     </details>
   </section>
 
   <section class="card sys-section">
-    <header class="sys-section-head"><div><h2>방송별 비교</h2><p>기간 안 방송을 채널별로 합쳤습니다. 끝난 방송도 포함하며, 비정상 비율이 높은 채널이 위에 옵니다.</p></div></header>
+    <header class="sys-section-head"><div><h2>방송별 비교</h2><p>기간 안 채팅·요청을 방송별로 집계해 채널별로 합쳤습니다. 끝난 방송도 포함하며, 비정상 비율이 높은 채널이 위에 옵니다.</p></div></header>
     <RateBars :rows="channelRows"/>
     <p v-if="!lives.length" class="stacked-empty period-empty">{{empty('방송이 없습니다.')}}</p>
     <!-- 30일이면 방송이 100개 가까이 되어 목록은 접어 둔다 -->

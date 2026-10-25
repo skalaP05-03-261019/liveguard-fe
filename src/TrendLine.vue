@@ -76,7 +76,7 @@ function onKey(e: KeyboardEvent) {
         <template v-for="(p, i) in points" :key="'m' + p.key"><circle v-if="p.value !== null" :cx="x(i)" :cy="y(p.value)" :r="active === i ? 5 : 4" :fill="color" class="trend-marker"/></template>
         <rect v-for="(p, i) in points" :key="'h' + p.key" class="trend-hit" :x="x(i) - colW / 2" :y="M.t" :width="Math.max(colW, 8)" :height="H - M.t - M.b" @mouseenter="active = i"/>
       </svg>
-      <div v-if="activePoint" class="stacked-tip trend-tip" role="tooltip" :style="tipStyle"><i :style="{background: color}"/>{{activePoint.label}} · {{activePoint.value === null ? '방송 없음' : `${activePoint.value.toFixed(1)}%`}}<template v-if="activePoint.detail"> · {{activePoint.detail}}</template></div>
+      <div v-if="activePoint" class="stacked-tip trend-tip" role="tooltip" :style="tipStyle"><i :style="{background: color}"/>{{activePoint.label}} · {{activePoint.value === null ? '채팅 없음' : `${activePoint.value.toFixed(1)}%`}}<template v-if="activePoint.detail"> · {{activePoint.detail}}</template></div>
     </template>
   </div>
 </template>

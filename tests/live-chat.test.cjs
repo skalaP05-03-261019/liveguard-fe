@@ -12,10 +12,11 @@ let eventId=0;
 const evidence=process.env.CHAT_EVIDENCE_DIR;
 const timestamp=()=>new Date().toISOString();
 const message=(id,owner,visibility='PUBLIC',extra={})=>({messageId:id,channelId:'channel-1',liveId:'live-1',authorAlias:owner,text:`${id} 원문`,visibility,version:1,sentAt:timestamp(),owner,...extra});
-function emit(event,payload={}){
+function emit(event,payload={},extra={}){
+ const id=extra.eventId??String(++eventId);
  for(const client of clients){
   if(event==='LIVE_ACCESS_BLOCKED'&&client.role!=='author')continue;
-  client.res.write(`id: ${++eventId}\nevent: ${event}\ndata: ${JSON.stringify({eventId:String(eventId),occurredAt:timestamp(),payload})}\n\n`);
+  client.res.write(`id: ${id}\nevent: ${event}\ndata: ${JSON.stringify({eventId:id,occurredAt:timestamp(),entityVersion:payload.version,payload,...extra})}\n\n`);
  }
 }
 async function open(role='author',clockTime){
@@ -176,9 +177,9 @@ test('defensive rendering excludes other viewers private messages even from a ma
 
 test('visibility event removes cached public text even when refresh fails, restoration comes from server',async()=>{
  state.messages=[message('changing','author')];const page=await open('observer');await page.getByText('changing 원문',{exact:true}).waitFor();
- await waitFor(()=>clients.size>0);state.messages[0].visibility='HELD';state.historyError=true;emit('MESSAGE_VISIBILITY_CHANGED',{messageId:'changing',visibility:'HELD',version:2});
+ await waitFor(()=>clients.size>0);state.messages[0].visibility='HELD';state.messages[0].version=2;state.historyError=true;emit('MESSAGE_VISIBILITY_CHANGED',{messageId:'changing',visibility:'HELD',version:2});
  await waitFor(async()=>await page.getByText('changing 원문',{exact:true}).count()===0);
- state.historyError=false;state.messages[0].visibility='PUBLIC';emit('MESSAGE_RESTORED',{messageId:'changing',visibility:'PUBLIC',version:3});await page.getByText('changing 원문',{exact:true}).waitFor();
+ state.historyError=false;state.messages[0].visibility='PUBLIC';state.messages[0].version=3;emit('MESSAGE_RESTORED',{messageId:'changing',visibility:'PUBLIC',version:3});await page.getByText('changing 원문',{exact:true}).waitFor();
 });
 
 test('timeout is restored without own messages, keeps video and clears after server revocation',async()=>{
@@ -406,11 +407,11 @@ test('chat hiding and searching retain SSE visibility changes without leaking ca
  await page.getByLabel('채팅 검색',{exact:true}).fill('changing');
  assert.equal(await page.locator('[data-message-id="public"]').count(),0);
  await page.getByRole('button',{name:'채팅 숨기기',exact:true}).click();
- state.messages[0].visibility='HELD';state.historyError=true;emit('MESSAGE_VISIBILITY_CHANGED',{messageId:'changing',visibility:'HELD',version:2});
+ state.messages[0].visibility='HELD';state.messages[0].version=2;state.historyError=true;emit('MESSAGE_VISIBILITY_CHANGED',{messageId:'changing',visibility:'HELD',version:2});
  await new Promise(r=>setTimeout(r,100));
  await page.getByRole('button',{name:'채팅 표시',exact:true}).click();
  assert.equal(await page.locator('[data-message-id="changing"]').count(),0);
- state.historyError=false;state.messages[0].visibility='PUBLIC';emit('MESSAGE_RESTORED',{messageId:'changing',visibility:'PUBLIC',version:3});
+ state.historyError=false;state.messages[0].visibility='PUBLIC';state.messages[0].version=3;emit('MESSAGE_RESTORED',{messageId:'changing',visibility:'PUBLIC',version:3});
  await page.locator('[data-message-id="changing"]').waitFor();
 });
 
@@ -995,7 +996,7 @@ test('timeout opens collapsed chat and keeps live messages, search and privacy u
  state.until.author=new Date(Date.now()+600000).toISOString();emit('CHAT',{});
  await assertTimeoutComposer(page);
  assert.equal(await page.getByRole('button',{name:'채팅 표시',exact:true}).count(),0);
- state.messages[0].visibility='HELD';emit('MESSAGE_VISIBILITY_CHANGED',{messageId:'changing',visibility:'HELD',version:2});
+ state.messages[0].visibility='HELD';state.messages[0].version=2;emit('MESSAGE_VISIBILITY_CHANGED',{messageId:'changing',visibility:'HELD',version:2});
  state.messages.push(message('new-public','observer'));emit('CHAT',{});
  await page.locator('[data-message-id="new-public"]').waitFor();
  assert.equal(await page.locator('[data-message-id="changing"]').count(),0);
@@ -1087,7 +1088,7 @@ test('admin dashboard charts split chat judgment from kick approval and rank cha
  const [judgment,kick]=await page.locator('.sys-chart-card').all();
  const count=t=>Number(t.replace(/[^0-9]/g,''));
  // ① 모수는 검사한 채팅, ② 모수는 강퇴 승인 요청. 범례 합이 각 모수와 같다
- for(const [card,labels] of [[judgment,['정상','비정상','판정 대기']],[kick,['스트리머 승인','결정 대기','스트리머 기각']]]){
+ for(const [card,labels] of [[judgment,['정상','비정상','판정 대기']],[kick,['승인','결정 대기','기각']]]){
   assert.deepEqual(await card.locator('.stacked-legend span').allInnerTexts(),labels);
   const sum=(await card.locator('.stacked-legend b').allInnerTexts()).map(count).reduce((a,b)=>a+b,0);
   assert.equal(sum,count(await card.locator('.sys-base').innerText()));
@@ -1219,4 +1220,47 @@ test('admin attention filters, responsive row details and chart scales remain us
  assert.equal(await apiPage.locator('.attention-grid button:disabled').count(),3);
  assert.equal(await apiPage.locator('.attention-grid strong').allInnerTexts().then(t=>t.every(v=>v==='—')),true);
  await capture(apiPage,'review-admin-api-empty-desktop');
+});
+
+
+test('versioned SSE ignores old visibility and replay IDs while applying new hiding before a failed refresh',async()=>{
+ state.messages=[message('versioned','observer','PUBLIC',{version:3})];
+ const page=await open();await page.getByText('versioned 원문',{exact:true}).waitFor();
+ await waitFor(()=>clients.size>0);await page.waitForTimeout(150);
+ state.historyError=true;
+ emit('MESSAGE_VISIBILITY_CHANGED',{messageId:'versioned',visibility:'HIDDEN',version:2});
+ await page.waitForTimeout(150);assert.equal(await page.getByText('versioned 원문',{exact:true}).count(),1);
+ emit('MESSAGE_VISIBILITY_CHANGED',{messageId:'versioned',visibility:'HIDDEN',version:4});
+ await waitFor(async()=>await page.getByText('versioned 원문',{exact:true}).count()===0);
+ state.historyError=false;state.messages[0].version=5;
+ emit('MESSAGE_RESTORED',{messageId:'versioned',version:5},{eventId:'restore-v5'});
+ await page.getByText('versioned 원문',{exact:true}).waitFor();
+ emit('MESSAGE_VISIBILITY_CHANGED',{messageId:'versioned',visibility:'HIDDEN',version:6},{eventId:'restore-v5'});
+ await page.waitForTimeout(150);assert.equal(await page.getByText('versioned 원문',{exact:true}).count(),1);
+ state.historyError=true;
+ emit('MESSAGE_VISIBILITY_CHANGED',{messageId:'versioned',visibility:'HIDDEN',version:6});
+ await waitFor(async()=>await page.getByText('versioned 원문',{exact:true}).count()===0);
+});
+
+
+test('admin counts distinct basis cases with multiple types and separates invalidated or missing decisions',async()=>{
+ const page=await openMockModerator();
+ await page.evaluate(async()=>{
+  const {useLiveGuard}=await import('/src/stores/liveGuard.ts');const mock=useLiveGuard().mock.state;
+  const r=mock.reviews.find(r=>r.kind==='KICK');const c=mock.cases.find(c=>c.caseId===r.basisCaseIds[0]);
+  c.confirmedFindings.push({...c.confirmedFindings[0],findingId:'extra-category',category:'HARASSMENT'});
+ });
+ await page.getByRole('button',{name:'로그아웃',exact:true}).click();
+ await page.getByRole('button',{name:'시스템 운영자 전용',exact:true}).click();await page.getByRole('button',{name:'로그인',exact:true}).click();
+ await page.locator('.sys-filter').getByRole('button',{name:/행복한게임방/}).click();
+ assert.equal(await page.locator('.request-table td:nth-child(5)').innerText(),'3건');
+ await page.setViewportSize({width:390,height:844});
+ await page.locator('.request-table .mobile-row-detail summary').click();
+ assert.match(await page.locator('.request-table .mobile-row-detail').innerText(),/기준 사건 3건/);
+ const status=async(value)=>page.evaluate(async(value)=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');useLiveGuard().mock.state.reviews.find(r=>r.kind==='KICK').status=value;},value);
+ await status('INVALIDATED');await page.getByText('무효 · 계약 확인 필요',{exact:true}).waitFor();
+ assert.equal(await page.locator('.attention-grid strong').first().innerText(),'0건');
+ await status('DECIDED');await page.getByText('결정 정보 미확인',{exact:true}).waitFor();
+ assert.equal(await page.locator('.sys-chart-card').nth(1).locator('.stacked-legend').count(),0);
+ assert.equal(await page.getByText('스트리머 결정',{exact:true}).count(),0);
 });
