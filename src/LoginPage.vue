@@ -41,6 +41,7 @@ function pushBubble() {
 }
 onMounted(() => {
   window.addEventListener('keydown', onKey);
+  if(new URLSearchParams(window.location.search).get('entry')==='viewer')openLogin('viewer');
   for (let i = 0; i < 5; i++) pushBubble();
   if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) bubbleTimer = window.setInterval(pushBubble, 1600);
 });
