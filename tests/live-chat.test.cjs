@@ -98,6 +98,12 @@ before(async()=>{
   if(url.pathname==='/api/auth/me'&&state.authError)return json(401,{code:'UNAUTHENTICATED',message:'Session expired',retryable:false});
   // admin(PLATFORM_ADMIN)은 실제 시드처럼 어느 채널에도 소속되지 않는다
   if(url.pathname==='/api/auth/me')return json(200,{userId:role,nickname:role,role:role==='operator'?'MODERATOR':role==='admin'?'PLATFORM_ADMIN':'VIEWER',channelIds:role==='admin'?[]:['channel-1']});
+  if(req.method==='POST'&&/^\/api\/channels\/[^/]+\/lives$/.test(url.pathname)){
+   state.liveStarts=(state.liveStarts??0)+1;
+   if(state.startError)return json(409,{code:'LIVE_ALREADY_ACTIVE',message:'방송 시작을 처리하지 못했습니다.',retryable:false});
+   state.active=true;state.liveId='started-live-'+state.liveStarts;
+   return json(201,{liveId:state.liveId,channelId:'channel-1',startedAt:timestamp(),endedAt:null});
+  }
   if(url.pathname.endsWith('/lives/current')){
    state.currentReads++;const current=state.active?{liveId:state.liveId,channelId:'channel-1',startedAt:timestamp(),endedAt:null}:null;
    if(state.delayCurrent)await new Promise(r=>setTimeout(r,state.delayCurrent));
@@ -1499,4 +1505,24 @@ test('empty unified monitoring shows both queues and ended broadcasts clear arri
  await captureReview(page,'summary-one-pending-api');
  state.active=false;emit('LIVE_ENDED',{liveId:'live-1'});await page.locator('.review-arrival').waitFor({state:'detached'});
  assert.equal(await page.getByRole('button',{name:'제출',exact:true}).isDisabled(),true);assert.equal(state.decisions.length,0);
+});
+
+
+test('streamer create menu starts through the API only when off air and prevents duplicate starts',async()=>{
+ state.active=false;const page=await open('operator');await page.locator('.studio-empty').waitFor();
+ const trigger=page.getByRole('button',{name:'만들기',exact:true});await trigger.click();
+ const item=page.getByRole('menuitem',{name:'라이브 스트리밍 시작',exact:true});await item.waitFor();assert.equal(await item.getAttribute('aria-disabled'),'false');
+ await captureReview(page,'create-menu-ready');await item.click();
+ await page.locator('.live-monitoring-grid').waitFor();assert.equal(state.liveStarts,1);
+ await trigger.click();assert.equal(await item.getAttribute('aria-disabled'),'true');await item.dispatchEvent('click');assert.equal(state.liveStarts,1);
+ await page.getByText('현재 방송이 진행 중입니다.',{exact:true}).waitFor();await captureReview(page,'create-menu-live');
+});
+
+test('create menu keeps mock starts disabled, supports keyboard and mobile, and shows API errors',async()=>{
+ const page=await openMockModerator();const trigger=page.getByRole('button',{name:'만들기',exact:true});await trigger.click();
+ const item=page.getByRole('menuitem',{name:'라이브 스트리밍 시작',exact:true});assert.equal(await item.getAttribute('aria-disabled'),'true');
+ await page.keyboard.press('Escape');assert.equal(await trigger.evaluate(e=>document.activeElement===e),true);
+ for(const width of [390,360]){await page.setViewportSize({width,height:844});await trigger.click();await page.screenshot({animations:'disabled'});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await captureReview(page,`create-menu-${width}`);await page.keyboard.press('Escape');}
+ state.active=false;state.startError=true;const api=await open('operator');await api.locator('.studio-empty').waitFor();await api.getByRole('button',{name:'만들기',exact:true}).click();await api.getByRole('menuitem',{name:'라이브 스트리밍 시작',exact:true}).click();
+ await api.getByRole('alert').filter({hasText:'방송 시작을 처리하지 못했습니다.'}).waitFor();assert.equal(await api.locator('.live-monitoring-grid').count(),0);assert.equal(state.liveStarts,1);
 });

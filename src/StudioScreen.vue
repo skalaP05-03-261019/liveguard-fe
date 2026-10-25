@@ -7,6 +7,7 @@ import ViewerManage from './ViewerManage.vue';
 import OperatorTools from './OperatorTools.vue';
 import DecisionNotifications from './DecisionNotifications.vue';
 import StatusSummaryWidget from './StatusSummaryWidget.vue';
+import StreamCreateMenu from './StreamCreateMenu.vue';
 import type { ShortcutAction, OperatorAlert } from './operatorTools';
 import ModeBadge from './ModeBadge.vue';
 import AiEvidence from './AiEvidence.vue';
@@ -336,8 +337,8 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
 
 <template>
   <div class="app-shell studio-shell">
-    <header class="topbar"><div class="topbar-title"><button class="yt-icon-button" :class="{on: navVisible}" :title="navVisible ? '메뉴 닫기' : '메뉴 열기'" aria-controls="operator-nav" :aria-expanded="navVisible" @click="toggleNav"><Menu :size="22"/></button><span class="yt-logo"><span class="yt-logo-mark"><ShieldCheck :size="15"/></span><b>LIVE<span>:</span>GUARD</b></span><span class="console-tag">Studio</span></div>
-      <div class="topbar-right"><ModeBadge :mock="mock" :online="online"/><DecisionNotifications :reviews="ended ? [] : pending" :live-id="live?.liveId??''" :ended="ended" @settings="operatorToolsRef?.openSettings()" @activity="operatorToolsRef?.openAlerts()" @open="openToolAlert($event.reviewId, 'new')"/><span class="yt-me" :style="{background: avatarColor(nickname)}" :title="nickname">{{nickname.slice(0,1)}}</span><span class="operator-info">{{nickname}}</span><button class="yt-icon-button" title="로그아웃" aria-label="로그아웃" @click="emit('logout')"><LogOut :size="20"/></button></div></header>
+    <header class="topbar"><div class="topbar-title"><button class="yt-icon-button" :class="{on: navVisible}" :title="navVisible ? '메뉴 닫기' : '메뉴 열기'" aria-controls="operator-nav" :aria-expanded="navVisible" @click="toggleNav"><Menu :size="22"/></button><span class="yt-logo" role="img" aria-label="LIVE:GUARD Studio"><span class="yt-logo-mark"><ShieldCheck :size="15"/></span><b>LIVE<span>:</span>GUARD</b></span><span class="console-tag">Studio</span></div>
+      <div class="topbar-right"><ModeBadge :mock="mock" :online="online"/><StreamCreateMenu :disabled="mock || loading || busy || (!!live && !ended)" :reason="loading ? '방송 상태를 확인하고 있습니다.' : busy ? '요청을 처리하고 있습니다.' : mock ? '목업 방송이 진행 중입니다.' : '현재 방송이 진행 중입니다.'" @start="emit('start')"/><DecisionNotifications :reviews="ended ? [] : pending" :live-id="live?.liveId??''" :ended="ended" @settings="operatorToolsRef?.openSettings()" @activity="operatorToolsRef?.openAlerts()" @open="openToolAlert($event.reviewId, 'new')"/><span class="yt-me" :style="{background: avatarColor(nickname)}" :title="nickname">{{nickname.slice(0,1)}}</span><span class="operator-info">{{nickname}}</span><button class="yt-icon-button" title="로그아웃" aria-label="로그아웃" @click="emit('logout')"><LogOut :size="20"/></button></div></header>
     <div class="app-body">
       <div v-if="!wide && navOpen" class="nav-backdrop" @click="navOpen = false"/>
       <aside id="operator-nav" class="sidebar" :class="{open: !wide && navOpen, docked: wide && !navCollapsed}" :aria-hidden="!navVisible" :inert="!navVisible">

@@ -209,7 +209,7 @@ async function load(){
  }catch(e){if(expected===generation){if(e instanceof ApiError&&e.code==='NOT_FOUND'){generation++;live.value=null;messages.value=[];resetAccess();disconnect();}else fail(e);}}
  finally{loadingLive=false;loading.value=false;}
 }
-async function start(){busy.value=true;try{await api.startLive(store.channelId);await load();}catch(e){fail(e);}finally{busy.value=false;}}
+async function start(){if(busy.value||loading.value||(live.value&&!ended.value))return;busy.value=true;try{await api.startLive(store.channelId);await load();}catch(e){fail(e);}finally{busy.value=false;}}
 async function end(){if(!live.value)return;busy.value=true;try{await api.endLive(live.value.liveId);markEnded();}catch(e){fail(e);}finally{busy.value=false;}}
 let outgoing:{text:string;id:string}|null=null;
 async function send(){
