@@ -74,7 +74,8 @@ export function classify(text: string, sameTextCount: number): Classified {
   if (attack || (official && credential)) return { route: 'CONTEXT_REVIEW', tags, ruleCategories };
   return { route: 'PASS', tags, ruleCategories };
 }
-const PUBLIC_CONTACT = /고객센터|대표번호|공식 문의처/;
+// 고정된 합성 예시만 정상 처리한다. '고객센터'라는 단어가 전화번호의 예외가 되지는 않는다.
+const PUBLIC_COMPANY_EMAIL = new Set(['고객센터 help@game-corp.example', '결제 오류는 고객센터 help@game-corp.example 로 문의하면 돼요']);
 // 정체성 속성으로 묶인 집단을 가리키는 말(목업 판정용). 특정 팀의 팬처럼 정체성 속성이 아닌 집단은 넣지 않는다.
 const IDENTITY_GROUP = /출신|지역 사람|국적|외국인|인종|민족|종교|여자들|남자들|노인들|장애인/;
 // 개인정보 후보의 종류와 가림 표시. 여러 종류면 Backend 태그 순서(전화번호 → 계좌 → 이메일)의 첫 번째.
@@ -126,13 +127,17 @@ function mockAgentTrace(route: HandlingRoute, text: string, finding: Finding, co
   const reasoning = publicContact ? [
     `대상 메시지에 ${piiKind(text)[0]} 형식이 있습니다. 문맥 기록에는 ${piiKind(text)[1]}로 가려져 있습니다.`,
     "'고객센터'와 함께 쓰여 개인이 아닌 게임사의 공개 문의처로 안내하고 있습니다.",
-    'SP-3.1은 실제 개인정보 노출을 막습니다. 회사가 공개한 문의처는 개인정보 노출로 보지 않습니다.',
+    '개인정보 형태와 노출 문맥으로 판단합니다. 이 합성 예시는 개인 연락처가 아닌 회사 문의 이메일입니다.',
     '위반 아님으로 판정합니다. 개인정보 경로라 백엔드가 검증하면 운영자 검토 없이 공개됩니다.'
   ] : route === 'PII_INVESTIGATION' ? [
     `대상 메시지에 ${piiKind(text)[0]} 형식이 있습니다. 문맥 기록에는 ${piiKind(text)[1]}로 가려져 있습니다.`,
-    '주변 채팅에서 이 연락처가 작성자 본인 것인지, 다른 사람 것인지 드러나지 않습니다.',
-    'SP-3.1은 다른 사람의 연락처를 드러내는 것을 막습니다. 본인 연락처인지는 채팅만으로 확인할 수 없습니다.',
-    '근거가 부족하므로 위반으로 단정하지 않고 판단 보류로 넘깁니다. 확인할 사실을 함께 적습니다.'
+    'v3.2 SP-3.1은 실존·소유자·유효성 검증을 요구하지 않습니다. 전화번호 형태에는 경고·인용 예외를 적용하지 않습니다.',
+    finding.reason,
+    finding.verdict === 'VIOLATION' ? '개인정보 단독 위반 제안 → 백엔드의 근거·정책 검증 후 확정합니다.' : '형태·노출 문맥이 불충분하거나 운영자 판단 유형이 섞이면 검토 대기를 유지합니다.'
+  ] : groupHate && finding.verdict === 'NEEDS_REVIEW' ? [
+    '집단 언급만으로 비하·배제를 확정하지 않습니다.',
+    finding.reason,
+    '대상과 인용·경고·배려 문맥을 운영자가 확인할 때까지 HELD를 유지합니다.'
   ] : groupHate ? [
     `공격 표현 '${attack}'이 출신으로 묶은 집단 전체를 향합니다.`,
     '대상 집단(정체성 속성)과 배제 요구("나가라")가 모두 확인됩니다. 특정 팀의 팬처럼 정체성 속성이 아닌 집단이 아닙니다.',
@@ -169,20 +174,28 @@ export function maskText(text: string) {
 }
 // 목업 Agent. 실제 모델을 부르지 않고 경로와 표현으로 정한 제안을 붙인다. 계약상 VIOLATION은 정책 ID, NEEDS_REVIEW는 확인 필요 사실이 있어야 한다.
 function mockAgent(messageId: string, route: HandlingRoute, tags: string[], text: string): Finding {
-  // 게임사 고객센터처럼 개인이 아닌 공개 연락처는 위반 아님으로 판정한다. 개인정보 경로라 BE 검증 뒤 운영자 없이 공개된다(v3.2 §5).
-  if (route === 'PII_INVESTIGATION' && PUBLIC_CONTACT.test(text)) return { messageId, verdict: 'NO_VIOLATION', categories: [], policyIds: ['SP-3.1'], reason: '(목업 Agent) 개인이 아닌 게임사 고객센터의 공개 연락처입니다. 개인정보 노출이 아닙니다.', missingFacts: [] };
-  if (route === 'PII_INVESTIGATION') return { messageId, verdict: 'NEEDS_REVIEW', categories: ['PII_EXPOSURE'], policyIds: ['SP-3.1'], reason: '(목업 Agent) 연락처 형식이 있지만 실제 개인정보인지 확인할 근거가 없습니다.', missingFacts: ['본인 또는 타인의 실제 연락처인지'] };
+  if (route === 'PII_INVESTIGATION') {
+    const mixed = tags.includes('ATTACK_TERM') || (tags.includes('OFFICIAL_CLAIM') && tags.includes('CREDENTIAL_REQUEST'));
+    const base = { messageId, policyIds: ['SP-3.1'] };
+    if (mixed) return { ...base, verdict: 'NEEDS_REVIEW', categories: ['PII_EXPOSURE'], reason: '(목업 Agent) 개인정보와 운영자 판단이 필요한 표현이 함께 있어 자동 확정하지 않습니다.', missingFacts: ['공격·사칭 표현의 문맥과 적용 유형'] };
+    if (tags.includes('PII_PHONE')) return { ...base, verdict: 'VIOLATION', categories: ['PII_EXPOSURE'], reason: '(목업 Agent) 전화번호 형태가 있습니다. 본인 정보·경고·인용도 SP-3.1 대상이며 실존·소유자 검증은 요구하지 않습니다.', missingFacts: [] };
+    if (PUBLIC_COMPANY_EMAIL.has(text) && !tags.includes('PII_ACCOUNT') && (text.match(EMAIL)?.length ?? 0) === 1) return { ...base, verdict: 'NO_VIOLATION', categories: [], reason: '(목업 Agent) 개인이 아닌 게임사 고객센터의 공개 문의 이메일 예시입니다.', missingFacts: [] };
+    if (/후원|입금|송금|계좌|제 메일|내 메일|이메일|연락|메일.*보내/.test(text)) return { ...base, verdict: 'VIOLATION', categories: ['PII_EXPOSURE'], reason: '(목업 Agent) 개인정보 형태와 노출 문맥이 확인됩니다. 실존·소유자·유효성 확인 없이 PII_EXPOSURE만 제안합니다.', missingFacts: [] };
+    return { ...base, verdict: 'NEEDS_REVIEW', categories: ['PII_EXPOSURE'], reason: '(목업 Agent) 개인정보 형태 후보는 있지만 노출 문맥이 불충분합니다.', missingFacts: ['개인정보를 알리는 문맥인지'] };
+  }
   if (tags.includes('OFFICIAL_CLAIM') && tags.includes('CREDENTIAL_REQUEST')) return { messageId, verdict: 'VIOLATION', categories: ['PHISHING'], policyIds: ['CP-5.2'], reason: '(목업 Agent) 공식 운영자를 자칭하며 계정 정보를 요구합니다.', missingFacts: [] };
   // v3.2 CP-3.3: 집단 전체의 열등 단정이나 배제 요구. 대상 집단과 배제 표현이 함께 있어야 한다.
-  if (IDENTITY_GROUP.test(text)) return { messageId, verdict: 'VIOLATION', categories: ['HARASSMENT'], policyIds: ['CP-3.3'], reason: '(목업 Agent) 출신으로 묶은 집단 전체를 방송에서 나가라고 배제합니다. 자조나 비판 인용이 아닙니다.', missingFacts: [] };
+  if (IDENTITY_GROUP.test(text) && /불편|조심|주의|경고|인용|차별.*안/.test(text)) return { messageId, verdict: 'NEEDS_REVIEW', categories: [], policyIds: ['CP-3.3', 'CP-2.2'], reason: '(목업 Agent) 집단 배제인지 배려·경고 문맥인지 확인이 필요합니다.', missingFacts: ['인용·경고의 목적과 실제 배제 요구 여부'] };
+  if (IDENTITY_GROUP.test(text) && /꺼져|나가라|열등|말하지 마|끼지 마/.test(text)) return { messageId, verdict: 'VIOLATION', categories: ['HARASSMENT'], policyIds: ['CP-3.3'], reason: '(목업 Agent) 출신으로 묶은 집단 전체를 방송에서 나가라고 배제합니다. 자조나 비판 인용이 아닙니다.', missingFacts: [] };
+  if (IDENTITY_GROUP.test(text)) return { messageId, verdict: 'NEEDS_REVIEW', categories: [], policyIds: ['CP-3.3'], reason: '(목업 Agent) 집단 언급만으로 비하·배제를 단정하지 않습니다.', missingFacts: ['열등 단정·배제 요구와 대상의 문맥'] };
   if (/컨트롤|한타|플레이|실력|노래|대박|ㅋㅋ/.test(text)) return { messageId, verdict: 'NO_VIOLATION', categories: [], policyIds: ['CP-2.2'], reason: '(목업 Agent) 감탄 표현으로 쓰였고 특정 대상을 공격하지 않습니다.', missingFacts: [] };
   return { messageId, verdict: 'VIOLATION', categories: ['HARASSMENT'], policyIds: ['CP-3.2'], reason: '(목업 Agent) 특정 대상에게 떠나라고 요구하거나 위협하는 공격 표현입니다.', missingFacts: [] };
 }
 // Backend LiveService.decorate의 작성자 안내. 규칙 확정은 프론트 사유 라벨을 쓴다(정책 문구와 다른 BE 문장은 따르지 않음).
 function authorNotice(route: HandlingRoute, hidden: boolean): { code: ModerationReasonCode | null; notice: string | null } {
   if (route === 'FLOOD_REVIEW') return { code: 'FLOOD_REPEATED', notice: '동일 문장 반복으로 숨김 처리되었습니다.' };
-  if (route === 'PII_INVESTIGATION' && !hidden) return { code: 'PII_PENDING', notice: '개인정보 노출 가능성을 확인하고 있습니다.' };
-  if (route === 'CONTEXT_REVIEW' || route === 'PII_INVESTIGATION') return { code: route === 'PII_INVESTIGATION' ? 'PII_PENDING' : 'CONTEXT_PENDING', notice: hidden ? '운영자 검토로 위반이 확정되어 숨김 처리되었습니다.' : '문맥 확인과 운영자 결정을 기다립니다.' };
+  if (route === 'PII_INVESTIGATION') return { code: 'PII_PENDING', notice: hidden ? '개인정보 노출 위반이 확정되어 숨김 처리되었습니다.' : '개인정보 노출 가능성을 확인하고 있습니다.' };
+  if (route === 'CONTEXT_REVIEW') return { code: 'CONTEXT_PENDING', notice: hidden ? '운영자 검토로 위반이 확정되어 숨김 처리되었습니다.' : '문맥 확인과 운영자 결정을 기다립니다.' };
   return { code: null, notice: null };
 }
 
@@ -332,6 +345,11 @@ export function createMockLive(users: MockUser[]) {
         setVisibility(message, 'PUBLIC', route);
         log('MESSAGE_RESTORED', `${user.alias} · 개인정보 정상 판정으로 공개 (운영자 검토 없음)`, at, { caseId: c.caseId });
         addStep([messageId], at, '가림 해제', '개인정보 정상 판정 → 운영자 검토 없이 공개 (정책 v3.2 §5)', 'CONFIRMED_NORMAL');
+        return { ok: true, message, caseItem: c };
+      }
+      if (route === 'PII_INVESTIGATION' && finding.verdict === 'VIOLATION' && finding.categories.length === 1 && finding.categories[0] === 'PII_EXPOSURE') {
+        confirm(c, ['PII_EXPOSURE'], at, false);
+        log('TOOL_END', `${user.alias} · 개인정보 단독 위반 검증·확정 (목업)`, at, { caseId: c.caseId });
         return { ok: true, message, caseItem: c };
       }
       addStep([messageId], at, '문맥 검토 생성', 'AI 제안만으로 확정하지 않고 운영자 결정 대기 (정책 v3.2)', 'CONTEXT_REVIEW_REQUIRED');

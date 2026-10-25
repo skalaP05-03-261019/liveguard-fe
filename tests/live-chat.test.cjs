@@ -718,12 +718,19 @@ test('admin chat tracking shows the filter result, rule outcome and AI judgment 
 test('policy v3.2: the policy page explains CP-3.3 and the mock shows v3.2',async()=>{
  const page=await openMockModerator();
  await page.locator('.sidebar-foot').getByText('운영정책 v3.2 기준',{exact:true}).waitFor();await page.locator('.topbar .mode-badge').getByText('MOCK 데이터',{exact:true}).waitFor();
- await page.getByRole('navigation',{name:'운영자 메뉴'}).getByRole('button',{name:'정책 근거',exact:true}).click();
+ await page.getByRole('navigation',{name:'운영자 메뉴'}).getByRole('button',{name:'채팅 관제 운영 정책',exact:true}).click();
  await page.getByText(/운영정책 v3\.2\(2026-10-23\) 기준/).waitFor();
  const rules=page.locator('[data-policy-harassment]');
  await rules.getByText('CP-3.3 집단 대상 비하·배제',{exact:false}).waitFor();
  await rules.getByText(/대상 집단이 불명확하면 AI는 판단 보류/).waitFor();
  await page.getByText(/전화번호·계좌번호\(하이픈 묶음 10자리 이상\)·이메일 형식/).waitFor();
+ await page.locator('[data-policy-pii]').getByText(/본인 정보도 포함/).waitFor();
+ await captureReview(page,'policy-v32-policy-desktop');
+ await page.setViewportSize({width:390,height:844});
+ await page.waitForFunction(()=>document.documentElement.scrollWidth<=innerWidth);
+ await captureReview(page,'policy-v32-policy-390');
+ const overflow=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth,wide:[...document.querySelectorAll('main,section,.table-scroll,.studio-rules,.secondary-heading')].filter(e=>e.getBoundingClientRect().right>innerWidth).map(e=>({class:e.className,right:e.getBoundingClientRect().right}))}));
+ assert(overflow.scroll<=overflow.width,JSON.stringify(overflow));
  assert.equal(await page.getByText('운영정책 v3.1',{exact:false}).count(),0);
 });
 
@@ -743,10 +750,14 @@ test('mock follows the Backend v3.2 personal-data candidate rules (rules-v2)',as
  assert.deepEqual(byText['주문번호 1234567890123'].tags,[]);assert.equal(byText['주문번호 1234567890123'].masked,'주문번호 [ACCOUNT]');
  assert.deepEqual(byText['2026-10-23 방송'].tags,[]);
  assert.deepEqual(byText['https://user@site.example/x'].tags,[]);
- // 계좌번호 채팅은 개인정보 조사로 임시 비노출된다.
+ // 계좌 형태 + 후원 노출 문맥은 AI 조사 후 개인정보 단독 위반으로 확정한다.
  await openDemo(page);await page.getByRole('button',{name:'계좌번호',exact:true}).click();
  const row=page.locator('.chat-row').filter({hasText:'후원은 123-456-789012'});await row.waitFor();
- assert.match(await row.getAttribute('class'),/held/);
+ assert.match(await row.getAttribute('class'),/hidden/);
+ await page.getByRole('navigation',{name:'운영자 메뉴'}).getByRole('button',{name:'채팅 기록',exact:true}).click();
+ await page.getByLabel('채팅 기록 검색',{exact:true}).fill('후원은 123-456-789012');
+ await page.locator('.chat-db tbody tr').filter({hasText:'후원은 123-456-789012'}).getByText('숨김',{exact:true}).waitFor();
+ await captureReview(page,'policy-v32-account-confirmed');
 });
 
 test('mock CP-3.3 example: group exclusion goes to context review with an AI suggestion citing CP-3.3',async()=>{
@@ -868,7 +879,7 @@ test('mock 24-hour timeout is automatic and the kick review lists its three basi
  assert.equal(await card.locator('tbody tr').count(),3);
  assert.equal(await card.locator('.review-excerpt').innerText(),'확정 사건 3건');
  await openMore(card);assert.match(await card.locator('.review-summary').innerText(),/서로 다른 확정 사건 3건/);
- await page.getByRole('button',{name:'정책 근거',exact:true}).click();
+ await page.getByRole('button',{name:'채팅 관제 운영 정책',exact:true}).click();
  await page.getByText('모든 채팅 제한은 자동 적용되며, 24시간 제한도 강퇴가 아닙니다.',{exact:false}).waitFor();
  assert.equal(await page.getByText('interrupt()',{exact:false}).count(),0);
 });
@@ -925,7 +936,7 @@ test('mock and API operators share the Studio screen and API decisions send the 
  const api=await open('operator'),mock=await openMockModerator();
  const menus=page=>page.getByRole('navigation',{name:'운영자 메뉴'}).locator('button span').allInnerTexts();
  assert.deepEqual(await menus(api),await menus(mock));
- assert.deepEqual(await menus(api),['실시간 관제','결정 대기','시청자 관리','사건 이력','채팅 기록','정책 근거']);
+ assert.deepEqual(await menus(api),['실시간 관제','결정 대기','시청자 관리','사건 이력','채팅 기록','채팅 관제 운영 정책']);
  for(const page of [api,mock]){
   // 강퇴 승인과 문맥 검토는 탭으로 나뉜다. 강퇴 요청이 있으면 강퇴 탭이 먼저 보이고, 다른 탭에는 대기 표시가 붙는다.
   assert.equal(await page.locator('.studio-review').count(),0);await gotoQueue(page);
@@ -1361,4 +1372,23 @@ test('closure audit: operator shortcuts stop after the live ends',async()=>{
  await page.locator('.studio-live-line .ended').waitFor();
  await page.evaluate(()=>document.activeElement?.blur?.());await page.keyboard.press('/');
  assert.equal(await page.getByLabel('채팅 기록 검색',{exact:true}).count(),0);
+});
+
+
+test('mock v3.2 A-28: phone forms, exposure context, mixed cases and A-25 keep their decision boundaries',async()=>{
+ const page=await openMockModerator();
+ const results=await page.evaluate(async()=>{
+  const {createMockLive}=await import('/src/mockLive.ts');
+  const texts=['제 번호 010-1234-5678','가짜 번호 010-1234-5678','010-1234-5678로 문자 오면 사기예요','고객센터 대표번호 02-123-4567','후원은 123-456-789012로 보내 주세요','제 메일 user@mail.example로 연락 주세요','고객센터 help@game-corp.example','123-456-789012','접어라 010-1234-5678','모르는 번호 문자는 사기예요','주문번호 1234567890123','○○ 출신은 불편하면 꺼져도 돼요','○○ 출신은 다 꺼져라'];
+  const user={id:'isolated-policy-user',alias:'정책 테스트'};
+  const check=(text,opts={})=>{const m=createMockLive([user]);const sent=m.send(user,text,Date.now(),opts);return {text,visibility:sent.message?.visibility,confirmation:sent.caseItem?.confirmationStatus,verdict:sent.caseItem?.findings?.[0]?.verdict,categories:sent.caseItem?.confirmedFindings?.map(f=>f.category)??[],reviews:m.state.reviews.map(r=>r.kind),timeout:!!m.state.timeouts[user.id],notice:sent.message?.moderationNotice};};
+  return {items:texts.map(t=>check(t)),late:check(texts[0],{agentTimeout:true})};
+ });
+ for(const r of results.items.slice(0,6)) {assert.equal(r.visibility,'HIDDEN',r.text);assert.equal(r.confirmation,'CONFIRMED_VIOLATION');assert.deepEqual(r.categories,['PII_EXPOSURE']);assert.deepEqual(r.reviews,[]);assert.equal(r.timeout,false);assert(!r.notice?.includes('운영자 검토'));}
+ assert.equal(results.items[6].visibility,'PUBLIC');assert.equal(results.items[6].confirmation,'CONFIRMED_NORMAL');
+ for(const r of results.items.slice(7,9)){assert.equal(r.visibility,'HELD');assert.equal(r.verdict,'NEEDS_REVIEW');assert.deepEqual(r.categories,[]);assert.deepEqual(r.reviews,['CONTEXT']);}
+ for(const r of results.items.slice(9,11)){assert.equal(r.visibility,'PUBLIC');assert.deepEqual(r.reviews,[]);}
+ assert.equal(results.items[11].verdict,'NEEDS_REVIEW');assert.equal(results.items[12].verdict,'VIOLATION');
+ for(const r of results.items.slice(11)){assert.equal(r.visibility,'HELD');assert.deepEqual(r.categories,[]);assert.deepEqual(r.reviews,['CONTEXT']);}
+ assert.equal(results.late.visibility,'HELD');assert.equal(results.late.verdict,undefined);assert.deepEqual(results.late.reviews,['CONTEXT']);
 });
