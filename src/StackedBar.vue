@@ -67,7 +67,7 @@ const tipStyle = computed(() => {
       <div v-if="activeSegment" class="stacked-tip" role="tooltip" :style="tipStyle"><i :style="{background: activeSegment.color}"/>{{activeSegment.label}} · {{nf.format(activeSegment.value)}}건 · {{pctText(activeSegment.value)}}</div>
     </div>
     <ul v-if="legend && total" class="stacked-legend">
-      <li v-for="s in segments" :key="s.key"><span><i :style="{background: s.color}" aria-hidden="true"/>{{s.label}}</span><b>{{nf.format(s.value)}}건</b><small>{{pctText(s.value)}}</small></li>
+      <li v-for="s in segments" :key="s.key" :class="{'judgment-attention': s.key==='abnormal' || s.key==='pending', 'judgment-normal': s.key==='normal'}"><span><i :style="{background: s.color}" aria-hidden="true"/>{{s.label}}</span><b>{{nf.format(s.value)}}건</b><small>{{pctText(s.value)}}</small></li>
     </ul>
   </div>
 </template>

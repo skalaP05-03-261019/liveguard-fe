@@ -85,20 +85,49 @@ async function sessionValid(){
   generation++;disconnect();resetAccess();messages.value=[];reviews.value=[];caseHistory.value=[];logs.value=[];live.value=null;names.value={};archive.value=[];archiveMore.value=false;kickProgress.value={};tried.clear();seen.clear();outgoing=null;text.value='';
   await store.syncIdentity(current);
   notice.value='다른 창에서 로그인 계정이 변경되어 화면을 갱신했습니다. 역할별 데모는 서로 다른 호스트나 브라우저 프로필을 사용하세요.';
-  await load();return false;
+  void load();return false;
  }
  return true;
 }
-async function refresh(){
+type RefreshScope = 'all' | 'messages' | 'guard';
+let refreshWork: Promise<boolean> | null = null;
+let pendingMessages = false, pendingGuard = false;
+let eventTimer: ReturnType<typeof setTimeout> | undefined;
+function refresh(scope: RefreshScope = 'all'): Promise<boolean> {
+ pendingMessages ||= scope !== 'guard'; pendingGuard ||= scope !== 'messages';
+ if (!refreshWork) refreshWork = drainRefresh().finally(() => { refreshWork = null; });
+ return refreshWork;
+}
+async function drainRefresh() {
+ let result = false;
+ while (pendingMessages || pendingGuard) {
+  const readMessages = pendingMessages, readGuard = pendingGuard;
+  pendingMessages = false; pendingGuard = false;
+  result = await refreshOnce(readMessages, readGuard);
+ }
+ return result;
+}
+function scheduleRefresh(scope: RefreshScope) {
+ pendingMessages ||= scope !== 'guard'; pendingGuard ||= scope !== 'messages';
+ if (refreshWork || eventTimer) return;
+ // Short bursts share a request batch; an in-flight batch gets one follow-up.
+ eventTimer = setTimeout(() => { eventTimer = undefined; void refreshPending(); }, 80);
+}
+function refreshPending() {
+ if (!refreshWork) refreshWork = drainRefresh().finally(() => { refreshWork = null; });
+ return refreshWork;
+}
+async function refreshOnce(readMessages: boolean, readGuard: boolean){
  if(!live.value||ended.value)return false;
  const expected=generation;const sequence=++refreshSequence;const id=live.value.liveId;
  try{
   if(!await sessionValid())return false;
-  const [page,cards,history]=await Promise.all([api.liveMessages(id),operator.value?api.liveReviews(id):Promise.resolve([]),operator.value?api.liveCases(id):Promise.resolve([])]);
+  const [page,cards,history]=await Promise.all([readMessages?api.liveMessages(id):null,readGuard&&operator.value?api.liveReviews(id):null,readGuard&&operator.value?api.liveCases(id):null]);
   if(expected!==generation||sequence!==refreshSequence||live.value?.liveId!==id)return false;
   if(blocked.value)notice.value='';
-  messages.value=[...page.items].reverse();reviews.value=cards;caseHistory.value=history;syncTimeout(page);blocked.value=false;accessReady.value=true;
-  if(operator.value)resolveNames().catch(()=>{});
+  if(page){messages.value=[...page.items].reverse();syncTimeout(page);blocked.value=false;accessReady.value=true;}
+  if(cards)reviews.value=cards;if(history)caseHistory.value=history;
+  if(readGuard&&operator.value)resolveNames().catch(()=>{});
   return true;
  }catch(e){if(expected===generation&&sequence===refreshSequence)fail(e);return false;}
 }
@@ -108,7 +137,7 @@ function setKick(payload:{caseId?:string},state:string){
  const id=reviews.value.find(r=>r.kind==='KICK'&&r.caseId===payload.caseId)?.reviewId??waiting.at(-1);
  if(id)kickProgress.value[id]=state;
 }
-function disconnect(){streams.forEach(s=>s.close());streams=[];online.value=false;}
+function disconnect(){if(eventTimer)clearTimeout(eventTimer);eventTimer=undefined;pendingMessages=false;pendingGuard=false;streams.forEach(s=>s.close());streams=[];online.value=false;}
 function connect(){
  disconnect();if(!live.value||ended.value||blocked.value||!accessReady.value)return;
  const id=live.value.liveId,expected=generation;
@@ -144,7 +173,7 @@ function connect(){
      if(v.payload.type==='KICK')setKick(v.payload,'강퇴 실행 실패 · 기존 제재 유지');
     }else notice.value=`${actionName} 결과를 확인할 수 없습니다. 서버 상태를 다시 확인해 주세요.`;
    }
-   refresh();
+   if(!['TOOL_START','TOOL_END'].includes(e.type))scheduleRefresh(e.type==='CHAT'?'messages':'all');
   }catch{error.value='실시간 이벤트를 확인하지 못했습니다. 새로고침해 주세요.';}
  };
  for(const name of ['CHAT','MESSAGE_VISIBILITY_CHANGED','MESSAGE_RESTORED','LIVE_ACCESS_BLOCKED','LIVE_ENDED'])source.addEventListener(name,handle);
