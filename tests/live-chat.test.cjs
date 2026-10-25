@@ -1502,7 +1502,7 @@ test('new decision requests highlight once, keep focus and selections, expire an
 test('empty unified monitoring shows both queues and ended broadcasts clear arrival effects',async()=>{
  const page=await open('operator');await page.getByRole('region',{name:'문맥 검토 대기',exact:true}).getByText('문맥 검토할 채팅이 없습니다.',{exact:true}).waitFor();
  await page.getByRole('region',{name:'강퇴 승인 대기',exact:true}).getByText('강퇴 승인 요청이 없습니다.',{exact:true}).waitFor();
- assert.equal(await page.locator('.status-summary-count.is-pending').count(),0);
+ assert.equal(await page.locator('.status-summary-count').count(),0);
  assert.equal(await page.locator('.status-summary-empty').count(),2);
  assert.equal(await page.locator('.status-summary-empty svg,.status-summary-description').count(),0);
  assert.equal(await page.getByText('AI 제안은 참고용입니다. 공개 여부는 운영자가 결정합니다.',{exact:true}).count(),0);

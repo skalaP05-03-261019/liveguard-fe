@@ -6,7 +6,7 @@ defineProps<{title:string;kind:'KICK'|'CONTEXT';count:number;emptyText:string;fr
  <section class="hitl-section decision-queue status-summary-widget" :class="[kind.toLowerCase(),{'has-pending':count>0}]" :aria-label="title">
   <header class="section-head status-summary-head">
    <div class="status-summary-title"><span class="section-icon status-summary-icon" aria-hidden="true"><UserX v-if="kind==='KICK'" :size="18"/><ClipboardCheck v-else :size="18"/></span><h2>{{title}}</h2></div>
-   <span class="pending-count status-summary-count" :class="{'is-pending':count>0}">{{count}}건</span>
+   <span v-if="count>0" class="pending-count status-summary-count" :class="{'is-pending':count>0}">{{count}}건</span>
    <span v-if="fresh" class="queue-new-indicator">새 요청</span>
   </header>
   <p v-if="!count" class="section-empty status-summary-empty"><span>{{emptyText}}</span></p>
