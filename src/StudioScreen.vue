@@ -2,12 +2,13 @@
 // 운영자(스트리머) Studio 화면. 목업과 실제 API가 같은 화면을 쓴다(#12).
 // 화면은 API v1.0 모양의 데이터와 사용자 동작만 다룬다. API·SSE 연결은 LiveConsole.vue, 목업 판정은 mockLive.ts가 맡는다.
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
-import { AlertCircle, BookOpen, ChevronDown, ChevronRight, ClipboardCheck, FileClock, LogOut, Menu, MessagesSquare, Pause, Play, Radio, RefreshCcw, ShieldCheck, Users } from 'lucide-vue-next';
+import { AlertCircle, BookOpen, ChevronDown, ChevronRight, ClipboardCheck, FileClock, Menu, MessagesSquare, Pause, Play, Radio, RefreshCcw, ShieldCheck, Users } from 'lucide-vue-next';
 import ViewerManage from './ViewerManage.vue';
 import OperatorTools from './OperatorTools.vue';
 import DecisionNotifications from './DecisionNotifications.vue';
 import StatusSummaryWidget from './StatusSummaryWidget.vue';
 import StreamCreateMenu from './StreamCreateMenu.vue';
+import AccountMenu from './AccountMenu.vue';
 import type { ShortcutAction, OperatorAlert } from './operatorTools';
 import ModeBadge from './ModeBadge.vue';
 import AiEvidence from './AiEvidence.vue';
@@ -338,7 +339,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
 <template>
   <div class="app-shell studio-shell">
     <header class="topbar"><div class="topbar-title"><button class="yt-icon-button" :class="{on: navVisible}" :title="navVisible ? '메뉴 닫기' : '메뉴 열기'" aria-controls="operator-nav" :aria-expanded="navVisible" @click="toggleNav"><Menu :size="22"/></button><span class="yt-logo" role="img" aria-label="LIVE:GUARD Studio"><span class="yt-logo-mark"><ShieldCheck :size="15"/></span><b>LIVE<span>:</span>GUARD</b></span><span class="console-tag">Studio</span></div>
-      <div class="topbar-right"><ModeBadge :mock="mock" :online="online"/><StreamCreateMenu :disabled="mock || loading || busy || (!!live && !ended)" :reason="loading ? '방송 상태를 확인하고 있습니다.' : busy ? '요청을 처리하고 있습니다.' : mock ? '목업 방송이 진행 중입니다.' : '현재 방송이 진행 중입니다.'" @start="emit('start')"/><button type="button" class="yt-icon-button" title="새로고침" aria-label="새로고침" :disabled="busy || loading" @click="emit('refresh')"><RefreshCcw :size="20"/></button><DecisionNotifications :reviews="ended ? [] : pending" :live-id="live?.liveId??''" :ended="ended" @settings="operatorToolsRef?.openSettings()" @activity="operatorToolsRef?.openAlerts()" @open="openToolAlert($event.reviewId, 'new')"/><span class="yt-me" :style="{background: avatarColor(nickname)}" :title="nickname">{{nickname.slice(0,1)}}</span><span class="operator-info">{{nickname}}</span><button class="yt-icon-button" title="로그아웃" aria-label="로그아웃" @click="emit('logout')"><LogOut :size="20"/></button></div></header>
+      <div class="topbar-right"><ModeBadge :mock="mock" :online="online"/><StreamCreateMenu :disabled="mock || loading || busy || (!!live && !ended)" :reason="loading ? '방송 상태를 확인하고 있습니다.' : busy ? '요청을 처리하고 있습니다.' : mock ? '목업 방송이 진행 중입니다.' : '현재 방송이 진행 중입니다.'" @start="emit('start')"/><button type="button" class="yt-icon-button" title="새로고침" aria-label="새로고침" :disabled="busy || loading" @click="emit('refresh')"><RefreshCcw :size="20"/></button><DecisionNotifications :reviews="ended ? [] : pending" :live-id="live?.liveId??''" :ended="ended" @settings="operatorToolsRef?.openSettings()" @activity="operatorToolsRef?.openAlerts()" @open="openToolAlert($event.reviewId, 'new')"/><AccountMenu :nickname="nickname" @logout="emit('logout')"/></div></header>
     <div class="app-body">
       <div v-if="!wide && navOpen" class="nav-backdrop" @click="navOpen = false"/>
       <aside id="operator-nav" class="sidebar" :class="{open: !wide && navOpen, docked: wide && !navCollapsed}" :aria-hidden="!navVisible" :inert="!navVisible">

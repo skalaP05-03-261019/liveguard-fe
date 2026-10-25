@@ -81,6 +81,11 @@ async function gotoMonitor(page){await page.getByRole('navigation',{name:'운영
 async function showQueue(page,name){if(!(await page.locator('.queue-page').count()))await gotoQueue(page);await page.getByRole('heading',{name:name+' 대기',exact:true}).click();}
 async function openToolSettings(page){await page.getByRole('button',{name:/^알림 · 결정 대기/}).click();await page.getByRole('button',{name:'알림 설정',exact:true}).click();}
 async function openToolActivity(page){await page.getByRole('button',{name:/^알림 · 결정 대기/}).click();await page.getByRole('button',{name:'처리 알림 보기',exact:true}).click();}
+async function logoutPage(page){
+ const account=page.getByRole('button',{name:'계정 메뉴',exact:true});
+ if(await account.count()){await account.click();await page.getByRole('menuitem',{name:'로그아웃',exact:true}).click();}
+ else await page.getByRole('button',{name:'로그아웃',exact:true}).click();
+}
 async function openDemo(page){const fold=page.locator('.demo-fold');if(!(await fold.evaluate(el=>el.open)))await fold.locator('summary').click();}
 async function capture(page,name){if(evidence){await fs.mkdir(evidence,{recursive:true});await page.screenshot({path:path.join(evidence,`${name}.png`),fullPage:true,animations:'disabled'});}}
 async function captureReview(page,name){
@@ -852,7 +857,7 @@ test('admin chat tracking shows a real DEFER as "보류 1회" (from the decision
  await showQueue(page,'문맥 검토');
  const card=page.locator('.studio-review.context').filter({hasText:'아 진짜 노잼이네 꺼져라'});await openCard(card);
  await decideCard(card,'보류');await page.waitForTimeout(200);
- await page.getByRole('button',{name:'로그아웃',exact:true}).click();
+ await logoutPage(page);
  await page.getByRole('button',{name:'시스템 운영자 전용',exact:true}).click();await page.getByRole('button',{name:'로그인',exact:true}).click();
  await page.getByRole('tab',{name:'채팅관제 Tracking',exact:true}).click();
  const detail=page.locator('.chat-detail');
@@ -899,18 +904,18 @@ test('mock kick approval is explicitly simulated and blocks that viewer for the 
  const page=await openMockModerator();await gotoQueue(page);
  await decideCard(page.locator('.studio-review.kick'),'강퇴 승인');
  await page.getByRole('status').filter({hasText:'결정 접수 · 실행 결과 대기'}).first().waitFor();
- await page.getByRole('button',{name:'로그아웃',exact:true}).click();
+ await logoutPage(page);
  await page.getByRole('button',{name:'시청자로 시작하기',exact:true}).click();
  await page.getByRole('button',{name:'로그인',exact:true}).click();await page.locator('.viewer-shell').waitFor();
  await page.getByLabel('목업 시청자 선택').selectOption('22222222-2222-4222-8222-222222222222');
  assert.equal(await page.getByRole('heading',{name:'이 방송의 이용이 제한되었습니다'}).count(),0);
- await page.getByRole('button',{name:'로그아웃',exact:true}).click();
+ await logoutPage(page);
  await page.getByRole('button',{name:'스트리머로 시작하기',exact:true}).click();
  await page.getByRole('button',{name:'로그인',exact:true}).click();await page.locator('.app-shell').waitFor();
  await page.getByRole('button',{name:'모의 적용 성공',exact:true}).click();
  await page.getByRole('status').filter({hasText:'강퇴 적용 완료'}).first().waitFor();
  await page.locator('.studio-notice').getByText('강퇴가 모의 적용됐습니다.',{exact:true}).waitFor();
- await page.getByRole('button',{name:'로그아웃',exact:true}).click();
+ await logoutPage(page);
  await page.getByRole('button',{name:'시청자로 시작하기',exact:true}).click();
  await page.getByRole('button',{name:'로그인',exact:true}).click();await page.locator('.viewer-shell').waitFor();
  await page.getByLabel('목업 시청자 선택').selectOption('22222222-2222-4222-8222-222222222222');
@@ -927,7 +932,7 @@ test('mock kick failure and unknown outcomes never apply a viewer ban',async()=>
   await decideCard(page.locator('.studio-review.kick'),'강퇴 승인');
   await page.getByRole('button',{name:outcome.button,exact:true}).click();
   await page.getByRole('status').filter({hasText:outcome.status}).first().waitFor();
-  await page.getByRole('button',{name:'로그아웃',exact:true}).click();
+  await logoutPage(page);
   await page.getByRole('button',{name:'시청자로 시작하기',exact:true}).click();
   await page.getByRole('button',{name:'로그인',exact:true}).click();await page.locator('.viewer-shell').waitFor();
   await page.getByLabel('목업 시청자 선택').selectOption('22222222-2222-4222-8222-222222222222');
@@ -1283,7 +1288,7 @@ test('admin counts distinct basis cases with multiple types and separates invali
   const r=mock.reviews.find(r=>r.kind==='KICK');const c=mock.cases.find(c=>c.caseId===r.basisCaseIds[0]);
   c.confirmedFindings.push({...c.confirmedFindings[0],findingId:'extra-category',category:'HARASSMENT'});
  });
- await page.getByRole('button',{name:'로그아웃',exact:true}).click();
+ await logoutPage(page);
  await page.getByRole('button',{name:'시스템 운영자 전용',exact:true}).click();await page.getByRole('button',{name:'로그인',exact:true}).click();
  await page.locator('.sys-filter').getByRole('button',{name:/행복한게임방/}).click();
  assert.equal(await page.locator('.request-table td:nth-child(5)').innerText(),'3건');
@@ -1415,7 +1420,7 @@ test('decision notification bell shows pending details, opens the selected revie
  assert.equal(await page.locator('.topbar-right > .decision-notifications').count(),1);
  assert.equal(await page.locator('.topbar-right').getByRole('button',{name:'새로고침',exact:true}).count(),1);
  assert.equal(await page.locator('.status-controls').getByRole('button',{name:'새로고침',exact:true}).count(),0);
- const bellBounds=await bell.boundingBox(),profileBounds=await page.locator('.topbar-right > .yt-me').boundingBox();
+ const bellBounds=await bell.boundingBox(),profileBounds=await page.getByRole('button',{name:'계정 메뉴',exact:true}).boundingBox();
  assert(bellBounds.x+bellBounds.width<=profileBounds.x,'bell is left of the streamer profile');
  await bell.click();const panel=page.getByRole('dialog',{name:'알림',exact:true});await panel.waitFor();
  assert.equal(await bell.getAttribute('aria-expanded'),'true');
@@ -1529,4 +1534,16 @@ test('create menu keeps mock starts disabled, supports keyboard and mobile, and 
  for(const width of [390,360]){await page.setViewportSize({width,height:844});await trigger.click();await page.screenshot({animations:'disabled'});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await captureReview(page,`create-menu-${width}`);await page.keyboard.press('Escape');}
  state.active=false;state.startError=true;const api=await open('operator');await api.locator('.studio-empty').waitFor();await api.getByRole('button',{name:'만들기',exact:true}).click();await api.getByRole('menuitem',{name:'라이브 스트리밍 시작',exact:true}).click();
  await api.getByRole('alert').filter({hasText:'방송 시작을 처리하지 못했습니다.'}).waitFor();assert.equal(await api.locator('.live-monitoring-grid').count(),0);assert.equal(state.liveStarts,1);
+});
+
+
+test('streamer account icon reveals nickname and logout only on open, dismisses and logs out',async()=>{
+ const page=await openMockModerator();const header=page.locator('.topbar-right');
+ assert.equal(await header.locator('.operator-info').count(),0);assert.equal(await page.getByRole('menuitem',{name:'로그아웃',exact:true}).count(),0);
+ const trigger=page.getByRole('button',{name:'계정 메뉴',exact:true});await trigger.click();
+ const panel=page.getByRole('menu',{name:'계정',exact:true});await panel.getByText('스트리머',{exact:true}).waitFor();
+ await panel.getByRole('menuitem',{name:'로그아웃',exact:true}).waitFor();await captureReview(page,'account-menu-desktop');
+ await page.keyboard.press('Escape');await panel.waitFor({state:'detached'});assert.equal(await trigger.evaluate(e=>document.activeElement===e),true);
+ for(const width of [390,360]){await page.setViewportSize({width,height:844});await trigger.click();await page.screenshot({animations:'disabled'});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await captureReview(page,`account-menu-${width}`);await page.keyboard.press('Escape');}
+ await trigger.click();await panel.getByRole('menuitem',{name:'로그아웃',exact:true}).click();await page.getByRole('button',{name:'스트리머로 시작하기',exact:true}).waitFor();
 });
