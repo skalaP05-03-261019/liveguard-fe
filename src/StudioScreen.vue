@@ -342,14 +342,14 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
       <div class="topbar-right"><ModeBadge v-if="mock" mock/><StreamCreateMenu :live="!!live && !ended" :disabled="mock || loading || busy" :reason="loading ? '방송 상태를 확인하고 있습니다.' : busy ? '요청을 처리하고 있습니다.' : mock ? '목업 방송을 시연 중입니다.' : ''" @start="emit('start')" @end="emit('end')"/><DecisionNotifications :reviews="ended ? [] : pending" :live-id="live?.liveId??''" :ended="ended" @settings="operatorToolsRef?.openSettings()" @activity="operatorToolsRef?.openAlerts()" @open="openToolAlert($event.reviewId, 'new')"/><AccountMenu :nickname="nickname" @logout="emit('logout')"/></div></header>
     <div class="app-body">
       <div v-if="!wide && navOpen" class="nav-backdrop" @click="navOpen = false"/>
-      <aside id="operator-nav" class="sidebar" :class="{open: !wide && navOpen, docked: wide && !navCollapsed}" :aria-hidden="!navVisible" :inert="!navVisible">
+      <aside id="operator-nav" class="sidebar" :class="{open: !wide && navOpen, docked: wide, compact: wide && navCollapsed}" :aria-hidden="!wide && !navOpen" :inert="!wide && !navOpen">
         <div class="sidebar-channel"><span class="yt-channel-avatar big" :style="{background: avatarColor(nickname)}">{{nickname.slice(0,1)}}</span><b>채널 콘텐츠 관제</b><small>{{channelName}}</small></div>
         <nav class="side-nav" aria-label="운영자 메뉴">
-          <button aria-label="실시간 모니터링" :class="{active: page==='monitor'}" :aria-current="page==='monitor' ? 'page' : undefined" @click="goto('monitor')"><Radio :size="22" :stroke-width="1.8"/><span>실시간 모니터링</span><b v-if="pending.length" class="side-count">{{pending.length}}</b></button>
-          <button :class="{active: page==='viewers'}" :aria-current="page==='viewers' ? 'page' : undefined" @click="goto('viewers')"><Users :size="22" :stroke-width="1.8"/><span>시청자 관리</span></button>
-          <button :class="{active: page==='cases'}" :aria-current="page==='cases' ? 'page' : undefined" @click="goto('cases')"><FileClock :size="22" :stroke-width="1.8"/><span>사건 이력</span></button>
- <button :class="{active: page==='chats'}" :aria-current="page==='chats' ? 'page' : undefined" @click="goto('chats')"><MessagesSquare :size="22" :stroke-width="1.8"/><span>채팅 기록</span></button>
-          <button :class="{active: page==='policy'}" :aria-current="page==='policy' ? 'page' : undefined" @click="goto('policy')"><BookOpen :size="22" :stroke-width="1.8"/><span>채팅 관제 운영 정책</span></button>
+          <button title="실시간 모니터링" aria-label="실시간 모니터링" :class="{active: page==='monitor'}" :aria-current="page==='monitor' ? 'page' : undefined" @click="goto('monitor')"><Radio :size="22" :stroke-width="1.8"/><span>실시간 모니터링</span><b v-if="pending.length" class="side-count">{{pending.length}}</b></button>
+          <button title="시청자 관리" aria-label="시청자 관리" :class="{active: page==='viewers'}" :aria-current="page==='viewers' ? 'page' : undefined" @click="goto('viewers')"><Users :size="22" :stroke-width="1.8"/><span>시청자 관리</span></button>
+          <button title="사건 이력" aria-label="사건 이력" :class="{active: page==='cases'}" :aria-current="page==='cases' ? 'page' : undefined" @click="goto('cases')"><FileClock :size="22" :stroke-width="1.8"/><span>사건 이력</span></button>
+ <button title="채팅 기록" aria-label="채팅 기록" :class="{active: page==='chats'}" :aria-current="page==='chats' ? 'page' : undefined" @click="goto('chats')"><MessagesSquare :size="22" :stroke-width="1.8"/><span>채팅 기록</span></button>
+          <button title="채팅 관제 운영 정책" aria-label="채팅 관제 운영 정책" :class="{active: page==='policy'}" :aria-current="page==='policy' ? 'page' : undefined" @click="goto('policy')"><BookOpen :size="22" :stroke-width="1.8"/><span>채팅 관제 운영 정책</span></button>
         </nav>
         <div class="sidebar-foot">운영정책 v3.2 기준</div>
       </aside>

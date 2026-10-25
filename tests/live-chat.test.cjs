@@ -1560,7 +1560,8 @@ for(const mode of ['mock','api'])test(`admin drawer and account menu work in ${m
  else{const context=await browser.newContext({viewport:{width:1280,height:1000}});contexts.push(context);page=await context.newPage();await page.goto(mockBase);await page.getByRole('button',{name:'시스템 운영자 전용',exact:true}).click();await page.getByRole('button',{name:'로그인',exact:true}).click();}
  await page.locator('.sys-shell').waitFor();
  await page.getByRole('button',{name:'메뉴 닫기',exact:true}).click();
- assert.equal(await page.getByRole('tab').count(),0);
+ assert.equal(await page.getByRole('tab').count(),3);
+ assert.equal(await page.locator('.sys-side.compact').count(),1);
  await page.getByRole('button',{name:'메뉴 열기',exact:true}).click();
  await page.getByRole('tab',{name:'기간 통계',exact:true}).click();
  await captureReview(page,`admin-${mode}-desktop`);
@@ -1642,4 +1643,18 @@ test('viewer assistant stops after API failure or broadcast end and cannot run w
  await page.clock.runFor(5000);assert.equal(state.posts,1);assert.equal(await page.locator('.viewer-assistant-chats li').count(),0);
  state.postError=null;await prompt.click();await page.clock.runFor(1000);await waitFor(async()=>await page.locator('.viewer-assistant-chats li').count()===1);
  const before=state.posts;state.active=false;emit('LIVE_ENDED',{liveId:'live-1'});await waitFor(async()=>await prompt.isDisabled());await page.clock.runFor(5000);assert.equal(state.posts,before);
+});
+
+for(const mode of ['mock','api'])test(`streamer collapsed navigation keeps clickable labeled icons in ${mode}`,async()=>{
+ const page=mode==='mock'?await openMockModerator():await open('operator');
+ await page.getByRole('button',{name:'메뉴 닫기',exact:true}).click();
+ const rail=page.locator('#operator-nav');assert.equal(await rail.getAttribute('aria-hidden'),'false');
+ assert.equal(await rail.locator('nav button').count(),5);
+ assert.equal(Math.round((await rail.boundingBox()).width),72);
+ await rail.getByRole('button',{name:'채팅 관제 운영 정책',exact:true}).click();
+ assert.equal(await rail.getByRole('button',{name:'채팅 관제 운영 정책',exact:true}).getAttribute('aria-current'),'page');
+ await captureReview(page,`icon-rail-${mode}-streamer`);
+ await page.getByRole('button',{name:'메뉴 열기',exact:true}).click();
+ assert((await rail.boundingBox()).width>72);
+ assert.equal(await rail.getByRole('button',{name:'채팅 관제 운영 정책',exact:true}).getAttribute('aria-current'),'page');
 });

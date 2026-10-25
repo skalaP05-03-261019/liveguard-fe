@@ -139,8 +139,8 @@ const channelStats = computed(() => shownChannels.value.map(c => {
       <div class="topbar-right"><AccountMenu :nickname="store.me?.nickname??'관리자'" account-label="시스템 운영자 계정" @logout="store.logout()"/></div></header>
     <div class="sys-layout" :class="{'nav-collapsed':!navVisible}"><button v-if="!navWide && navOpen" type="button" class="sys-drawer-backdrop" aria-label="메뉴 닫기 배경" @click="closeNav(true)"/>
     <!-- 왼쪽 메뉴: 아이콘과 이름, 고른 항목은 회색 배경 -->
-    <nav id="system-navigation" ref="navElement" class="sys-side" :class="{open:navVisible}" :inert="!navVisible" :aria-hidden="!navVisible" role="tablist" aria-orientation="vertical" aria-label="시스템 운영자 화면">
-      <button v-for="t in tabs" :key="t.key" type="button" role="tab" :aria-selected="tab===t.key" :class="{on: tab===t.key}" @click="selectTab(t.key)"><component :is="t.icon" :size="22" :stroke-width="1.8"/><span>{{t.label}}</span></button>
+    <nav id="system-navigation" ref="navElement" class="sys-side" :class="{open:navWide || navOpen, compact:navWide && navCollapsed}" :inert="!navWide && !navOpen" :aria-hidden="!navWide && !navOpen" role="tablist" aria-orientation="vertical" aria-label="시스템 운영자 화면">
+      <button v-for="t in tabs" :key="t.key" type="button" role="tab" :aria-label="t.label" :title="t.label" :aria-selected="tab===t.key" :class="{on: tab===t.key}" @click="selectTab(t.key)"><component :is="t.icon" :size="22" :stroke-width="1.8"/><span>{{t.label}}</span></button>
     </nav>
     <main ref="mainElement" class="main-content sys-main" tabindex="-1" :inert="!navWide && navOpen">
       <template v-if="tab==='tracking'">

@@ -1372,3 +1372,17 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 @keyframes assistant-enter{from{transform:translateX(100%)}to{transform:translateX(0)}}
 @media(max-width:480px){.viewer-assistant-content{padding:0 18px 20px}.viewer-assistant h2{font-size:24px}.viewer-assistant-actions{padding:14px}.viewer-assistant>header b{font-size:22px}}
 @media(prefers-reduced-motion:reduce){.viewer-assistant{animation:none}}
+
+/* Desktop menus collapse into an accessible icon rail; mobile stays a drawer. */
+@media(min-width:1100px){
+.studio-shell .sidebar.docked.compact{width:72px;padding:0 8px}
+.studio-shell .sidebar.compact .sidebar-channel{padding:20px 0 16px}
+.studio-shell .sidebar.compact .sidebar-channel .big{width:32px;height:32px;font-size:16px}
+.studio-shell .sidebar.compact .sidebar-channel b,.studio-shell .sidebar.compact .sidebar-channel small,.studio-shell .sidebar.compact .side-nav button span,.studio-shell .sidebar.compact .side-count,.studio-shell .sidebar.compact .sidebar-foot{display:none}
+.studio-shell .sidebar.compact .side-nav{padding:0;gap:8px}
+.studio-shell .sidebar.compact .side-nav button{justify-content:center;padding:12px 0;width:100%;min-height:48px}
+.sys-shell .sys-layout.nav-collapsed{grid-template-columns:72px minmax(0,1fr)}
+.sys-shell .sys-side.compact{padding:24px 8px;gap:8px}
+.sys-shell .sys-side.compact button{justify-content:center;padding:12px 0;min-height:48px}
+.sys-shell .sys-side.compact button span{display:none}
+}
