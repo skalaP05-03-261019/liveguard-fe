@@ -1393,3 +1393,8 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .studio-shell .studio-broadcast-summary>h1{margin:0;font-size:24px;font-weight:600;line-height:1.5;letter-spacing:-.5px;overflow-wrap:anywhere}.studio-shell .studio-broadcast-summary>h1+b{margin-top:8px;font-size:15px;font-weight:400;color:#606060}
 @media(max-width:600px){.studio-shell .studio-broadcast-summary>h1{font-size:20px}}
 .brand-channel-avatar{background:#ece7ff!important;color:#111;display:inline-flex;align-items:center;justify-content:center}.studio-shell .sidebar.compact .brand-channel-avatar svg{width:22px;height:22px}
+/* Compact LIVE:GUARD channel mark matching the supplied reference. */
+.studio-shell .sidebar-channel .brand-channel-avatar.big{width:72px;height:72px;font-size:initial;background:#ece7ff!important}
+.studio-shell .sidebar-channel .brand-channel-avatar.big svg{width:36px;height:36px}
+.studio-shell .sidebar.compact .sidebar-channel .brand-channel-avatar.big{width:32px;height:32px}
+.studio-shell .sidebar.compact .sidebar-channel .brand-channel-avatar.big svg{width:22px;height:22px}

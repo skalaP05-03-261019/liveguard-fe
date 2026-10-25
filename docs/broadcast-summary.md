@@ -25,3 +25,5 @@
 ![실제 채널 아바타](evidence/broadcast-summary/channel-avatar-actual.png)
 
 프로덕션 빌드 및 계정·아이콘 탐색 관련 테스트 3/3 통과. Docker frontend 재빌드 후 실제 localhost:3000에서 사이드바와 계정 방패 표시를 확인했습니다.
+
+참조 아이콘에 맞춰 펼친 사이드바의 원형 채널 아바타를 72px, 내부 방패를 36px로 줄였습니다. 접힌 메뉴는 32px/22px를 유지합니다. 프로덕션 빌드와 실제 localhost:3000 표시를 확인했습니다.
