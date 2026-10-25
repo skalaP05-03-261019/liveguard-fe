@@ -1392,3 +1392,48 @@ test('mock v3.2 A-28: phone forms, exposure context, mixed cases and A-25 keep t
  for(const r of results.items.slice(11)){assert.equal(r.visibility,'HELD');assert.deepEqual(r.categories,[]);assert.deepEqual(r.reviews,['CONTEXT']);}
  assert.equal(results.late.visibility,'HELD');assert.equal(results.late.verdict,undefined);assert.deepEqual(results.late.reviews,['CONTEXT']);
 });
+
+
+test('decision notification bell shows pending details, opens the selected review and supports dismissal',async()=>{
+ const page=await openMockModerator();
+ const bell=page.getByRole('button',{name:/^알림 · 결정 대기/});
+ assert.equal(await page.locator('.queue-link').count(),0);
+ await bell.click();const panel=page.getByRole('dialog',{name:'알림',exact:true});await panel.waitFor();
+ assert.equal(await bell.getAttribute('aria-expanded'),'true');
+ const items=panel.locator('.decision-notification-item');assert(await items.count()>0);
+ assert.match(await panel.innerText(),/문맥 검토 요청|강퇴 승인 요청/);
+ assert(!/꺼져|비밀번호|010-/.test(await panel.innerText()));
+ await captureReview(page,'decision-bell-desktop');
+ await page.keyboard.press('Escape');await panel.waitFor({state:'detached'});assert.equal(await panel.count(),0);assert.equal(await bell.evaluate(e=>document.activeElement===e),true);
+ await bell.click();await page.locator('.studio-live-line > span').first().click();await panel.waitFor({state:'detached'});assert.equal(await panel.count(),0);
+ await bell.click();await items.first().click();await page.locator('.studio-review.open').waitFor();
+ assert.equal(await panel.count(),0);assert.equal(await page.locator('.studio-review.open .review-head').evaluate(e=>document.activeElement===e),true);
+ await gotoMonitor(page);
+ for(const width of [390,360]){
+  await page.setViewportSize({width,height:844});await bell.click();await panel.waitFor();
+  await panel.screenshot({animations:'disabled'});
+  await captureReview(page,`decision-bell-${width}`);
+  const overflow=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth,wide:[...document.querySelectorAll('body *')].filter(e=>{const b=e.getBoundingClientRect();return b.width>0&&b.right>innerWidth&&getComputedStyle(e).position!=='fixed'}).slice(-12).map(e=>({tag:e.tagName,cls:e.className,right:e.getBoundingClientRect().right}))}));
+  assert(overflow.scroll<=overflow.width,JSON.stringify(overflow));
+  const bounds=await panel.boundingBox();assert(bounds.x>=0&&bounds.x+bounds.width<=width);
+  await captureReview(page,`decision-bell-${width}`);await page.keyboard.press('Escape');await panel.waitFor({state:'detached'});
+ }
+ await bell.click();await panel.getByRole('button',{name:'알림 설정',exact:true}).click();
+ await page.getByRole('form',{name:'알림·단축키 설정',exact:true}).waitFor();assert.equal(await panel.count(),0);
+});
+
+test('decision notification bell caps its badge and removes decided, old-live and ended requests',async()=>{
+ const review=(id,extra={})=>({reviewId:id,kind:'CONTEXT',liveId:'live-1',caseId:'case-'+id,status:'PENDING',version:1,createdAt:timestamp(),aiVerdict:'NEEDS_REVIEW',messages:[],targetMessageIds:[],findings:[],basisCaseIds:[],summary:'fixture',...extra});
+ state.reviews=Array.from({length:10},(_,i)=>review('review-'+i));
+ state.reviews.push(review('decided',{status:'DECIDED'}),review('old-live',{liveId:'old-live'}),review('invalid',{status:'INVALIDATED'}));
+ const page=await open('operator');const bell=page.getByRole('button',{name:'알림 · 결정 대기 10건',exact:true});await bell.waitFor();
+ assert.equal(await bell.locator('.decision-bell-count').innerText(),'9+');await bell.click();
+ const panel=page.getByRole('dialog',{name:'알림',exact:true});assert.equal(await panel.locator('li').count(),10);
+ state.reviews=state.reviews.map(r=>({...r,status:'DECIDED',version:2}));emit('REVIEW_DECIDED',{reviewId:'review-0',version:2});
+ await page.getByRole('button',{name:'알림 · 결정 대기 0건',exact:true}).waitFor();await panel.getByText('결정을 기다리는 요청이 없습니다.',{exact:true}).waitFor();
+ assert.equal(await bell.locator('.decision-bell-count').count(),0);await captureReview(page,'decision-bell-empty');
+ state.active=false;emit('LIVE_ENDED',{liveId:'live-1'});await panel.waitFor({state:'detached'});
+ const emptyBell=page.getByRole('button',{name:'알림 · 결정 대기 0건',exact:true});await emptyBell.click();
+ await page.getByRole('dialog',{name:'알림',exact:true}).getByText('방송이 종료되었습니다.',{exact:true}).waitFor();
+ assert.equal(state.decisions.length,0);
+});

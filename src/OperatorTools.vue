@@ -51,7 +51,9 @@ function onKey(e:KeyboardEvent){
  const action=shortcutAction(e,settings.value);if(!action)return;
  e.preventDefault();emit('navigate',action);
 }
-async function toggleSettings(){settingsOpen.value=!settingsOpen.value;if(settingsOpen.value){draft.value=copy(settings.value);await nextTick();document.querySelector<HTMLElement>('.operator-settings input')?.focus();}}
+async function openSettings(){settingsOpen.value=true;draft.value=copy(settings.value);await nextTick();document.querySelector<HTMLElement>('.operator-settings input')?.focus();}
+function toggleSettings(){if(settingsOpen.value)settingsOpen.value=false;else void openSettings();}
+defineExpose({openSettings});
 onMounted(()=>{window.addEventListener('keydown',onKey);timer=setInterval(()=>clock.value=Date.now(),30000);});
 onBeforeUnmount(()=>{window.removeEventListener('keydown',onKey);if(timer)clearInterval(timer);tracker.clear();});
 </script>

@@ -5,6 +5,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { AlertCircle, BookOpen, ChevronDown, ChevronRight, ClipboardCheck, FileClock, LogOut, Menu, MessagesSquare, Pause, Play, Radio, RefreshCcw, ShieldCheck, Sparkles, Users, UserX } from 'lucide-vue-next';
 import ViewerManage from './ViewerManage.vue';
 import OperatorTools from './OperatorTools.vue';
+import DecisionNotifications from './DecisionNotifications.vue';
 import type { ShortcutAction, OperatorAlert } from './operatorTools';
 import ModeBadge from './ModeBadge.vue';
 import AiEvidence from './AiEvidence.vue';
@@ -40,6 +41,7 @@ const emit = defineEmits<{
   page: [page: Page]; refresh: []; start: []; end: []; logout: []; toggleFeed: []; loadOlder: [];
 }>();
 
+const operatorToolsRef=ref<InstanceType<typeof OperatorTools>|null>(null);
 const page = ref<Page>('monitor');
 const pageTitles: Record<Page, string> = { monitor: '실시간 관제', reviews: '결정 대기', viewers: '시청자 관리', cases: '사건 이력', chats: '채팅 기록', policy: '채팅 관제 운영 정책' };
 function goto(p: Page) { page.value = p; navOpen.value = false; emit('page', p); }
@@ -330,14 +332,14 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
         <main class="main-content">
           <div class="status-strip"><div><Sparkles :size="16"/><b>{{pageTitles[page]}}</b></div>
             <div class="status-controls"><button v-if="!mock" @click="emit('refresh')"><RefreshCcw :size="14"/> 새로고침</button><button v-if="!mock && !loading && (!live || ended)" class="primary" :disabled="busy" @click="emit('start')">방송 시작</button><button v-if="!mock && live && !ended" :disabled="busy" @click="emit('end')">방송 종료</button></div></div>
-          <OperatorTools :live-id="live?.liveId??''" :ended="ended" :reviews="reviews" :progress="kickProgress" @navigate="navigateTool" @open="openToolAlert"/>
+          <OperatorTools ref="operatorToolsRef" :live-id="live?.liveId??''" :ended="ended" :reviews="reviews" :progress="kickProgress" @navigate="navigateTool" @open="openToolAlert"/>
           <p v-if="error" class="error-inline" role="alert"><AlertCircle :size="17"/> {{error}}</p>
           <p v-if="notice" class="studio-notice" role="status">{{notice}}</p>
           <p v-for="k in kickStates" :key="k.review.reviewId" class="kick-progress" role="status"><span>강퇴 처리 · {{nameOf(k.review.caseId)}}: <b>{{k.state}}</b></span><slot name="kick-actions" :review-id="k.review.reviewId" :state="k.state"/></p>
 
           <section v-if="!live && !loading" class="card secondary-page studio-empty"><Radio :size="30"/><h2>진행 중인 방송이 없습니다</h2><p>방송을 시작하면 시청자 채팅과 AI 조사 결과를 확인할 수 있습니다.</p></section>
           <template v-else-if="live">
-            <p class="studio-live-line"><span :class="ended ? 'ended' : 'on'">{{ended ? '종료' : '● LIVE'}}</span> 방송 {{live.liveId.slice(0,8)}} · {{asTime(live.startedAt)}} 시작<template v-if="ended"> · 방송이 종료되어 결정할 수 없습니다</template><button v-if="pending.length && page!=='reviews'" type="button" class="queue-link" :title="`강퇴 승인 ${queues[0].items.length} · 문맥 검토 ${queues[1].items.length}`" @click="goto('reviews')">결정 대기 {{pending.length}}건 →</button></p>
+            <div class="studio-live-line"><span :class="ended ? 'ended' : 'on'">{{ended ? '종료' : '● LIVE'}}</span> 방송 {{live.liveId.slice(0,8)}} · {{asTime(live.startedAt)}} 시작<template v-if="ended"> · 방송이 종료되어 결정할 수 없습니다</template><DecisionNotifications :reviews="ended ? [] : pending" :live-id="live.liveId" :ended="ended" @settings="operatorToolsRef?.openSettings()" @open="openToolAlert($event.reviewId, 'new')"/></div>
 
             <template v-if="page==='monitor'">
             <section class="monitor-grid chat-only">
