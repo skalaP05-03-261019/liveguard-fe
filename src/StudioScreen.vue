@@ -20,7 +20,7 @@ import { KICK_THRESHOLD, priorColumns, routeRows, sanctionFor, sanctionLabel, sa
 import { filterDictionary } from './mock';
 
 export interface StudioLog { id: string; time: string; event: string; detail: string; caseId?: string; reviewId?: string }
-type Page = 'monitor' | 'reviews' | 'viewers' | 'cases' | 'chats' | 'policy';
+type Page = 'monitor' | 'viewers' | 'cases' | 'chats' | 'policy';
 
 const props = withDefaults(defineProps<{
   mock?: boolean; nickname: string; channelName?: string;
@@ -43,7 +43,7 @@ const emit = defineEmits<{
 
 const operatorToolsRef=ref<InstanceType<typeof OperatorTools>|null>(null);
 const page = ref<Page>('monitor');
-const pageTitles: Record<Page, string> = { monitor: '실시간 관제', reviews: '결정 대기', viewers: '시청자 관리', cases: '사건 이력', chats: '채팅 기록', policy: '채팅 관제 운영 정책' };
+const pageTitles: Record<Page, string> = { monitor: '실시간 모니터링', viewers: '시청자 관리', cases: '사건 이력', chats: '채팅 기록', policy: '채팅 관제 운영 정책' };
 function goto(p: Page) { page.value = p; navOpen.value = false; emit('page', p); }
 
 // 메뉴: 넓은 화면에서는 왼쪽에 고정하고 ☰로 접고 편다. 좁은 화면에서는 ☰로 여닫는 서랍이다.
@@ -84,6 +84,27 @@ watch(() => shownMessages.value.map(m => m.messageId), async (ids, previous) => 
 // 운영자 결정 대기: 강퇴 승인 → 문맥 검토, 각각 오래 기다린 순서
 const pending = computed(() => props.reviews.filter(r => r.status === 'PENDING' && r.liveId === props.live?.liveId)
   .sort((a, b) => Number(b.kind === 'KICK') - Number(a.kind === 'KICK') || Date.parse(iso(a.createdAt)) - Date.parse(iso(b.createdAt))));
+const freshReviews=ref(new Set<string>()),arrivalAnnouncement=ref('');
+let arrivalScope='',seenReviews:Set<string>|null=null;
+const arrivalTimers=new Map<string,ReturnType<typeof setTimeout>>();
+function clearArrivals(){for(const timer of arrivalTimers.values())clearTimeout(timer);arrivalTimers.clear();freshReviews.value=new Set();arrivalAnnouncement.value='';}
+watch([()=>props.live?.liveId,()=>props.loading,()=>props.ended,()=>pending.value.map(r=>r.reviewId).join(',')],()=>{
+ const scope=props.live?.liveId??'';
+ if(scope!==arrivalScope){clearArrivals();seenReviews=null;arrivalScope=scope;}
+ if(!scope||props.ended){clearArrivals();seenReviews=null;return;}
+ if(props.loading)return;
+ const ids=pending.value.map(r=>r.reviewId);
+ if(!seenReviews){seenReviews=new Set(ids);return;}
+ const added=ids.filter(id=>!seenReviews!.has(id));
+ for(const id of ids)seenReviews.add(id);
+ const current=new Set(ids);freshReviews.value=new Set([...freshReviews.value].filter(id=>current.has(id)));
+ if(!freshReviews.value.size)arrivalAnnouncement.value='';
+ if(!added.length)return;
+ freshReviews.value=new Set([...freshReviews.value,...added]);
+ arrivalAnnouncement.value=`새 결정 대기 요청 ${freshReviews.value.size}건이 도착했습니다.`;
+ for(const id of added){arrivalTimers.set(id,setTimeout(()=>{freshReviews.value=new Set([...freshReviews.value].filter(x=>x!==id));arrivalTimers.delete(id);if(!freshReviews.value.size)arrivalAnnouncement.value='';},8000));}
+},{immediate:true});
+onBeforeUnmount(clearArrivals);
 // 같은 시청자가 같은 문장을 보낸 다른 사건. 문장이 같으면 이미 결정한 검토가 다시 열린 것처럼 보이므로 함께 보여 준다.
 const sameText = (t: string | null) => (t ?? '').replace(/\s+/g, ' ').trim();
 function repeatsOf(r: LiveReview) {
@@ -117,9 +138,10 @@ function activeOf(kind: LiveReview['kind']) {
   return id === '' ? null : (items.find(r => r.reviewId === id) ?? items[0])?.reviewId ?? null;
 }
 const isOpen = (r: LiveReview) => activeOf(r.kind) === r.reviewId;
-// 두 대기열은 탭으로 나눈다. 처음에는 강퇴 요청이 있으면 강퇴 탭, 없으면 문맥 탭을 보여 주고, 그다음부터는 고른 탭을 유지한다.
+// 두 열을 동시에 표시한다. 클릭·키보드 초점이 있는 열에서 탐색 단축키를 적용한다.
 const queueTab = ref<LiveReview['kind'] | null>(null);
-const shownQueue = computed(() => { const kind = queueTab.value ?? (queues.value[0].items.length ? 'KICK' : 'CONTEXT'); return queues.value.find(q => q.kind === kind)!; });
+const monitorQueues=computed(()=>[queues.value[1],queues.value[0]]);
+const shownQueue = computed(() => { const kind = queueTab.value ?? (queues.value[1].items.length ? 'CONTEXT' : 'KICK'); return queues.value.find(q => q.kind === kind)!; });
 function toggleReview(r: LiveReview) { openIds[r.kind] = isOpen(r) ? '' : r.reviewId; }
 // 결정은 하나를 고른 뒤 제출한다. 위반 확정을 고를 때만 위반 유형을 고른다.
 const choice = reactive<Record<string, ContextDecision | KickDecision>>({});
@@ -261,21 +283,22 @@ const shownChats = computed(() => {
   return chatRows.value.filter(m => f.match(m) && (!q || m.text.includes(q) || m.authorAlias.includes(q)));
 });
 
+function focusReview(id:string){document.querySelector<HTMLElement>(`[data-review-id="${CSS.escape(id)}"] .review-head`)?.focus();}
 async function navigateTool(action: ShortcutAction) {
  if(!props.live||props.ended||props.busy)return;
  if(action==='search'){
   goto('chats');await nextTick();document.querySelector<HTMLInputElement>('[aria-label="채팅 기록 검색"]')?.focus();return;
  }
- const items=shownQueue.value.items;if(!items.length){goto('reviews');return;}
- const active=page.value==='reviews'?items.findIndex(r=>isOpen(r)):-1;
+ const items=shownQueue.value.items;if(!items.length){goto('monitor');return;}
+ const active=page.value==='monitor'?items.findIndex(r=>isOpen(r)):-1;
  if(action==='toggle'){
-  if(page.value!=='reviews'){goto('reviews');}
+  if(page.value!=='monitor'){goto('monitor');}
   else toggleReview(items[Math.max(0,active)]);
  }else{
   const index=active<0?(action==='next'?0:items.length-1):Math.max(0,Math.min(items.length-1,active+(action==='next'?1:-1)));
-  openIds[shownQueue.value.kind]=items[index].reviewId;goto('reviews');
+  openIds[shownQueue.value.kind]=items[index].reviewId;goto('monitor');
  }
- await nextTick();document.querySelector<HTMLElement>('.studio-review.open .review-head')?.focus();
+ await nextTick();focusReview(activeOf(shownQueue.value.kind)??items[Math.max(0,active)].reviewId);
 }
 async function openToolAlert(reviewId:string,kind:OperatorAlert['kind']){
  const r=props.reviews.find(r=>r.reviewId===reviewId&&r.liveId===props.live?.liveId);
@@ -284,9 +307,9 @@ async function openToolAlert(reviewId:string,kind:OperatorAlert['kind']){
   showFlow(r.caseId);await nextTick();
   document.querySelector<HTMLElement>(`[data-case-id="${CSS.escape(r.caseId)}"] .vm-expand`)?.focus();return;
  }
- if(r.status==='PENDING'){openDecision(r);await nextTick();document.querySelector<HTMLElement>('.studio-review.open .review-head')?.focus();}
+ if(r.status==='PENDING'){openDecision(r);await nextTick();focusReview(r.reviewId);}
 }
-function openDecision(r: LiveReview) { queueTab.value = r.kind; openIds[r.kind] = r.reviewId; goto('reviews'); }
+function openDecision(r: LiveReview) { queueTab.value = r.kind; openIds[r.kind] = r.reviewId; goto('monitor'); }
 
 // 시청자 관리: 사건·검토를 시청자 이름으로 묶는다. 무효가 된 검토는 빼고 보여 준다.
 const viewerRows = computed(() => groupByViewer(
@@ -319,8 +342,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
       <aside id="operator-nav" class="sidebar" :class="{open: !wide && navOpen, docked: wide && !navCollapsed}" :aria-hidden="!navVisible" :inert="!navVisible">
         <div class="sidebar-channel"><span class="yt-channel-avatar big">🎮</span><b>채널 콘텐츠 관제</b><small>{{channelName}}</small></div>
         <nav class="side-nav" aria-label="운영자 메뉴">
-          <button :class="{active: page==='monitor'}" :aria-current="page==='monitor' ? 'page' : undefined" @click="goto('monitor')"><Radio :size="22" :stroke-width="1.8"/><span>실시간 관제</span></button>
-          <button :class="{active: page==='reviews'}" :aria-current="page==='reviews' ? 'page' : undefined" @click="goto('reviews')"><ClipboardCheck :size="22" :stroke-width="1.8"/><span>결정 대기</span><b v-if="pending.length" class="side-count">{{pending.length}}</b></button>
+          <button aria-label="실시간 모니터링" :class="{active: page==='monitor'}" :aria-current="page==='monitor' ? 'page' : undefined" @click="goto('monitor')"><Radio :size="22" :stroke-width="1.8"/><span>실시간 모니터링</span><b v-if="pending.length" class="side-count">{{pending.length}}</b></button>
           <button :class="{active: page==='viewers'}" :aria-current="page==='viewers' ? 'page' : undefined" @click="goto('viewers')"><Users :size="22" :stroke-width="1.8"/><span>시청자 관리</span></button>
           <button :class="{active: page==='cases'}" :aria-current="page==='cases' ? 'page' : undefined" @click="goto('cases')"><FileClock :size="22" :stroke-width="1.8"/><span>사건 이력</span></button>
  <button :class="{active: page==='chats'}" :aria-current="page==='chats' ? 'page' : undefined" @click="goto('chats')"><MessagesSquare :size="22" :stroke-width="1.8"/><span>채팅 기록</span></button>
@@ -341,7 +363,8 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
           <template v-else-if="live">
             <div class="studio-live-line"><span :class="ended ? 'ended' : 'on'">{{ended ? '종료' : '● LIVE'}}</span> 방송 {{live.liveId.slice(0,8)}} · {{asTime(live.startedAt)}} 시작<template v-if="ended"> · 방송이 종료되어 결정할 수 없습니다</template><DecisionNotifications :reviews="ended ? [] : pending" :live-id="live.liveId" :ended="ended" @settings="operatorToolsRef?.openSettings()" @open="openToolAlert($event.reviewId, 'new')"/></div>
 
-            <template v-if="page==='monitor'">
+            <p v-if="arrivalAnnouncement" class="monitor-arrival-announcement" role="status">{{arrivalAnnouncement}}</p>
+            <div v-if="page==='monitor'" class="live-monitoring-grid queue-page">
             <section class="monitor-grid chat-only">
               <div class="stream-panel card"><div class="stream-caption"><span class="yt-channel-avatar">🎮</span><div><b>{{mock ? '오늘도 게임하는 날! 같이 놀아요 🎮' : '오늘의 라이브'}}</b><small>{{channelName}} · <span class="live-badge">{{ended ? '방송 종료' : '● 실시간'}}</span></small></div></div></div>
               <div class="chat-panel card"><div class="panel-heading"><h2>실시간 채팅 <ChevronDown :size="17"/></h2><div class="panel-heading-end"><button v-if="feedOn !== null" class="icon-control" :class="{on: feedOn}" :title="feedOn ? '채팅 흐름 일시정지 (MOCK)' : '채팅 흐름 재생 (MOCK)'" :aria-pressed="feedOn" @click="emit('toggleFeed')"><Pause v-if="feedOn" :size="17"/><Play v-else :size="17"/></button><button class="blocked-toggle" :class="{on: filter==='private'}" :aria-pressed="filter==='private'" @click="filter = filter==='all' ? 'private' : 'all'" :title="filter==='all' ? '임시 비노출·숨김 채팅만 보기' : '전체 채팅 보기'">비공개 채팅 <b>{{privateCount}}</b></button></div></div>
@@ -352,18 +375,14 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
                 <div class="chat-footer"><div class="ai-notice"><ShieldCheck :size="15"/> 임시 비노출·숨김 채팅은 작성자와 담당 운영자에게만 보입니다.</div><details v-if="$slots.demo" class="demo-fold"><summary>목업 빠른 시연</summary><slot name="demo"/></details></div>
               </div>
             </section>
-            </template>
-
-            <section v-else-if="page==='reviews'" class="queue-page">
-                <section class="hitl-section decision-queue" :class="shownQueue.kind.toLowerCase()" aria-label="운영자 결정 대기">
-                  <header class="section-head"><span class="section-icon human"><ClipboardCheck :size="17"/></span><b>운영자 결정 대기</b><span class="pending-count">{{pending.length}}건</span></header>
-                  <div class="studio-tabs queue-tabs" role="tablist" aria-label="결정 대기 종류"><button v-for="q in queues" :key="q.kind" role="tab" :aria-selected="shownQueue.kind===q.kind" :class="{on: shownQueue.kind===q.kind}" @click="queueTab=q.kind"><UserX v-if="q.kind==='KICK'" :size="15"/><ClipboardCheck v-else :size="15"/>{{q.kind==='KICK' ? '강퇴 승인' : '문맥 검토'}} <b>{{q.items.length}}</b><i v-if="q.items.length && shownQueue.kind!==q.kind" class="tab-alert" aria-label="대기 중"/></button></div>
-                  <p class="queue-note">{{shownQueue.note}}</p>
-                  <p v-if="!shownQueue.items.length" class="section-empty">{{shownQueue.empty}}</p>
-                  <article v-for="r in shownQueue.items" :key="r.reviewId" class="studio-review" :class="[r.kind.toLowerCase(), {open: isOpen(r)}]" :data-review-id="r.reviewId" :data-version="r.version">
+                <section v-for="q in monitorQueues" :key="q.kind" class="hitl-section decision-queue" :class="q.kind.toLowerCase()" :aria-label="q.title" @focusin="queueTab=q.kind" @click="queueTab=q.kind">
+                  <header class="section-head"><span class="section-icon human"><UserX v-if="q.kind==='KICK'" :size="17"/><ClipboardCheck v-else :size="17"/></span><h2>{{q.title}}</h2><span class="pending-count">{{q.items.length}}건</span><span v-if="q.items.some(r=>freshReviews.has(r.reviewId))" class="queue-new-indicator">새 요청</span></header>
+                  <p class="queue-note">{{q.note}}</p>
+                  <p v-if="!q.items.length" class="section-empty">{{q.empty}}</p>
+                  <article v-for="r in q.items" :key="r.reviewId" class="studio-review" :class="[r.kind.toLowerCase(), {open: isOpen(r), 'review-arrival': freshReviews.has(r.reviewId)}]" :data-review-id="r.reviewId" :data-version="r.version">
                     <button type="button" class="review-head" :aria-expanded="isOpen(r)" @click="toggleReview(r)">
                       <ChevronDown v-if="isOpen(r)" :size="16"/><ChevronRight v-else :size="16"/>
-                      <b>{{nameOf(r.caseId)}}</b>
+                      <b>{{nameOf(r.caseId)}}</b><span v-if="freshReviews.has(r.reviewId)" class="review-new-badge">NEW</span>
                       <span class="review-excerpt">{{excerptOf(r)}}</span>
                       <span v-if="r.kind==='CONTEXT' && findingsOf(r)[0]" class="verdict-badge" :class="verdictTone(findingsOf(r)[0].verdict)">{{verdictLabels[findingsOf(r)[0].verdict]}}</span><span v-else-if="noAiResult(r)" class="verdict-badge no-ai">AI 결과 없음</span>
                       <small :title="r.kind==='CONTEXT' && sentAt(r) ? `메시지 보낸 시각 · 검토 요청 ${asTime(r.createdAt)} · 버전 ${r.version}` : `강퇴 승인 요청 시각 · 버전 ${r.version}`">{{asTime(r.kind==='CONTEXT' && sentAt(r) ? sentAt(r) : r.createdAt)}}</small>
@@ -397,7 +416,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
                     </div>
                   </article>
                 </section>
-            </section>
+            </div>
 
             <ViewerManage v-else-if="page==='viewers'" :rows="viewerRows" :busy="busy || ended" scope="현재 방송" @decide="onViewerDecide" @revoke="onViewerRevoke"/>
 

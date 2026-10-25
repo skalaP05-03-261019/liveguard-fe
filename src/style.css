@@ -1199,3 +1199,40 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .decision-notification-copy small{font-size:12px;color:#606060}
 
 @media(max-width:380px){.studio-shell .topbar{padding-left:8px;padding-right:8px}.studio-shell .topbar-title{gap:6px}.studio-shell .yt-logo b{font-size:16px}.studio-shell .mode-badge{padding:0 6px}}
+
+/* Live monitoring: chat, context decisions, kick approvals are visible together. */
+.live-monitoring-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start;max-width:none}
+.live-monitoring-grid>*{min-width:0}
+.live-monitoring-grid .monitor-grid.chat-only{height:auto;min-height:0;gap:12px;grid-template-rows:auto auto}
+.live-monitoring-grid .monitor-grid .chat-panel{min-height:420px}
+.live-monitoring-grid .scan-wrap{flex:none;height:clamp(360px,50vh,640px)}
+.live-monitoring-grid .chat-list{height:auto;max-height:none}
+.live-monitoring-grid .decision-queue{max-height:max(420px,calc(100dvh - 300px));overflow:auto;padding:0 12px 12px;scrollbar-width:thin}
+.live-monitoring-grid .section-head{position:sticky;top:0;background:#fff;z-index:1;flex-wrap:wrap;gap:8px}
+.live-monitoring-grid .section-head h2{font-size:15px;font-weight:600;margin:0}
+.live-monitoring-grid .queue-note{font-size:12px;line-height:1.6}
+.live-monitoring-grid .review-head{flex-wrap:wrap;gap:6px;padding:12px 8px}
+.live-monitoring-grid .review-head b{white-space:normal;overflow-wrap:anywhere}
+.live-monitoring-grid .review-head small{flex-basis:100%;margin-left:22px;font-size:11px;white-space:normal}
+.live-monitoring-grid .review-excerpt{flex-basis:100%;margin-left:22px;min-width:0}
+.live-monitoring-grid .review-body{padding:0 8px 12px;min-width:0;overflow-wrap:anywhere}
+.live-monitoring-grid .review-choice{flex-wrap:wrap}
+.live-monitoring-grid .basis-log{table-layout:fixed;width:100%}
+.live-monitoring-grid .basis-log td{white-space:normal;overflow-wrap:anywhere}
+.live-monitoring-grid .basis-log .log-time{width:auto;white-space:normal}
+.review-new-badge,.queue-new-indicator{background:#065fd4;color:#fff;font-size:10px;font-weight:700;border-radius:4px;padding:3px 6px;white-space:nowrap}
+.monitor-arrival-announcement{padding:10px 14px;border-left:4px solid #065fd4;background:#eaf2ff;color:#064ca7;font-size:14px;font-weight:600;margin:0 0 12px}
+.review-arrival{outline:2px solid #065fd4;outline-offset:-2px;animation:review-arrival-emphasis 2.6s ease-out 3}
+@keyframes review-arrival-emphasis{0%{background:#dcecff;box-shadow:inset 5px 0 #065fd4,0 0 0 3px #065fd425;transform:translateY(4px)}35%{background:#eef5ff;transform:translateY(0)}100%{background:#fff;box-shadow:inset 3px 0 #065fd4}}
+@media(min-width:1500px){.studio-shell .main-content:has(.live-monitoring-grid){padding-left:20px;padding-right:20px}}
+@media(max-width:1199px){.live-monitoring-grid{grid-template-columns:1fr 1fr}.live-monitoring-grid>.monitor-grid{grid-column:1/-1}.live-monitoring-grid .scan-wrap{height:380px}.live-monitoring-grid .decision-queue{max-height:650px}}
+@media(max-width:760px){.live-monitoring-grid{grid-template-columns:minmax(0,1fr)}.live-monitoring-grid .decision-queue{max-height:none;overflow:visible}.live-monitoring-grid .section-head{position:static}.live-monitoring-grid .scan-wrap{height:380px}}
+@media(prefers-reduced-motion:reduce){.review-arrival{animation:none;transform:none;background:#eef5ff}}
+
+.live-monitoring-grid .basis-log th:nth-child(1){width:24%}
+.live-monitoring-grid .basis-log th:nth-child(2){width:18%}
+.live-monitoring-grid .basis-log th:nth-child(3){width:38%}
+.live-monitoring-grid .basis-log th:nth-child(4){width:20%}
+
+.side-nav button[aria-label="실시간 모니터링"]{gap:8px;padding:0 10px;font-size:14px}
+.side-nav button[aria-label="실시간 모니터링"] span{white-space:nowrap}
