@@ -392,7 +392,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
                         </details>
                       </template>
                       <template v-else>
-                        <table class="sanction-log basis-log"><caption>기준 사건 {{r.basisCaseIds.length}}건</caption><thead><tr><th>시간</th><th>유형</th><th>메시지</th><th>상태</th></tr></thead><tbody>
+                        <table class="sanction-log basis-log" aria-label="강퇴 요청 근거 사건"><thead><tr><th>시간</th><th>유형</th><th>메시지</th><th>상태</th></tr></thead><tbody>
                           <tr v-for="b in basisCases(r)" :key="b.id" :data-case-id="b.id"><td class="log-time">{{b.item ? asTime(b.item.createdAt) : '-'}}</td><td class="log-cat">{{b.item ? activeCategories(b.item).map(categoryName).join('·') || '-' : '-'}}</td><td class="log-text">{{b.item ? targetText(b.item) ?? '원문 없음' : `사건 ${b.id.slice(0,8)}`}}<small v-if="b.item" class="basis-reason">{{basisReason(b.item)}}</small></td><td>{{b.item ? confirmationLabels[b.item.confirmationStatus] : '확인 중'}}</td></tr></tbody></table>
                         <details v-for="b in basisCases(r).filter(b => b.item && !isRule(b.item))" :key="'evidence-' + b.id" class="review-more"><summary>기준 사건 AI 판단 근거 · {{b.id.slice(0,8)}}</summary><AiEvidence :findings="b.item?.findings ?? []" :mock="mock"/></details>
                         <div class="review-choice" role="radiogroup" aria-label="결정"><label v-for="opt in kickChoices" :key="opt.value" :class="{on: choice[r.reviewId]===opt.value}"><input type="radio" :name="'choice-' + r.reviewId" :value="opt.value" v-model="choice[r.reviewId]" :disabled="busy || ended"/>{{opt.label}}</label></div>

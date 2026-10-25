@@ -10,7 +10,7 @@ defineProps<{title:string;kind:'KICK'|'CONTEXT';count:number;emptyText:string;fr
    <span v-if="fresh" class="queue-new-indicator">새 요청</span>
   </header>
   <p v-if="!count" class="section-empty status-summary-empty"><span>{{emptyText}}</span></p>
-  <p v-else class="status-summary-action"><AlertTriangle :size="16" aria-hidden="true"/><span>{{ended?'방송이 종료되어 결정할 수 없습니다.':'처리 대기 중인 항목이 있습니다.'}}</span></p>
+  <p v-else-if="ended" class="status-summary-action"><AlertTriangle :size="16" aria-hidden="true"/><span>방송이 종료되어 결정할 수 없습니다.</span></p>
   <slot/>
  </section>
 </template>

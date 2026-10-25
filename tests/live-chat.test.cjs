@@ -1514,7 +1514,7 @@ test('empty unified monitoring shows both queues and ended broadcasts clear arri
  state.reviews=[{reviewId:'new-live-review',kind:'CONTEXT',liveId:'live-1',caseId:'case-new',status:'PENDING',version:1,createdAt:timestamp(),aiVerdict:'NEEDS_REVIEW',messages:[],targetMessageIds:[],findings:[],basisCaseIds:[],summary:'AI 결과 없음'}];
  emit('CONTEXT_REVIEW_REQUIRED',{reviewId:'new-live-review',version:1});await page.locator('.review-arrival').waitFor();
  assert.equal(await page.locator('.status-summary-count.is-pending').count(),1);
- await page.getByRole('region',{name:'문맥 검토 대기',exact:true}).getByText('처리 대기 중인 항목이 있습니다.',{exact:true}).waitFor();
+ assert.equal(await page.getByText('처리 대기 중인 항목이 있습니다.',{exact:true}).count(),0);
  assert.equal(await page.getByRole('region',{name:'강퇴 승인 대기',exact:true}).locator('.status-summary-count.is-pending').count(),0);
  await captureReview(page,'summary-one-pending-api');
  state.active=false;emit('LIVE_ENDED',{liveId:'live-1'});await page.locator('.review-arrival').waitFor({state:'detached'});
