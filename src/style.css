@@ -1398,3 +1398,7 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .studio-shell .sidebar-channel .brand-channel-avatar.big svg{width:36px;height:36px}
 .studio-shell .sidebar.compact .sidebar-channel .brand-channel-avatar.big{width:32px;height:32px}
 .studio-shell .sidebar.compact .sidebar-channel .brand-channel-avatar.big svg{width:22px;height:22px}
+/* Keep operating policy at the foot of both expanded and icon-only navigation. */
+.studio-shell .side-nav{display:flex;flex-direction:column;flex:1}
+.studio-shell .side-nav button,.studio-shell .sidebar-channel,.studio-shell .sidebar-foot{flex-shrink:0}
+.studio-shell .side-nav .sidebar-policy-link{margin-top:auto}

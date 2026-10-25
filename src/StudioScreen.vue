@@ -350,7 +350,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
           <button title="시청자 관리" aria-label="시청자 관리" :class="{active: page==='viewers'}" :aria-current="page==='viewers' ? 'page' : undefined" @click="goto('viewers')"><Users :size="22" :stroke-width="1.8"/><span>시청자 관리</span></button>
           <button title="사건 이력" aria-label="사건 이력" :class="{active: page==='cases'}" :aria-current="page==='cases' ? 'page' : undefined" @click="goto('cases')"><FileClock :size="22" :stroke-width="1.8"/><span>사건 이력</span></button>
  <button title="채팅 기록" aria-label="채팅 기록" :class="{active: page==='chats'}" :aria-current="page==='chats' ? 'page' : undefined" @click="goto('chats')"><MessagesSquare :size="22" :stroke-width="1.8"/><span>채팅 기록</span></button>
-          <button title="채팅 관제 운영 정책" aria-label="채팅 관제 운영 정책" :class="{active: page==='policy'}" :aria-current="page==='policy' ? 'page' : undefined" @click="goto('policy')"><BookOpen :size="22" :stroke-width="1.8"/><span>채팅 관제 운영 정책</span></button>
+          <button class="sidebar-policy-link" title="채팅 관제 운영 정책" aria-label="채팅 관제 운영 정책" :class="{active: page==='policy'}" :aria-current="page==='policy' ? 'page' : undefined" @click="goto('policy')"><BookOpen :size="22" :stroke-width="1.8"/><span>채팅 관제 운영 정책</span></button>
         </nav>
         <div class="sidebar-foot">운영정책 v3.2 기준</div>
       </aside>
