@@ -1176,8 +1176,8 @@ test('admin attention filters, responsive row details and chart scales remain us
  await page.getByRole('button',{name:/강퇴 실행 실패.*확인된 실패만 보기/}).click();
  assert.equal(await page.locator('.request-table tbody tr').count(),1);
  assert.match(await page.locator('.request-table tbody').innerText(),/실행 실패/);
- await snapshot('review-admin-failed-desktop');
  assert.equal(await page.locator('.request-section').evaluate(e=>document.activeElement===e),true);
+ await snapshot('review-admin-failed-desktop');
  await page.getByRole('button',{name:'필터 해제',exact:true}).click();
  await page.getByRole('button',{name:/강퇴 결정 대기.*대기 요청 보기/}).click();
  assert(await page.locator('.request-table tbody tr').count()>0);
