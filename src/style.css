@@ -1242,3 +1242,58 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 }
 
 .notification-activity-link{display:block;border:0;background:none;color:#065fd4;font-size:12px;margin-top:8px;padding:4px 0;cursor:pointer}
+
+/* YouTube Studio reference: white workspace, restrained chrome and neutral surfaces. */
+:is(.studio-shell,.sys-shell){background:#fff;color:#0f0f0f}
+:is(.studio-shell,.sys-shell) .topbar{height:64px;border-bottom:1px solid #eee;background:#fff}
+.studio-shell .sidebar{top:64px;height:calc(100dvh - 64px);background:#fff;border-right:1px solid #eee}
+.studio-shell .sidebar.docked{top:64px}
+.studio-shell .nav-backdrop{top:64px}
+.studio-shell .sidebar-channel{padding:28px 16px 24px;gap:6px}
+.studio-shell .sidebar-channel .big{width:112px;height:112px;font-size:40px;font-weight:500}
+.studio-shell .sidebar-channel b{font-size:14px;font-weight:500;margin-top:8px}
+.studio-shell .sidebar-channel small{font-size:12px;color:#606060}
+.studio-shell .side-nav{gap:2px;padding:4px 12px}
+.studio-shell .side-nav button{height:42px;font-size:14px;font-weight:400;border-radius:8px;gap:14px;padding:0 12px}
+.studio-shell .side-nav button.active{background:#f2f2f2;font-weight:500}
+.studio-shell .side-nav button:hover{background:#f2f2f2}
+.studio-shell .side-nav button svg{flex:none;stroke-width:1.7}
+.studio-shell .side-nav button[aria-label="실시간 모니터링"]{font-size:13px;gap:8px;padding:0 10px}
+.studio-shell .sidebar-foot{border-top:0;font-size:11px;color:#606060}
+:is(.studio-shell,.sys-shell) .main-content{padding-top:28px;padding-bottom:24px}
+.studio-shell .status-strip{margin-bottom:24px}
+.studio-shell .status-strip b,.sys-shell .sys-head h1{font-size:24px;line-height:1.4;font-weight:500;letter-spacing:-.4px}
+.studio-shell .status-strip>div:first-child>svg{color:#0f0f0f}
+.studio-shell .studio-live-line{font-size:12px;margin-bottom:20px;color:#606060}
+:is(.studio-shell,.sys-shell) .card{border:1px solid #e5e5e5;border-radius:8px;box-shadow:none;background:#fff}
+.studio-shell .live-monitoring-grid{gap:20px}
+.studio-shell .live-monitoring-grid .decision-queue{border-color:#e5e5e5;border-radius:8px;background:#fff}
+.studio-shell .live-monitoring-grid .section-head{padding-top:18px;padding-bottom:16px;border-bottom-color:#eee}
+.studio-shell .live-monitoring-grid .section-head h2{font-size:15px;font-weight:500}
+.studio-shell .section-icon.human{background:#f2f2f2;color:#0f0f0f}
+.studio-shell .pending-count{background:#f2f2f2;color:#606060;border-radius:12px;font-weight:500;padding:3px 8px}
+.studio-shell .studio-review,.studio-shell .studio-review.kick{background:#fff;border:1px solid #e5e5e5;border-radius:8px}
+.studio-shell .review-head:hover{background:#f8f8f8}
+.studio-shell .review-head b{font-weight:500}
+.studio-shell .review-target{background:#f7f7f7;border-left-color:#bdbdbd;font-weight:400;line-height:1.6}
+.studio-shell .queue-note{color:#606060;line-height:1.65}
+.studio-shell .studio-stream-icon{background:#f2f2f2;color:#0f0f0f}
+.studio-shell .stream-caption b{font-weight:500}
+.studio-shell .panel-heading h2{font-size:16px;font-weight:500}
+.studio-shell .secondary-heading h2{font-size:22px;font-weight:500}
+.studio-shell .secondary-heading h2 svg{color:#0f0f0f}
+.studio-shell .secondary-heading{border-bottom-color:#e5e5e5;padding-bottom:24px}
+:is(.studio-shell,.sys-shell) input:not([type=radio]):not([type=checkbox]),:is(.studio-shell,.sys-shell) select{border-color:#d5d5d5;border-radius:6px}
+.sys-shell .sys-side{background:#fff;border-right-color:#eee}
+.sys-shell .sys-side button{font-size:14px;font-weight:400;border-radius:8px;min-height:42px}
+.sys-shell .sys-side button.on{background:#f2f2f2;color:#0f0f0f;font-weight:500}
+.sys-shell .sys-side button:hover{background:#f2f2f2}
+.sys-shell .sys-section-head h2{font-size:18px;font-weight:500}
+.sys-shell .sys-chart-card h2{font-weight:500}
+.sys-shell .sys-filter button,.sys-shell .sys-chips button{border-radius:18px}
+:is(.studio-shell,.sys-shell) .decision-notification-panel{box-shadow:0 4px 24px #0002}
+@media(max-width:1100px){:is(.studio-shell,.sys-shell) .main-content{padding-top:20px}.studio-shell .nav-backdrop{inset:64px 0 0}}
+@media(max-width:600px){:is(.studio-shell,.sys-shell) .main-content{padding-top:16px}.studio-shell .status-strip b,.sys-shell .sys-head h1{font-size:20px}.studio-shell .live-monitoring-grid{gap:16px}.studio-shell .status-strip{margin-bottom:20px}}
+
+.sys-shell .sys-layout{min-height:calc(100dvh - 64px)}
+.studio-shell .ai-evidence{background:#fafafa;border-color:#e5e5e5}

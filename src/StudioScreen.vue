@@ -2,7 +2,7 @@
 // 운영자(스트리머) Studio 화면. 목업과 실제 API가 같은 화면을 쓴다(#12).
 // 화면은 API v1.0 모양의 데이터와 사용자 동작만 다룬다. API·SSE 연결은 LiveConsole.vue, 목업 판정은 mockLive.ts가 맡는다.
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
-import { AlertCircle, BookOpen, ChevronDown, ChevronRight, ClipboardCheck, FileClock, LogOut, Menu, MessagesSquare, Pause, Play, Radio, RefreshCcw, ShieldCheck, Sparkles, Users, UserX } from 'lucide-vue-next';
+import { AlertCircle, BookOpen, ChevronDown, ChevronRight, ClipboardCheck, FileClock, LogOut, Menu, MessagesSquare, Pause, Play, Radio, RefreshCcw, ShieldCheck, Users, UserX } from 'lucide-vue-next';
 import ViewerManage from './ViewerManage.vue';
 import OperatorTools from './OperatorTools.vue';
 import DecisionNotifications from './DecisionNotifications.vue';
@@ -340,7 +340,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
     <div class="app-body">
       <div v-if="!wide && navOpen" class="nav-backdrop" @click="navOpen = false"/>
       <aside id="operator-nav" class="sidebar" :class="{open: !wide && navOpen, docked: wide && !navCollapsed}" :aria-hidden="!navVisible" :inert="!navVisible">
-        <div class="sidebar-channel"><span class="yt-channel-avatar big">🎮</span><b>채널 콘텐츠 관제</b><small>{{channelName}}</small></div>
+        <div class="sidebar-channel"><span class="yt-channel-avatar big" :style="{background: avatarColor(nickname)}">{{nickname.slice(0,1)}}</span><b>채널 콘텐츠 관제</b><small>{{channelName}}</small></div>
         <nav class="side-nav" aria-label="운영자 메뉴">
           <button aria-label="실시간 모니터링" :class="{active: page==='monitor'}" :aria-current="page==='monitor' ? 'page' : undefined" @click="goto('monitor')"><Radio :size="22" :stroke-width="1.8"/><span>실시간 모니터링</span><b v-if="pending.length" class="side-count">{{pending.length}}</b></button>
           <button :class="{active: page==='viewers'}" :aria-current="page==='viewers' ? 'page' : undefined" @click="goto('viewers')"><Users :size="22" :stroke-width="1.8"/><span>시청자 관리</span></button>
@@ -352,7 +352,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
       </aside>
       <div class="workspace">
         <main class="main-content">
-          <div class="status-strip"><div><Sparkles :size="16"/><b>{{pageTitles[page]}}</b></div>
+          <div class="status-strip"><div><Radio :size="18"/><b>{{pageTitles[page]}}</b></div>
             <div class="status-controls"><button v-if="!mock" @click="emit('refresh')"><RefreshCcw :size="14"/> 새로고침</button><button v-if="!mock && !loading && (!live || ended)" class="primary" :disabled="busy" @click="emit('start')">방송 시작</button><button v-if="!mock && live && !ended" :disabled="busy" @click="emit('end')">방송 종료</button></div></div>
           <OperatorTools ref="operatorToolsRef" :live-id="live?.liveId??''" :ended="ended" :reviews="reviews" :progress="kickProgress" @navigate="navigateTool" @open="openToolAlert"/>
           <p v-if="error" class="error-inline" role="alert"><AlertCircle :size="17"/> {{error}}</p>
@@ -407,7 +407,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
                   </article>
                 </section>
             <section class="monitor-grid chat-only">
-              <div class="stream-panel card"><div class="stream-caption"><span class="yt-channel-avatar">🎮</span><div><b>{{mock ? '오늘도 게임하는 날! 같이 놀아요 🎮' : '오늘의 라이브'}}</b><small>{{channelName}} · <span class="live-badge">{{ended ? '방송 종료' : '● 실시간'}}</span></small></div></div></div>
+              <div class="stream-panel card"><div class="stream-caption"><span class="yt-channel-avatar studio-stream-icon"><Radio :size="20" :stroke-width="1.7"/></span><div><b>{{mock ? '오늘도 게임하는 날! 같이 놀아요 🎮' : '오늘의 라이브'}}</b><small>{{channelName}} · <span class="live-badge">{{ended ? '방송 종료' : '● 실시간'}}</span></small></div></div></div>
               <div class="chat-panel card"><div class="panel-heading"><h2>실시간 채팅 <ChevronDown :size="17"/></h2><div class="panel-heading-end"><button v-if="feedOn !== null" class="icon-control" :class="{on: feedOn}" :title="feedOn ? '채팅 흐름 일시정지 (MOCK)' : '채팅 흐름 재생 (MOCK)'" :aria-pressed="feedOn" @click="emit('toggleFeed')"><Pause v-if="feedOn" :size="17"/><Play v-else :size="17"/></button><button class="blocked-toggle" :class="{on: filter==='private'}" :aria-pressed="filter==='private'" @click="filter = filter==='all' ? 'private' : 'all'" :title="filter==='all' ? '임시 비노출·숨김 채팅만 보기' : '전체 채팅 보기'">비공개 채팅 <b>{{privateCount}}</b></button></div></div>
                 <div class="scan-wrap"><span class="ai-scan" aria-hidden="true"/><div ref="chatRef" class="chat-list" @scroll.passive="onScroll">
                   <div v-for="m in shownMessages" :key="m.messageId" :data-message-id="m.messageId" class="chat-row" :class="{held: m.visibility==='HELD', hidden: m.visibility==='HIDDEN'}"><span class="chat-avatar" :style="{background: avatarColor(m.authorAlias)}">{{m.authorAlias.slice(0,1)}}</span><span class="chat-line"><b>{{m.authorAlias}}</b><span class="chat-text">{{m.text}}</span></span><span v-if="m.visibility!=='PUBLIC'" class="state-pill" :class="m.visibility.toLowerCase()">{{visibilityLabels[m.visibility]}}</span><time class="chat-time" :datetime="iso(m.sentAt)" :title="asTime(m.sentAt)">{{hourMinute(iso(m.sentAt))}}</time></div>
