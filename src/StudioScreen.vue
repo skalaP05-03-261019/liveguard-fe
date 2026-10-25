@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { BROADCAST_CHANNEL_NAME, BROADCAST_TITLE } from './broadcastPresentation';
 // 운영자(스트리머) Studio 화면. 목업과 실제 API가 같은 화면을 쓴다(#12).
 // 화면은 API v1.0 모양의 데이터와 사용자 동작만 다룬다. API·SSE 연결은 LiveConsole.vue, 목업 판정은 mockLive.ts가 맡는다.
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
@@ -37,7 +38,7 @@ const props = withDefaults(defineProps<{
   // 채팅 기록 페이지: 이전 페이지까지 불러온 채팅. 없으면 messages를 쓴다(목업).
   archive?: Message[] | null; archiveMore?: boolean; archiveLoading?: boolean;
   busy?: boolean; error?: string; notice?: string; feedOn?: boolean | null;
-}>(), { mock: false, channelName: '내 채널', ended: false, loading: false, online: false, busy: false, error: '', notice: '', feedOn: null, archive: null, archiveMore: false, archiveLoading: false });
+}>(), { mock: false, channelName: BROADCAST_CHANNEL_NAME, ended: false, loading: false, online: false, busy: false, error: '', notice: '', feedOn: null, archive: null, archiveMore: false, archiveLoading: false });
 const emit = defineEmits<{
   decide: [review: LiveReview, value: ContextDecision | KickDecision, reason: string, categories: Category[]];
   revoke: [caseId: string, findingId: string, reason: string];
@@ -365,7 +366,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
           <template v-else-if="live">
             <div class="studio-live-line"><span :class="ended ? 'ended' : 'on'">{{ended ? '종료' : '● LIVE'}}</span> 방송 {{live.liveId.slice(0,8)}} · {{asTime(live.startedAt)}} 시작<template v-if="ended"> · 방송이 종료되어 결정할 수 없습니다</template></div>
 
-              <div v-if="page==='monitor'" class="stream-panel card studio-broadcast-summary"><div class="stream-caption"><span class="yt-channel-avatar studio-stream-icon"><Radio :size="20" :stroke-width="1.7"/></span><div><b>{{mock ? '오늘도 게임하는 날! 같이 놀아요 🎮' : '오늘의 라이브'}}</b><small>{{channelName}} · <span class="live-badge">{{ended ? '방송 종료' : '● 실시간'}}</span></small></div></div></div>
+              <div v-if="page==='monitor'" class="stream-panel card studio-broadcast-summary"><div class="stream-caption"><span class="yt-channel-avatar studio-stream-icon"><Radio :size="20" :stroke-width="1.7"/></span><div><b>{{BROADCAST_TITLE}}</b><small>{{channelName}} · <span class="live-badge">{{ended ? '방송 종료' : '● 실시간'}}</span></small></div></div></div>
             <p v-if="arrivalAnnouncement" class="monitor-arrival-announcement" role="status">{{arrivalAnnouncement}}</p>
             <div v-if="page==='monitor'" class="live-monitoring-grid queue-page">
                 <StatusSummaryWidget v-for="q in monitorQueues" :key="q.kind" :title="q.title" :kind="q.kind" :count="q.items.length" :empty-text="q.empty" :fresh="q.items.some(r=>freshReviews.has(r.reviewId))" :ended="ended" @focusin="queueTab=q.kind" @click="queueTab=q.kind">

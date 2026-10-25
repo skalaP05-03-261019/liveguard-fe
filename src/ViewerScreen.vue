@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { BROADCAST_CHANNEL_NAME, BROADCAST_TITLE } from './broadcastPresentation';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { Bell, CheckCircle2, ChevronDown, Ellipsis, Forward, Menu, Search, SendHorizontal, ShieldCheck, Smile, ThumbsDown, ThumbsUp } from 'lucide-vue-next';
 import YtPlayer from './YtPlayer.vue';
@@ -39,7 +40,7 @@ const props = withDefaults(defineProps<{
   viewers?: string | null;
   likes?: number | null;
 }>(), { mock: false, ready: true, loading: false, hasLive: true, blocked: false, ended: false, busy: false, timedOut: false, online: false,
-  title: '오늘의 라이브', channelName: null, channelAvatar: null, subscribers: null, viewers: null, likes: null });
+  title: BROADCAST_TITLE, channelName: BROADCAST_CHANNEL_NAME, channelAvatar: null, subscribers: null, viewers: null, likes: null });
 const draft = defineModel<string>('draft', { required: true });
 const emit = defineEmits<{ send: []; logout: [] }>();
 const following = ref(false), liked = ref(false), disliked = ref(false);

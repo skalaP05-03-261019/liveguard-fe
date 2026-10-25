@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { BROADCAST_CHANNEL_NAME } from './broadcastPresentation';
 import { computed, onBeforeUnmount, onMounted } from 'vue';
 import { AlertCircle, CheckCircle2 } from 'lucide-vue-next';
 import LoginPage from './LoginPage.vue';
@@ -29,7 +30,7 @@ onBeforeUnmount(() => store.dispose());
   <LiveConsole v-else-if="store.mode==='api'"/>
   <ViewerPage v-else-if="role==='VIEWER'"/>
   <SystemPage v-else-if="role==='PLATFORM_ADMIN'"/>
-  <StudioScreen v-else mock :nickname="store.me?.nickname ?? '스트리머'" channel-name="행복한게임방" :live="mock.live" :online="true" :messages="mock.messages" :reviews="mock.reviews" :cases="mock.cases" :case-names="caseNames" :logs="mock.logs" :kick-progress="mock.kickProgress" :busy="store.busy" :error="store.error" :notice="store.notice" :feed-on="store.feedOn"
+  <StudioScreen v-else mock :nickname="store.me?.nickname ?? '스트리머'" :channel-name="BROADCAST_CHANNEL_NAME" :live="mock.live" :online="true" :messages="mock.messages" :reviews="mock.reviews" :cases="mock.cases" :case-names="caseNames" :logs="mock.logs" :kick-progress="mock.kickProgress" :busy="store.busy" :error="store.error" :notice="store.notice" :feed-on="store.feedOn"
     @decide="onDecide" @revoke="(caseId, findingId, reason) => store.revoke(caseId, findingId, reason)" @logout="store.logout()" @toggle-feed="store.toggleFeed()">
     <template #demo><div class="scenario-toolbar"><span>빠른 시연</span><button v-for="s in demoScenarios" :key="s.key" @click="store.mockScenario(s.key)">{{s.label}}</button></div></template>
     <template #kick-actions="{ reviewId, state }"><span v-if="state===KICK_WAITING" class="mock-kick-actions">
