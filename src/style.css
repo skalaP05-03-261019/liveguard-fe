@@ -1201,7 +1201,7 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 @media(max-width:380px){.studio-shell .topbar{padding-left:8px;padding-right:8px}.studio-shell .topbar-title{gap:6px}.studio-shell .yt-logo b{font-size:16px}.studio-shell .mode-badge{padding:0 6px}}
 
 /* Live monitoring: chat, context decisions, kick approvals are visible together. */
-.live-monitoring-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start;max-width:none}
+.live-monitoring-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.15fr);gap:16px;align-items:start;max-width:none}
 .live-monitoring-grid>*{min-width:0}
 .live-monitoring-grid .monitor-grid.chat-only{height:auto;min-height:0;gap:12px;grid-template-rows:auto auto}
 .live-monitoring-grid .monitor-grid .chat-panel{min-height:420px}

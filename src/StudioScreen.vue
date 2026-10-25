@@ -140,7 +140,7 @@ function activeOf(kind: LiveReview['kind']) {
 const isOpen = (r: LiveReview) => activeOf(r.kind) === r.reviewId;
 // 두 열을 동시에 표시한다. 클릭·키보드 초점이 있는 열에서 탐색 단축키를 적용한다.
 const queueTab = ref<LiveReview['kind'] | null>(null);
-const monitorQueues=computed(()=>[queues.value[1],queues.value[0]]);
+const monitorQueues=computed(()=>[queues.value[0],queues.value[1]]);
 const shownQueue = computed(() => { const kind = queueTab.value ?? (queues.value[1].items.length ? 'CONTEXT' : 'KICK'); return queues.value.find(q => q.kind === kind)!; });
 function toggleReview(r: LiveReview) { openIds[r.kind] = isOpen(r) ? '' : r.reviewId; }
 // 결정은 하나를 고른 뒤 제출한다. 위반 확정을 고를 때만 위반 유형을 고른다.
@@ -365,16 +365,6 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
 
             <p v-if="arrivalAnnouncement" class="monitor-arrival-announcement" role="status">{{arrivalAnnouncement}}</p>
             <div v-if="page==='monitor'" class="live-monitoring-grid queue-page">
-            <section class="monitor-grid chat-only">
-              <div class="stream-panel card"><div class="stream-caption"><span class="yt-channel-avatar">🎮</span><div><b>{{mock ? '오늘도 게임하는 날! 같이 놀아요 🎮' : '오늘의 라이브'}}</b><small>{{channelName}} · <span class="live-badge">{{ended ? '방송 종료' : '● 실시간'}}</span></small></div></div></div>
-              <div class="chat-panel card"><div class="panel-heading"><h2>실시간 채팅 <ChevronDown :size="17"/></h2><div class="panel-heading-end"><button v-if="feedOn !== null" class="icon-control" :class="{on: feedOn}" :title="feedOn ? '채팅 흐름 일시정지 (MOCK)' : '채팅 흐름 재생 (MOCK)'" :aria-pressed="feedOn" @click="emit('toggleFeed')"><Pause v-if="feedOn" :size="17"/><Play v-else :size="17"/></button><button class="blocked-toggle" :class="{on: filter==='private'}" :aria-pressed="filter==='private'" @click="filter = filter==='all' ? 'private' : 'all'" :title="filter==='all' ? '임시 비노출·숨김 채팅만 보기' : '전체 채팅 보기'">비공개 채팅 <b>{{privateCount}}</b></button></div></div>
-                <div class="scan-wrap"><span class="ai-scan" aria-hidden="true"/><div ref="chatRef" class="chat-list" @scroll.passive="onScroll">
-                  <div v-for="m in shownMessages" :key="m.messageId" :data-message-id="m.messageId" class="chat-row" :class="{held: m.visibility==='HELD', hidden: m.visibility==='HIDDEN'}"><span class="chat-avatar" :style="{background: avatarColor(m.authorAlias)}">{{m.authorAlias.slice(0,1)}}</span><span class="chat-line"><b>{{m.authorAlias}}</b><span class="chat-text">{{m.text}}</span></span><span v-if="m.visibility!=='PUBLIC'" class="state-pill" :class="m.visibility.toLowerCase()">{{visibilityLabels[m.visibility]}}</span><time class="chat-time" :datetime="iso(m.sentAt)" :title="asTime(m.sentAt)">{{hourMinute(iso(m.sentAt))}}</time></div>
-                  <div v-if="!shownMessages.length" class="empty-block">표시할 채팅이 없습니다.</div></div>
-                  <button v-if="unread" class="new-msg-pill" @click="toBottom()">새 메시지 {{unread}}개 <ChevronDown :size="15"/></button></div>
-                <div class="chat-footer"><div class="ai-notice"><ShieldCheck :size="15"/> 임시 비노출·숨김 채팅은 작성자와 담당 운영자에게만 보입니다.</div><details v-if="$slots.demo" class="demo-fold"><summary>목업 빠른 시연</summary><slot name="demo"/></details></div>
-              </div>
-            </section>
                 <section v-for="q in monitorQueues" :key="q.kind" class="hitl-section decision-queue" :class="q.kind.toLowerCase()" :aria-label="q.title" @focusin="queueTab=q.kind" @click="queueTab=q.kind">
                   <header class="section-head"><span class="section-icon human"><UserX v-if="q.kind==='KICK'" :size="17"/><ClipboardCheck v-else :size="17"/></span><h2>{{q.title}}</h2><span class="pending-count">{{q.items.length}}건</span><span v-if="q.items.some(r=>freshReviews.has(r.reviewId))" class="queue-new-indicator">새 요청</span></header>
                   <p class="queue-note">{{q.note}}</p>
@@ -416,6 +406,16 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
                     </div>
                   </article>
                 </section>
+            <section class="monitor-grid chat-only">
+              <div class="stream-panel card"><div class="stream-caption"><span class="yt-channel-avatar">🎮</span><div><b>{{mock ? '오늘도 게임하는 날! 같이 놀아요 🎮' : '오늘의 라이브'}}</b><small>{{channelName}} · <span class="live-badge">{{ended ? '방송 종료' : '● 실시간'}}</span></small></div></div></div>
+              <div class="chat-panel card"><div class="panel-heading"><h2>실시간 채팅 <ChevronDown :size="17"/></h2><div class="panel-heading-end"><button v-if="feedOn !== null" class="icon-control" :class="{on: feedOn}" :title="feedOn ? '채팅 흐름 일시정지 (MOCK)' : '채팅 흐름 재생 (MOCK)'" :aria-pressed="feedOn" @click="emit('toggleFeed')"><Pause v-if="feedOn" :size="17"/><Play v-else :size="17"/></button><button class="blocked-toggle" :class="{on: filter==='private'}" :aria-pressed="filter==='private'" @click="filter = filter==='all' ? 'private' : 'all'" :title="filter==='all' ? '임시 비노출·숨김 채팅만 보기' : '전체 채팅 보기'">비공개 채팅 <b>{{privateCount}}</b></button></div></div>
+                <div class="scan-wrap"><span class="ai-scan" aria-hidden="true"/><div ref="chatRef" class="chat-list" @scroll.passive="onScroll">
+                  <div v-for="m in shownMessages" :key="m.messageId" :data-message-id="m.messageId" class="chat-row" :class="{held: m.visibility==='HELD', hidden: m.visibility==='HIDDEN'}"><span class="chat-avatar" :style="{background: avatarColor(m.authorAlias)}">{{m.authorAlias.slice(0,1)}}</span><span class="chat-line"><b>{{m.authorAlias}}</b><span class="chat-text">{{m.text}}</span></span><span v-if="m.visibility!=='PUBLIC'" class="state-pill" :class="m.visibility.toLowerCase()">{{visibilityLabels[m.visibility]}}</span><time class="chat-time" :datetime="iso(m.sentAt)" :title="asTime(m.sentAt)">{{hourMinute(iso(m.sentAt))}}</time></div>
+                  <div v-if="!shownMessages.length" class="empty-block">표시할 채팅이 없습니다.</div></div>
+                  <button v-if="unread" class="new-msg-pill" @click="toBottom()">새 메시지 {{unread}}개 <ChevronDown :size="15"/></button></div>
+                <div class="chat-footer"><div class="ai-notice"><ShieldCheck :size="15"/> 임시 비노출·숨김 채팅은 작성자와 담당 운영자에게만 보입니다.</div><details v-if="$slots.demo" class="demo-fold"><summary>목업 빠른 시연</summary><slot name="demo"/></details></div>
+              </div>
+            </section>
             </div>
 
             <ViewerManage v-else-if="page==='viewers'" :rows="viewerRows" :busy="busy || ended" scope="현재 방송" @decide="onViewerDecide" @revoke="onViewerRevoke"/>

@@ -1450,13 +1450,13 @@ test('unified monitoring has three columns and responsive decision queues withou
  assert.equal(await menu.getByRole('button',{name:/^결정 대기/}).count(),0);
  const left=page.locator('.live-monitoring-grid > .monitor-grid'),context=page.getByRole('region',{name:'문맥 검토 대기',exact:true}),kick=page.getByRole('region',{name:'강퇴 승인 대기',exact:true});
  const a=await left.boundingBox(),b=await context.boundingBox(),c=await kick.boundingBox();
- assert(a.x+a.width<=b.x&&b.x+b.width<=c.x);assert(Math.abs(a.y-b.y)<2&&Math.abs(b.y-c.y)<2);
+ assert(c.x+c.width<=b.x&&b.x+b.width<=a.x);assert(Math.abs(a.y-b.y)<2&&Math.abs(b.y-c.y)<2);
  assert.equal(await page.locator('.review-arrival').count(),0,'initial data does not flash');
  await captureReview(page,'monitoring-three-columns');
  for(const width of [1024,390,360]){
   await page.setViewportSize({width,height:844});await page.screenshot({animations:'disabled'});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
-  if(width<760){const l=await left.boundingBox(),m=await context.boundingBox(),r=await kick.boundingBox();assert(l.y+l.height<=m.y&&m.y+m.height<=r.y);}
+  if(width<760){const l=await left.boundingBox(),m=await context.boundingBox(),r=await kick.boundingBox();assert(r.y+r.height<=m.y&&m.y+m.height<=l.y);}
   await captureReview(page,`monitoring-${width}`);
  }
 });
