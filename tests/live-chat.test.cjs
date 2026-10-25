@@ -29,7 +29,8 @@ async function openMock(options={}){
  const context=await browser.newContext({viewport:{width:1280,height:1000},timezoneId:'Asia/Seoul',...options});contexts.push(context);
  const page=await context.newPage();page.on('pageerror',e=>runtimeErrors.push(e.message));
  const time=new Date('2026-10-22T05:14:50Z');
- await page.clock.install({time});await page.clock.pauseAt(time);
+ // Install before the target so scheduler delays cannot make pauseAt target the past.
+ await page.clock.install({time:new Date(time.getTime()-60000)});await page.clock.pauseAt(time);
  await page.goto(mockBase);
  await page.getByRole('button',{name:'시청자로 시작하기',exact:true}).click();
  await page.getByRole('button',{name:'로그인',exact:true}).click();
@@ -39,7 +40,9 @@ async function openMock(options={}){
 async function openMockModerator(){
  const context=await browser.newContext({viewport:{width:1280,height:1000},timezoneId:'Asia/Seoul'});contexts.push(context);
  const page=await context.newPage();page.on('pageerror',e=>runtimeErrors.push(e.message));
- const time=new Date('2026-10-22T05:14:50Z');await page.clock.install({time});await page.clock.pauseAt(time);
+ const time=new Date('2026-10-22T05:14:50Z');
+ // Install before the target so scheduler delays cannot make pauseAt target the past.
+ await page.clock.install({time:new Date(time.getTime()-60000)});await page.clock.pauseAt(time);
  await page.goto(mockBase);await page.getByRole('button',{name:'스트리머로 시작하기',exact:true}).click();
  await page.getByRole('button',{name:'로그인',exact:true}).click();await page.locator('.app-shell').waitFor();
  return page;
@@ -614,7 +617,9 @@ const pathOf=async detail=>Object.entries(await flowTones(detail)).filter(([,t])
 async function openTracking(){
  const context=await browser.newContext({viewport:{width:1280,height:1000},timezoneId:'Asia/Seoul'});contexts.push(context);
  const page=await context.newPage();page.on('pageerror',e=>runtimeErrors.push(e.message));
- const time=new Date('2026-10-22T05:14:50Z');await page.clock.install({time});await page.clock.pauseAt(time);
+ const time=new Date('2026-10-22T05:14:50Z');
+ // Install before the target so scheduler delays cannot make pauseAt target the past.
+ await page.clock.install({time:new Date(time.getTime()-60000)});await page.clock.pauseAt(time);
  await page.goto(mockBase);await page.getByRole('button',{name:'시스템 운영자 전용',exact:true}).click();
  await page.getByRole('button',{name:'로그인',exact:true}).click();
  await page.getByRole('tab',{name:'채팅관제 Tracking',exact:true}).click();
