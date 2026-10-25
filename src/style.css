@@ -1402,3 +1402,4 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .studio-shell .side-nav{display:flex;flex-direction:column;flex:1}
 .studio-shell .side-nav button,.studio-shell .sidebar-channel,.studio-shell .sidebar-foot{flex-shrink:0}
 .studio-shell .side-nav .sidebar-policy-link{margin-top:auto}
+.studio-shell .sidebar-foot{flex-direction:column;align-items:flex-start;gap:5px}

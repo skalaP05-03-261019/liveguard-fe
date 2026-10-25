@@ -29,3 +29,5 @@ YouTube Studio 참고 화면처럼 데스크톱 메뉴를 접어도 아이콘만
 ![실제 접힌 메뉴](evidence/policy-navigation/compact-actual.png)
 
 프로덕션 빌드·관련 브라우저 테스트 2/2 통과. localhost:3000 frontend 재빌드 후 두 상태 모두 정책 항목이 하단에 있는 것을 확인했습니다.
+
+`LIVE:GUARD · API v1.0 (liveId)`는 본문 푸터에서 서랍 하단 ‘운영정책 v3.2 기준’ 바로 아래로 옮겼습니다. 접힌 아이콘 메뉴에서는 두 문구 모두 숨깁니다. 프로덕션 빌드 및 localhost:3000 frontend 재빌드·실제 서랍 표시 확인 완료.

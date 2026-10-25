@@ -352,7 +352,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
  <button title="채팅 기록" aria-label="채팅 기록" :class="{active: page==='chats'}" :aria-current="page==='chats' ? 'page' : undefined" @click="goto('chats')"><MessagesSquare :size="22" :stroke-width="1.8"/><span>채팅 기록</span></button>
           <button class="sidebar-policy-link" title="채팅 관제 운영 정책" aria-label="채팅 관제 운영 정책" :class="{active: page==='policy'}" :aria-current="page==='policy' ? 'page' : undefined" @click="goto('policy')"><BookOpen :size="22" :stroke-width="1.8"/><span>채팅 관제 운영 정책</span></button>
         </nav>
-        <div class="sidebar-foot">운영정책 v3.2 기준</div>
+        <div class="sidebar-foot"><span>운영정책 v3.2 기준</span><span>LIVE:GUARD · API v1.0 (liveId)</span></div>
       </aside>
       <div class="workspace">
         <main class="main-content">
@@ -468,7 +468,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
               <div v-if="archiveMore" class="chat-db-more"><button type="button" :disabled="archiveLoading" @click="emit('loadOlder')">{{archiveLoading ? '불러오는 중…' : '이전 채팅 더 불러오기'}}</button></div>
             </section>
           </template>
-          <footer class="dashboard-footer"><span>LIVE:GUARD · API v1.0 (liveId)</span><span>프론트는 <code>/api/**</code>만 사용합니다. <code>/internal/**</code>·MCP·Agent 호출은 백엔드 담당입니다.</span></footer>
+          <footer class="dashboard-footer"><span>프론트는 <code>/api/**</code>만 사용합니다. <code>/internal/**</code>·MCP·Agent 호출은 백엔드 담당입니다.</span></footer>
         </main>
       </div>
     </div>
