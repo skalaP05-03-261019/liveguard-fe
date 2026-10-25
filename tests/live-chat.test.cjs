@@ -1662,6 +1662,7 @@ for(const mode of ['mock','api'])test(`streamer collapsed navigation keeps click
  assert.equal(Math.round((await rail.boundingBox()).width),72);
  await rail.getByRole('button',{name:'채팅 관제 운영 정책',exact:true}).click();
  assert.equal(await rail.getByRole('button',{name:'채팅 관제 운영 정책',exact:true}).getAttribute('aria-current'),'page');
+ assert.equal(await page.locator('.studio-broadcast-summary').count(),0);
  await captureReview(page,`icon-rail-${mode}-streamer`);
  await page.getByRole('button',{name:'메뉴 열기',exact:true}).click();
  assert((await rail.boundingBox()).width>72);
