@@ -10,7 +10,7 @@ const account=computed(()=>store.me?.userId??'');
 const storageKey=computed(()=>`liveguard.operator-tools.v1.${encodeURIComponent(account.value)}`);
 const scope=computed(()=>`${account.value}:${props.liveId}`);
 const active=computed(()=>!!account.value&&!!props.liveId&&!props.ended&&store.me?.role==='MODERATOR');
-const status=ref(''),settingsOpen=ref(false),alertsOpen=ref(false),alerts=ref<OperatorAlert[]>([]),announcement=ref(''),clock=ref(Date.now());
+const status=ref(''),settingsOpen=ref(false),alertsOpen=ref(false),alerts=ref<OperatorAlert[]>([]),clock=ref(Date.now());
 const tracker=new AlertTracker();const error=computed(()=>settingsError(draft.value));
 const actions=Object.keys(shortcutLabels) as ShortcutAction[];
 let timer:ReturnType<typeof setInterval>|undefined;
@@ -18,18 +18,13 @@ const copy=(s:ToolSettings)=>({...s,keys:{...s.keys}});
 function load(){
  try{settings.value=readSettings(localStorage.getItem(storageKey.value));status.value='';}
  catch{settings.value=defaultSettings();status.value='저장소를 사용할 수 없어 이번 화면에서만 설정을 적용합니다.';}
- draft.value=copy(settings.value);tracker.clear();alerts.value=[];announcement.value='';settingsOpen.value=false;alertsOpen.value=false;
+ draft.value=copy(settings.value);tracker.clear();alerts.value=[];settingsOpen.value=false;alertsOpen.value=false;
 }
 watch(account,load,{immediate:true});
-watch(scope,()=>{tracker.clear();alerts.value=[];announcement.value='';alertsOpen.value=false;});
+watch(scope,()=>{tracker.clear();alerts.value=[];alertsOpen.value=false;});
 watch([active,()=>props.reviews,()=>props.progress,clock,settings],()=>{
- if(!active.value){tracker.clear();alerts.value=[];announcement.value='';return;}
- if(!settings.value.notifications)announcement.value='';
- const before=new Set(alerts.value.map(a=>a.key));
+ if(!active.value){tracker.clear();alerts.value=[];return;}
  alerts.value=tracker.update(scope.value,props.liveId,settings.value.notifications,props.reviews,props.progress,clock.value,settings.value.waitMinutes);
- const added=alerts.value.filter(a=>!before.has(a.key));
- if(!alerts.value.length)announcement.value='';
- if(added.length)announcement.value=`새 관제 알림 ${added.length}건이 있습니다.`;
 },{deep:true,immediate:true});
 function save(){
  if(error.value)return;
@@ -42,7 +37,7 @@ function dismiss(key:string){tracker.dismiss(key);alerts.value=alerts.value.filt
 function openAlert(alert:OperatorAlert){
  const r=props.reviews.find(r=>r.reviewId===alert.reviewId&&r.liveId===props.liveId);
  if(!active.value||!r||r.status==='INVALIDATED'||(alert.kind!=='failure'&&r.status!=='PENDING')){dismiss(alert.key);status.value='요청 상태가 변경되었습니다. 최신 목록을 확인하세요.';return;}
- emit('open',alert.reviewId,alert.kind);alertsOpen.value=false;announcement.value='';
+ emit('open',alert.reviewId,alert.kind);alertsOpen.value=false;
 }
 function onKey(e:KeyboardEvent){
  if(e.defaultPrevented||!active.value||settingsOpen.value)return;
@@ -52,24 +47,19 @@ function onKey(e:KeyboardEvent){
  e.preventDefault();emit('navigate',action);
 }
 async function openSettings(){settingsOpen.value=true;draft.value=copy(settings.value);await nextTick();document.querySelector<HTMLElement>('.operator-settings input')?.focus();}
-function toggleSettings(){if(settingsOpen.value)settingsOpen.value=false;else void openSettings();}
-defineExpose({openSettings});
+async function openAlerts(){alertsOpen.value=true;await nextTick();document.querySelector<HTMLElement>('#operator-alerts button')?.focus();}
+defineExpose({openSettings,openAlerts});
 onMounted(()=>{window.addEventListener('keydown',onKey);timer=setInterval(()=>clock.value=Date.now(),30000);});
 onBeforeUnmount(()=>{window.removeEventListener('keydown',onKey);if(timer)clearInterval(timer);tracker.clear();});
 </script>
 <template>
- <section class="operator-tools" aria-label="관제 도구">
-  <div class="operator-tools-bar">
-   <button type="button" :aria-expanded="alertsOpen" aria-controls="operator-alerts" @click="alertsOpen=!alertsOpen">관제 알림 <b>{{alerts.length}}</b></button>
-   <button type="button" :aria-expanded="settingsOpen" aria-controls="operator-settings" @click="toggleSettings">알림·단축키 설정</button>
-   <small v-if="settings.shortcuts">{{settings.keys.next.toUpperCase()}} 다음 · {{settings.keys.previous.toUpperCase()}} 이전 · {{settings.keys.toggle.toUpperCase()}} 상세 · {{settings.keys.search}} 검색</small>
-  </div>
-  <p v-if="announcement" class="operator-announcement" role="status">{{announcement}} <button type="button" @click="alertsOpen=true;announcement=''">알림 보기</button><button type="button" aria-label="관제 알림 안내 닫기" @click="announcement=''">닫기</button></p>
+ <section v-show="settingsOpen || alertsOpen || status" class="operator-tools" aria-label="관제 도구">
   <div v-if="alertsOpen" id="operator-alerts" class="operator-alerts" role="region" aria-label="관제 알림 목록">
    <p v-if="!active">진행 중인 방송에서 관제 알림을 확인할 수 있습니다.</p>
    <p v-else-if="!settings.notifications">관제 알림이 꺼져 있습니다.</p>
    <p v-else-if="!alerts.length">새 관제 알림이 없습니다.</p>
    <ul v-else><li v-for="alert in alerts" :key="alert.key"><button type="button" @click="openAlert(alert)">{{alert.label}} →</button><button type="button" :aria-label="`${alert.label} 알림 지우기`" @click="dismiss(alert.key)">지우기</button></li></ul>
+   <button type="button" @click="alertsOpen=false">처리 알림 닫기</button>
    <small>최근 20개 알림을 표시하며 채팅 원문은 담지 않습니다. 현재 상태를 확인한 뒤 결정하세요.</small>
   </div>
   <form v-if="settingsOpen" id="operator-settings" class="operator-settings" aria-label="알림·단축키 설정" @submit.prevent="save">

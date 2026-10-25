@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { BROADCAST_CHANNEL_NAME, BROADCAST_TITLE } from './broadcastPresentation';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
-import { Bell, CheckCircle2, ChevronDown, Ellipsis, Forward, LogOut, Menu, Mic, RefreshCcw, Search, SendHorizontal, ShieldCheck, Smile, ThumbsDown, ThumbsUp, Video } from 'lucide-vue-next';
+import { Bell, CheckCircle2, ChevronDown, Ellipsis, Forward, Menu, Search, SendHorizontal, ShieldCheck, Smile, ThumbsDown, ThumbsUp } from 'lucide-vue-next';
 import YtPlayer from './YtPlayer.vue';
-import ModeBadge from './ModeBadge.vue';
+import AccountMenu from './AccountMenu.vue';
+import ViewerAssistant from './ViewerAssistant.vue';
 import ChatTimeoutNotice from './ChatTimeoutNotice.vue';
 import { timeoutEndText } from './chatTime';
 import { authorNotice, visibilityLabels, type Message } from './contracts';
@@ -13,6 +15,7 @@ import { avatarColor } from './avatar';
 // 호출자가 준 것만 보이고, 계약에 없는 실제 API는 비워 둔다(#28).
 const props = withDefaults(defineProps<{
   messages: Message[];
+  sendDemoChat?: (text:string)=>Promise<boolean>;
   nickname: string;
   scopeKey: string;
   clock: number;
@@ -36,11 +39,10 @@ const props = withDefaults(defineProps<{
   subscribers?: string | null;
   viewers?: string | null;
   likes?: number | null;
-  alerts?: string | null;
 }>(), { mock: false, ready: true, loading: false, hasLive: true, blocked: false, ended: false, busy: false, timedOut: false, online: false,
-  title: '오늘의 라이브', channelName: null, channelAvatar: null, subscribers: null, viewers: null, likes: null, alerts: null });
+  title: BROADCAST_TITLE, channelName: BROADCAST_CHANNEL_NAME, channelAvatar: null, subscribers: null, viewers: null, likes: null });
 const draft = defineModel<string>('draft', { required: true });
-const emit = defineEmits<{ send: []; logout: []; refresh: [] }>();
+const emit = defineEmits<{ send: []; logout: [] }>();
 const following = ref(false), liked = ref(false), disliked = ref(false);
 const theater = ref(false), chatOpen = ref(true), query = ref('');
 const searchRef = ref<HTMLInputElement | null>(null), chatRef = ref<HTMLElement | null>(null);
@@ -115,12 +117,9 @@ function dislike() { disliked.value = !disliked.value; if (disliked.value) liked
   <div class="viewer-shell" :class="{'api-viewer': !mock}">
     <header class="yt-masthead">
       <div class="yt-masthead-start"><span class="yt-icon-button" aria-hidden="true"><Menu :size="22"/></span><a class="yt-logo" href="#"><span class="yt-logo-mark"><ShieldCheck :size="15"/></span><b>LIVE<span>:</span>GUARD</b><sup>KR</sup></a></div>
-      <div class="yt-search"><div class="yt-search-box"><input ref="searchRef" v-model="query" placeholder="채팅 검색" aria-label="채팅 검색"/><button title="채팅 검색" @click="searchRef?.focus()"><Search :size="20"/></button></div><button class="yt-icon-button filled" title="음성으로 검색"><Mic :size="20"/></button></div>
+      <div class="yt-search"><div class="yt-search-box"><input ref="searchRef" v-model="query" placeholder="채팅 검색" aria-label="채팅 검색"/><button title="채팅 검색" @click="searchRef?.focus()"><Search :size="20"/></button></div><ViewerAssistant :scope-key="scopeKey" :disabled="!ready||loading||!hasLive||blocked||ended||timedOut" :send-chat="sendDemoChat"/></div>
       <div class="yt-masthead-end">
-        <ModeBadge :mock="mock" :online="online"/>
-        <button class="yt-icon-button yt-deco" title="만들기"><Video :size="22"/></button><button class="yt-icon-button yt-deco" title="알림"><Bell :size="22"/><i v-if="alerts" class="yt-badge">{{alerts}}</i></button>
-        <button v-if="!mock" class="yt-icon-button" title="새로고침" aria-label="새로고침" @click="emit('refresh')"><RefreshCcw :size="20"/></button>
-        <span class="yt-me" :style="{background: avatarColor(nickname)}" :title="nickname">{{nickname.slice(0,1)}}</span><button class="yt-icon-button" title="로그아웃" @click="emit('logout')"><LogOut :size="20"/></button>
+        <AccountMenu :nickname="nickname" account-label="시청자 계정" @logout="emit('logout')"/>
       </div>
     </header>
 

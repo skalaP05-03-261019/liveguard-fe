@@ -1,18 +1,19 @@
 <script setup lang="ts">
-// 시청자 관리 탭(#5). 현재 방송에서 제재를 받은 시청자를 한 줄씩 보여 주고, 조치는 API 명세가 허용하는 것만 둔다:
-// 오판 취소(findings/revoke), 강퇴 승인·기각(kick-reviews), 문맥 정상·위반·보류(context-reviews).
+// 시청자 관리 탭(#5). 제재받은 시청자의 상태를 요약하고, 사건 흐름·결정 대기로 연결한다.
+// 이 화면의 직접 조치는 시청자 근거의 오판 취소(findings/revoke)만 둔다.
 import { computed, reactive, ref } from 'vue';
 import { ChevronDown, ChevronRight, Users } from 'lucide-vue-next';
 import { dateTimeText } from './chatTime';
 import {
   caseStatusLabels, categoriesOf, categoryName, confirmedCount, lastAt, latestViolationCount, statusOf, statusOrder, viewerStatusLabels,
-  type ViewerCase, type ViewerFinding, type ViewerReview, type ViewerRow, type ViewerStatus
+  type ViewerCase, type ViewerFinding, type ViewerRow, type ViewerStatus
 } from './viewerManage';
 
 const props = defineProps<{ rows: ViewerRow[]; busy?: boolean; scope: string }>();
 const emit = defineEmits<{
   revoke: [item: ViewerCase, finding: ViewerFinding, reason: string];
-  decide: [review: ViewerReview, value: string, reason: string];
+  openCase: [caseId: string];
+  openReview: [reviewId: string];
 }>();
 
 const filter = ref<'ALL' | ViewerStatus>('ALL');
@@ -33,15 +34,14 @@ const pendingOf = (row: ViewerRow) => row.reviews.filter(r => r.status === 'PEND
 const asTime = (v: string) => dateTimeText(v || null);
 const reasonOf = (id: string) => (reasons[id] ?? '').trim();
 function toggle(name: string) { open.value = open.value === name ? null : name; revoking.value = null; }
-// 결정 사유는 받지 않는다(Backend A-26). 오판 취소 사유는 그대로 필수다.
-function decide(review: ViewerReview, value: string) { emit('decide', review, value, ''); }
+// 오판 취소 사유는 Backend 계약대로 필수다.
 function revoke(item: ViewerCase, finding: ViewerFinding) { if (reasonOf(finding.findingId)) { emit('revoke', item, finding, reasonOf(finding.findingId)); revoking.value = null; } }
 </script>
 
 <template>
   <section class="vm card" aria-label="시청자 관리">
     <header class="vm-head">
-      <div><h2><Users :size="22"/> 시청자 관리</h2><p>{{scope}} 기준으로 제재를 받은 시청자를 한 줄씩 보여 줍니다. 조치는 오판 취소와 검토 결정만 할 수 있습니다.</p></div>
+      <div><h2><Users :size="22"/> 시청자 관리</h2><p>{{scope}} 기준으로 제재를 받은 시청자의 상태를 봅니다. 사건 흐름과 검토 결정은 해당 화면에서 확인할 수 있습니다.</p></div>
       <span class="vm-head-end"><b v-if="needDecision" class="vm-need" role="status">사람 결정 필요 {{needDecision}}명</b><span class="vm-total">{{rows.length}}명</span></span>
     </header>
     <div class="vm-chips" role="group" aria-label="상태 필터">
@@ -68,7 +68,7 @@ function revoke(item: ViewerCase, finding: ViewerFinding) { if (reasonOf(finding
                 <ol class="vm-cases">
                   <li v-for="c in row.cases" :key="c.caseId">
                     <div class="vm-case-head"><time>{{asTime(c.createdAt)}}</time><span class="vm-case-status" :class="c.confirmationStatus.toLowerCase()">{{caseStatusLabels[c.confirmationStatus] ?? c.confirmationStatus}}</span><span class="vm-muted">사건 …{{c.caseId.slice(-8)}}</span></div>
-                    <p v-if="c.text" class="vm-text">{{c.text}}</p>
+                    <button type="button" class="vm-link" @click="emit('openCase', c.caseId)">사건 처리 흐름 보기 →</button>
                     <div v-for="f in c.findings" :key="f.findingId" class="vm-finding">
                       <span class="vm-cat">{{categoryName(f.category)}}</span>
                       <span :class="{'vm-muted': f.status!=='CONFIRMED'}">{{f.status==='CONFIRMED' ? '확정' : '오판 취소됨'}}</span>
@@ -82,18 +82,7 @@ function revoke(item: ViewerCase, finding: ViewerFinding) { if (reasonOf(finding
                 </ol>
                 <div v-for="r in pendingOf(row)" :key="r.reviewId" class="vm-review">
                   <div class="vm-review-head"><b>{{r.kind==='KICK' ? '강퇴 승인 대기' : '문맥 검토 대기'}}</b><span class="vm-muted">{{asTime(r.createdAt)}} · {{r.summary}}</span></div>
-                  <div class="vm-actions">
-                    <template v-if="r.kind==='KICK'">
-                      <button class="vm-btn primary" :disabled="busy" @click="decide(r, 'APPROVE')">강퇴 승인</button>
-                      <button class="vm-btn" :disabled="busy" @click="decide(r, 'REJECT')">기각</button>
-                      <small>승인 저장은 강퇴 완료가 아닙니다. 재검증을 통과하면 이번 방송 종료까지 입장이 제한됩니다.</small>
-                    </template>
-                    <template v-else>
-                      <button class="vm-btn" :disabled="busy" @click="decide(r, 'CONFIRM_NORMAL')">정상 확정</button>
-                      <button class="vm-btn primary" :disabled="busy" @click="decide(r, 'CONFIRM_VIOLATION')">위반 확정</button>
-                      <button class="vm-btn" :disabled="busy" @click="decide(r, 'DEFER')">보류</button>
-                    </template>
-                  </div>
+                  <button type="button" class="vm-link" :disabled="busy" @click="emit('openReview', r.reviewId)">실시간 모니터링에서 결정 →</button>
                 </div>
               </td>
             </tr>

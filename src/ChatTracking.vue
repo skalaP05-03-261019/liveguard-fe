@@ -53,20 +53,30 @@ function caseStateOf(c: LiveCase): { label: string; tone: string } {
 // 채팅: 사용자가 직접 위로 스크롤했을 때만 따라가기를 멈추고, 그동안 온 메시지 수를 버튼으로 알려 준다.
 const filter = ref<'all' | 'private'>('all');
 const privateCount = computed(() => props.messages.filter(m => m.visibility !== 'PUBLIC').length);
-const shownMessages = computed(() => (filter.value === 'all' ? props.messages : props.messages.filter(m => m.visibility !== 'PUBLIC')).slice(-200));
+const selectedId = ref<string | null>(null);
+const visibleMessages = computed(() => (filter.value === 'all' ? props.messages : props.messages.filter(m => m.visibility !== 'PUBLIC')).slice(-200));
+// 선택 중에는 목록의 ID만 고정한다. 서버에서 갱신된 메시지 상태와 상세 정보는 계속 따라간다.
+const frozenIds = ref<string[] | null>(null);
+const focusStartCount = ref(0);
+const newWhileFocused = computed(() => frozenIds.value ? Math.max(0, props.messages.length - focusStartCount.value) : 0);
+const shownMessages = computed(() => {
+  if (!frozenIds.value) return visibleMessages.value;
+  const current = new Map(props.messages.map(m => [m.messageId, m]));
+  return frozenIds.value.map(id => current.get(id)).filter((m): m is Message => !!m);
+});
 const chatRef = ref<HTMLElement | null>(null), follow = ref(true), unread = ref(0);
 function toBottom(smooth = true) { const el = chatRef.value; if (!el) return; el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' }); follow.value = true; unread.value = 0; }
-function onScroll() { const el = chatRef.value; if (!el) return; const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40; follow.value = atBottom; if (atBottom) unread.value = 0; }
+function onScroll() { if (selectedId.value) return; const el = chatRef.value; if (!el) return; const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40; follow.value = atBottom; if (atBottom) unread.value = 0; }
 watch(chatRef, el => { if (el) nextTick(() => toBottom(false)); });
 watch(() => shownMessages.value.map(m => m.messageId), async (ids, previous) => {
   await nextTick();
+  if (selectedId.value) return;
   if (follow.value) toBottom(false); else { const known = new Set(previous); unread.value += ids.filter(id => !known.has(id)).length; }
 });
 
 // 채팅 상세: 실시간 관제에서 채팅 한 줄을 누르면 오른쪽 칸에 처리 경로와 AI Agent 판단을 보여 준다.
 // AI Agent는 Backend가 문맥 검토·개인정보 조사로 보낸 채팅만 판단한다. 그 밖의 채팅은 Backend 필터 결과만 있고, 없는 AI 판단을 만들어 보여 주지 않는다.
 // 사건·검토·실시간 기록이 갱신되면 패널도 그대로 따라 바뀐다.
-const selectedId = ref<string | null>(null);
 const selected = computed(() => {
   const id = selectedId.value; if (!id) return null;
   const message = props.messages.find(m => m.messageId === id) ?? null;
@@ -83,7 +93,9 @@ const selected = computed(() => {
     ? { title: '서버 경로 기록 없음', detail: '사건 응답에 처리 경로가 없습니다. 공개 여부만으로 통과 경로라고 추정하지 않습니다.' }
     : isRule(item)
       ? { title: item.handlingRoute ? routeLabels[item.handlingRoute] : '규칙 자동 확정', detail: 'Backend 규칙으로 바로 확정했습니다. AI 조사는 하지 않습니다.' }
-      : { title: item.handlingRoute ? routeLabels[item.handlingRoute] : 'AI 문맥 검토', detail: 'Backend가 AI Agent에게 판단을 맡긴 채팅입니다. 결정은 운영자가 합니다.' };
+      : { title: item.handlingRoute ? routeLabels[item.handlingRoute] : 'AI 조사', detail: item.handlingRoute === 'PII_INVESTIGATION'
+        ? 'Agent가 개인정보 노출 여부를 판단하고 백엔드가 근거를 검증합니다. 개인정보 단독 판정은 자동 반영되며, 판단 보류나 다른 위반 유형이 섞인 경우 운영자가 결정합니다.'
+        : 'Agent가 문맥을 조사하고 판단을 제안합니다. 문맥 검토 경로의 최종 결정은 운영자가 합니다.' };
   return { message, item, review, ai, finding, investigating, route, trace, state: item ? caseStateOf(item) : null };
 });
 // 채팅 판정 흐름: 노드를 세 열(백엔드 · 가운데 · Agent·운영자)에 카드로 놓고 실제 노드끼리 화살표로 잇는다.
@@ -187,7 +199,22 @@ function togglePlay() {
   flowTimer = setInterval(stepFlow, 900);
 }
 onBeforeUnmount(stopFlow);
-function selectMessage(id: string) { stopFlow(); selectedId.value = selectedId.value === id ? null : id; flowChosen.value = null; flowProgress.value = null; }
+function resumeTracking() {
+  stopFlow(); selectedId.value = null; frozenIds.value = null;
+  flowChosen.value = null; flowProgress.value = null;
+  follow.value = true; unread.value = 0;
+  nextTick(() => toBottom(false));
+}
+function selectMessage(id: string) {
+  if (selectedId.value === id) return resumeTracking();
+  stopFlow();
+  if (!selectedId.value) {
+    frozenIds.value = visibleMessages.value.map(m => m.messageId);
+    focusStartCount.value = props.messages.length;
+    follow.value = false; unread.value = 0;
+  }
+  selectedId.value = id; flowChosen.value = null; flowProgress.value = null;
+}
 // 재생 중에는 아직 보여 주지 않은 단계를 '다음'으로 둔다.
 function nodeTone(id: FlowNodeId): FlowState | 'later' {
   const f = flow.value, i = f.steps.indexOf(id);
@@ -237,7 +264,7 @@ const outcome = computed(() => {
     ? res('backend', '백엔드에서 통과', '판단: 백엔드 · 실행: 백엔드 · Agent 호출 없음 (목업 기록)', '필터 통과 (목업 기록)')
     : res('backend', '서버 경로 기록 없음', '사건 응답에 처리 경로가 없습니다. 공개 여부만으로 통과 경로라고 추정하지 않습니다.', '');
   if (f.current === 'kickReview' && f.state.kickReview === 'wait') return res('human', '강퇴 승인 대기', '확정 사건 3건 · 승인: 운영자 · 실행: 백엔드');
-  if (item.confirmationStatus === 'CANCELLED') return res(isRule(item) ? 'backend' : 'agent', '오판 취소 · 다시 공개', '운영자가 근거를 취소했습니다. 남은 근거가 없어 공개합니다.');
+  if (item.confirmationStatus === 'CANCELLED') return res('human', '오판 취소 · 다시 공개', '운영자가 근거를 취소했습니다. 남은 근거가 없어 공개합니다.');
   if (isRule(item)) return res('backend', '백엔드만으로 처리됨', '판단: 백엔드 규칙 · 실행: 백엔드 · Agent 호출 없음');
   const detail = item.handlingRoute === 'PII_INVESTIGATION' ? '판단: Agent · 검증: 백엔드 · 판단 보류면 운영자 결정' : '판단 제안: Agent · 결정: 운영자 · 실행: 백엔드';
   if (!sel.finding && sel.review) {
@@ -249,8 +276,8 @@ const outcome = computed(() => {
   if (!sel.review && item.confirmationStatus === 'CONFIRMED_NORMAL') return res('agent', '개인정보 정상 · 가림 해제', '판단: Agent · 검증·해제: 백엔드 · 운영자 검토 없음');
   if (!sel.review && item.confirmationStatus === 'CONFIRMED_VIOLATION') return res('agent', '개인정보 위반 확정 · 숨김', '판단: Agent · 근거 검증·확정: 백엔드');
   if (f.current === 'wait') return res('human', 'AI 제안 · 운영자 결정 대기', detail);
-  if (item.confirmationStatus === 'CONFIRMED_NORMAL') return res('agent', '운영자 정상 확정 · 공개', detail);
-  if (item.confirmationStatus === 'CONFIRMED_VIOLATION') return res('agent', '운영자 위반 확정 · 숨김', detail);
+  if (item.confirmationStatus === 'CONFIRMED_NORMAL') return res('human', '운영자 정상 확정 · 공개', detail);
+  if (item.confirmationStatus === 'CONFIRMED_VIOLATION') return res('human', '운영자 위반 확정 · 숨김', detail);
   return res('agent', 'Agent 판단 완료', detail);
 });
 // 노드를 누르면 아래에 그 단계의 판단 내용 · 확인한 근거 · 상태와 실행 주체를 보여 준다.
@@ -332,11 +359,14 @@ const evidence = computed(() => {
       fill('AI 제안은 참고용입니다. 운영자가 정상·위반·보류를 결정할 때까지 공개하지 않습니다. 보류는 공개 승인이 아닙니다.', '임시 비노출', decided, '운영자가 결정합니다. 위반 확정 전에는 확정 이력에 넣지 않습니다.', 'v3.2 §5'); break;
     }
     case 'sanction': {
-      const byOperator = !!item && !isRule(item);
+      const byOperator = !!review;
+      const decisionText = byOperator ? '운영자가 위반으로 확정해 숨기고 기준표의 제재를 적용합니다.'
+        : item && isRule(item) ? '백엔드 규칙 확정에 따라 숨기고 기준표의 제재를 적용합니다.'
+          : 'Agent의 개인정보 위반 판정을 백엔드가 검증해 확정하고 기준표의 제재를 적용합니다.';
       add(cats && `위반 유형 ${cats}`); add(hidden && `조치 ${hidden}`); add(confirmedAt ? `확정 시각 ${asTime(confirmedAt)}` : null);
       add(revoked && `오판 취소 ${asTime(revoked.revokedAt)}`);
-      fill(byOperator ? '운영자가 위반으로 확정해 숨기고 기준표의 제재를 적용합니다.' : '규칙 확정에 따라 숨기고 기준표의 제재를 적용합니다.',
-        byOperator ? '임시 비노출' : '위반 확정', hidden, `판단: ${byOperator ? (review ? '운영자' : 'Agent · 백엔드 검증') : '백엔드 규칙'} · 실행: 백엔드`, 'v3.2 §6 제재표 (MP-2.1)'); break;
+      fill(decisionText,
+        item && isRule(item) ? '위반 확정' : '임시 비노출', hidden, `판단: ${byOperator ? '운영자' : item && isRule(item) ? '백엔드 규칙' : 'Agent · 백엔드 검증'} · 실행: 백엔드`, 'v3.2 §6 제재표 (MP-2.1)'); break;
     }
     case 'normal':
       add(at('MESSAGE_RESTORED', true) && `공개 시각 ${at('MESSAGE_RESTORED', true)}`);
@@ -384,7 +414,8 @@ const history = computed(() => {
       if (l.event === 'MESSAGE_RESTORED') push(l.time, 'backend', '백엔드', '다시 공개', '임시 비노출 → 공개', '백엔드 실행');
     }
     for (const x of item.confirmedFindings) {
-      push(x.confirmedAt, isRule(item) ? 'backend' : 'human', isRule(item) ? '백엔드 규칙' : '운영자 판단', '숨김 · 제재 적용', `${categoryName(x.category)} 확정 · ${ruleAction(item).label}`, '백엔드 실행');
+      const automated = !review;
+      push(x.confirmedAt, automated ? 'backend' : 'human', review ? '운영자 판단' : isRule(item) ? '백엔드 규칙' : 'Agent 판정 · 백엔드 검증', '숨김 · 제재 적용', `${categoryName(x.category)} 확정 · ${ruleAction(item).label}`, '백엔드 실행');
       if (x.revokedAt) push(x.revokedAt, 'human', '운영자', '오판 취소', `${categoryName(x.category)} 근거 취소`, '백엔드 실행');
     }
   }
@@ -396,16 +427,16 @@ const history = computed(() => {
 </script>
 
 <template>
-  <section class="tracking-grid">
-              <div class="chat-panel card"><div class="panel-heading"><h2>실시간 채팅 <small class="tracking-channel">{{channelName}}</small></h2><div class="panel-heading-end"><button class="blocked-toggle" :class="{on: filter==='private'}" :aria-pressed="filter==='private'" @click="filter = filter==='all' ? 'private' : 'all'" :title="filter==='all' ? '임시 비노출·숨김 채팅만 보기' : '전체 채팅 보기'">비공개 채팅 <b>{{privateCount}}</b></button></div></div>
+  <section class="tracking-grid" :class="{'is-focused':!!selectedId}">
+              <div class="chat-panel card"><div class="panel-heading"><h2>실시간 채팅 <small class="tracking-channel">{{channelName}}</small></h2><div class="panel-heading-end"><button v-if="selectedId" type="button" class="tracking-resume" @click="resumeTracking" :aria-label="`채팅 재개${newWhileFocused ? `, 새 메시지 ${newWhileFocused}개` : ''}`">채팅 재개<span v-if="newWhileFocused"> · {{newWhileFocused}}</span></button><button class="blocked-toggle" :class="{on: filter==='private'}" :aria-pressed="filter==='private'" :disabled="!!selectedId" @click="filter = filter==='all' ? 'private' : 'all'" :title="selectedId ? '선택을 해제하면 필터를 바꿀 수 있습니다' : filter==='all' ? '임시 비노출·숨김 채팅만 보기' : '전체 채팅 보기'">비공개 채팅 <b>{{privateCount}}</b></button></div></div>
                 <div class="scan-wrap"><span class="ai-scan" aria-hidden="true"/><div ref="chatRef" class="chat-list" @scroll.passive="onScroll">
                   <div v-for="m in shownMessages" :key="m.messageId" :data-message-id="m.messageId" class="chat-row" :class="{held: m.visibility==='HELD', hidden: m.visibility==='HIDDEN', selected: selectedId===m.messageId}" role="button" tabindex="0" :aria-pressed="selectedId===m.messageId" @click="selectMessage(m.messageId)" @keydown.enter.prevent="selectMessage(m.messageId)" @keydown.space.prevent="selectMessage(m.messageId)"><span class="chat-avatar" :style="{background: avatarColor(m.authorAlias)}">{{m.authorAlias.slice(0,1)}}</span><span class="chat-line"><b>{{m.authorAlias}}</b><span class="chat-text">{{m.text}}</span></span><span v-if="m.visibility!=='PUBLIC'" class="state-pill" :class="m.visibility.toLowerCase()">{{visibilityLabels[m.visibility]}}</span><time class="chat-time" :datetime="iso(m.sentAt)" :title="asTime(m.sentAt)">{{hourMinute(iso(m.sentAt))}}</time></div>
                   <div v-if="!shownMessages.length" class="empty-block">표시할 채팅이 없습니다.</div></div>
-                  <button v-if="unread" class="new-msg-pill" @click="toBottom()">새 메시지 {{unread}}개 <ChevronDown :size="15"/></button></div>
+                  <button v-if="selectedId && newWhileFocused" class="new-msg-pill" @click="resumeTracking">새 메시지 {{newWhileFocused}}개 · 채팅 재개 <ChevronDown :size="15"/></button><button v-else-if="unread" class="new-msg-pill" @click="toBottom()">새 메시지 {{unread}}개 <ChevronDown :size="15"/></button></div>
                 <div class="chat-footer"><div class="ai-notice"><ShieldCheck :size="15"/> 임시 비노출·숨김 채팅은 작성자와 담당 운영자에게만 보입니다.</div></div>
               </div>
               <aside class="chat-detail card" aria-label="채팅 상세">
-                <div class="panel-heading"><h2>채팅 상세</h2><button v-if="selected" type="button" class="icon-control" title="닫기" aria-label="채팅 상세 닫기" @click="selectedId=null">✕</button></div>
+                <div class="panel-heading"><h2>채팅 상세</h2><button v-if="selected" type="button" class="icon-control" title="선택 해제하고 채팅 재개" aria-label="채팅 상세 닫기" @click="resumeTracking">✕</button></div>
                 <p v-if="!selected" class="chat-detail-empty">채팅을 누르면 그 채팅이 어떻게 처리됐는지, AI Agent가 어떻게 판단했는지 볼 수 있습니다.</p>
                 <div v-else class="chat-detail-body flow-detail">
                   <div class="flow-main">

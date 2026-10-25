@@ -188,7 +188,7 @@ function connect(){
     }else notice.value=`${actionName} 결과를 확인할 수 없습니다. 서버 상태를 다시 확인해 주세요.`;
    }
    if(!['TOOL_START','TOOL_END'].includes(e.type))scheduleRefresh(e.type==='CHAT'?'messages':'all');
-  }catch{error.value='실시간 이벤트를 확인하지 못했습니다. 새로고침해 주세요.';}
+  }catch{error.value='실시간 이벤트를 확인하지 못했습니다. 연결 상태를 확인해 주세요.';}
  };
  for(const name of ['CHAT','MESSAGE_VISIBILITY_CHANGED','MESSAGE_RESTORED','LIVE_ACCESS_BLOCKED','LIVE_ENDED'])source.addEventListener(name,handle);
  if(!operator.value)for(const name of ['ACTION_APPLIED','ACTION_FAILED'])source.addEventListener(name,handle);
@@ -209,8 +209,8 @@ async function load(){
  }catch(e){if(expected===generation){if(e instanceof ApiError&&e.code==='NOT_FOUND'){generation++;live.value=null;messages.value=[];resetAccess();disconnect();}else fail(e);}}
  finally{loadingLive=false;loading.value=false;}
 }
-async function start(){busy.value=true;try{await api.startLive(store.channelId);await load();}catch(e){fail(e);}finally{busy.value=false;}}
-async function end(){if(!live.value)return;busy.value=true;try{await api.endLive(live.value.liveId);markEnded();}catch(e){fail(e);}finally{busy.value=false;}}
+async function start(){if(busy.value||loading.value||(live.value&&!ended.value))return;busy.value=true;try{await api.startLive(store.channelId);await load();}catch(e){fail(e);}finally{busy.value=false;}}
+async function end(){if(!live.value||ended.value||busy.value||loading.value)return;busy.value=true;try{await api.endLive(live.value.liveId);markEnded();}catch(e){fail(e);}finally{busy.value=false;}}
 let outgoing:{text:string;id:string}|null=null;
 async function send(){
  if(chatDisabled.value)return;
@@ -219,6 +219,15 @@ async function send(){
  const value=text.value.trim();if(!outgoing||outgoing.text!==value)outgoing={text:value,id:uuid()};
  try{await api.sendLive(live.value.liveId,value,outgoing.id);text.value='';outgoing=null;await refresh();}
  catch(e){fail(e);}finally{busy.value=false;}
+}
+// Uses the normal authenticated chat endpoint; never changes the user's draft.
+async function sendDemoChat(value:string):Promise<boolean>{
+ if(chatDisabled.value||!live.value)return false;
+ const liveId=live.value.liveId;
+ if(!await sessionValid()||chatDisabled.value||live.value?.liveId!==liveId)return false;
+ busy.value=true;error.value='';
+ try{await api.sendLive(liveId,value,uuid());await refresh();return true;}
+ catch(e){fail(e);return false;}finally{busy.value=false;}
 }
 const requests=new Map<string,{serialized:string;id:string}>();
 async function decide(r:LiveReview,value:string,reason:string,categories:Category[]){
@@ -256,9 +265,9 @@ onMounted(()=>{load();window.addEventListener('focus',checkSession);if(authChann
 onBeforeUnmount(()=>{generation++;disconnect();window.removeEventListener('focus',checkSession);authChannel?.close();if(timer)clearInterval(timer);if(clockTimer)clearInterval(clockTimer);});
 </script>
 <template>
- <ViewerScreen v-if="!operator&&!admin" v-model:draft="text" :messages="visibleMessages" :nickname="store.me?.nickname??'시청자'" :scope-key="`${store.me?.userId}:${live?.liveId??''}`" :clock="clock" :ready="accessReady" :loading="loading" :has-live="!!live" :blocked="blocked" :ended="ended" :busy="busy" :timed-out="timedOut" :timeout-until="timeoutUntil" :timeout-reason="timeoutReason" :started-at="live?.startedAt" :online="online" :error="error" :notice="notice" @send="send" @logout="store.logout()" @refresh="load"/>
+ <ViewerScreen :send-demo-chat="sendDemoChat" v-if="!operator&&!admin" v-model:draft="text" :messages="visibleMessages" :nickname="store.me?.nickname??'시청자'" :scope-key="`${store.me?.userId}:${live?.liveId??''}`" :clock="clock" :ready="accessReady" :loading="loading" :has-live="!!live" :blocked="blocked" :ended="ended" :busy="busy" :timed-out="timedOut" :timeout-until="timeoutUntil" :timeout-reason="timeoutReason" :started-at="live?.startedAt" :online="online" :error="error" :notice="notice" @send="send" @logout="store.logout()"/>
  <StudioScreen v-else-if="operator" :nickname="store.me?.nickname??'스트리머'" :live="live" :ended="ended" :loading="loading" :online="online" :messages="visibleMessages" :reviews="reviews" :cases="caseHistory" :case-names="caseNames" :logs="logs" :kick-progress="kickProgress" :archive="archive" :archive-more="archiveMore" :archive-loading="archiveLoading" :busy="busy" :error="error" :notice="notice"
-  @decide="decide" @revoke="revoke" @refresh="load" @start="start" @end="end" @logout="store.logout()" @page="onPage" @load-older="loadArchive(false)"/>
+  @decide="decide" @revoke="revoke" @start="start" @end="end" @logout="store.logout()" @page="onPage" @load-older="loadArchive(false)"/>
  <!-- 시스템 운영자: 목업과 같은 화면. 백엔드에 시스템 운영자 권한과 여러 방송 조회 API가 없어 데이터 칸은 비어 있다 -->
  <SystemPage v-else api/>
 </template>

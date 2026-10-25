@@ -76,9 +76,17 @@ async function openCard(card){if(!/\bopen\b/.test(await card.getAttribute('class
 async function openMore(card){await openCard(card);const more=card.locator('details.review-more:has(> summary:text-is("자세히"))');if(!(await more.evaluate(el=>el.open)))await more.locator('> summary').click();}
 async function decideCard(card,label){await openCard(card);await card.getByRole('radio',{name:label,exact:true}).check();await card.getByRole('button',{name:'제출',exact:true}).click();}
 // 결정 대기는 별도 페이지다.
-async function gotoQueue(page){await page.getByRole('navigation',{name:'운영자 메뉴'}).getByRole('button',{name:/^결정 대기/}).click();await page.locator('.queue-page').waitFor();}
-async function gotoMonitor(page){await page.getByRole('navigation',{name:'운영자 메뉴'}).getByRole('button',{name:'실시간 관제',exact:true}).click();}
-async function showQueue(page,name){if(!(await page.locator('.queue-page').count()))await gotoQueue(page);await page.getByRole('tablist',{name:'결정 대기 종류'}).getByRole('tab',{name:new RegExp('^'+name)}).click();}
+async function gotoQueue(page){await page.getByRole('navigation',{name:'운영자 메뉴'}).getByRole('button',{name:'실시간 모니터링',exact:true}).click();await page.locator('.queue-page').waitFor();}
+async function gotoMonitor(page){await page.getByRole('navigation',{name:'운영자 메뉴'}).getByRole('button',{name:'실시간 모니터링',exact:true}).click();}
+async function gotoRecords(page,tab='판정·조치 이력'){await page.getByRole('navigation',{name:'운영자 메뉴'}).getByRole('button',{name:'기록',exact:true}).click();await page.getByRole('tab',{name:tab,exact:true}).click();}
+async function showQueue(page,name){if(!(await page.locator('.queue-page').count()))await gotoQueue(page);await page.getByRole('heading',{name:name+' 대기',exact:true}).click();}
+async function openToolSettings(page){await page.getByRole('button',{name:/^알림 · 결정 대기/}).click();await page.getByRole('button',{name:'알림 설정',exact:true}).click();}
+async function openToolActivity(page){await page.getByRole('button',{name:/^알림 · 결정 대기/}).click();await page.getByRole('button',{name:'처리 알림 보기',exact:true}).click();}
+async function logoutPage(page){
+ const account=page.getByRole('button',{name:'계정 메뉴',exact:true});
+ if(await account.count()){await account.click();await page.getByRole('menuitem',{name:'로그아웃',exact:true}).click();}
+ else await page.getByRole('button',{name:'로그아웃',exact:true}).click();
+}
 async function openDemo(page){const fold=page.locator('.demo-fold');if(!(await fold.evaluate(el=>el.open)))await fold.locator('summary').click();}
 async function capture(page,name){if(evidence){await fs.mkdir(evidence,{recursive:true});await page.screenshot({path:path.join(evidence,`${name}.png`),fullPage:true,animations:'disabled'});}}
 async function captureReview(page,name){
@@ -96,6 +104,13 @@ before(async()=>{
   if(url.pathname==='/api/auth/me'&&state.authError)return json(401,{code:'UNAUTHENTICATED',message:'Session expired',retryable:false});
   // admin(PLATFORM_ADMIN)은 실제 시드처럼 어느 채널에도 소속되지 않는다
   if(url.pathname==='/api/auth/me')return json(200,{userId:role,nickname:role,role:role==='operator'?'MODERATOR':role==='admin'?'PLATFORM_ADMIN':'VIEWER',channelIds:role==='admin'?[]:['channel-1']});
+  if(req.method==='POST'&&/^\/api\/channels\/[^/]+\/lives$/.test(url.pathname)){
+   state.liveStarts=(state.liveStarts??0)+1;
+   if(state.startError)return json(409,{code:'LIVE_ALREADY_ACTIVE',message:'방송 시작을 처리하지 못했습니다.',retryable:false});
+   state.active=true;state.liveId='started-live-'+state.liveStarts;
+   return json(201,{liveId:state.liveId,channelId:'channel-1',startedAt:timestamp(),endedAt:null});
+  }
+  if(req.method==='POST'&&/^\/api\/lives\/[^/]+\/end$/.test(url.pathname)){state.liveEnds=(state.liveEnds??0)+1;state.active=false;return json(200,{liveId:state.liveId,channelId:'channel-1',startedAt:timestamp(),endedAt:timestamp()});}
   if(url.pathname.endsWith('/lives/current')){
    state.currentReads++;const current=state.active?{liveId:state.liveId,channelId:'channel-1',startedAt:timestamp(),endedAt:null}:null;
    if(state.delayCurrent)await new Promise(r=>setTimeout(r,state.delayCurrent));
@@ -230,7 +245,7 @@ test('kick SSE wins over in-flight history and a new broadcast does not inherit 
  state.delayHistory=800;emit('CHAT',{});await new Promise(r=>setTimeout(r,100));state.kicked.add('author');emit('LIVE_ACCESS_BLOCKED',{});
  await page.getByRole('heading',{name:'이 방송의 이용이 제한되었습니다'}).waitFor();await new Promise(r=>setTimeout(r,1000));assert.equal(await page.locator('video').count(),0);assert.equal(await page.getByText('cached 원문',{exact:true}).count(),0);
  state.delayHistory=0;state.kicked.clear();state.liveId='live-2';state.messages=[];
- await page.getByRole('button',{name:'새로고침',exact:true}).click();await waitFor(async()=>await page.getByLabel('채팅 메시지',{exact:true}).isEnabled());assert.equal(await page.locator('video').count(),1);
+ await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await waitFor(async()=>await page.getByLabel('채팅 메시지',{exact:true}).isEnabled());assert.equal(await page.locator('video').count(),1);
 });
 
 test('live end disables chat and removes the player',async()=>{
@@ -240,13 +255,13 @@ test('live end disables chat and removes the player',async()=>{
 
 test('server revocation clears the kick screen and its stale notice within the same broadcast',async()=>{
  state.kicked.add('author');const page=await open();await page.getByRole('heading',{name:'이 방송의 이용이 제한되었습니다'}).waitFor();
- state.kicked.clear();await page.getByRole('button',{name:'새로고침',exact:true}).click();await waitFor(async()=>await page.getByLabel('채팅 메시지',{exact:true}).isEnabled());
+ state.kicked.clear();await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await waitFor(async()=>await page.getByLabel('채팅 메시지',{exact:true}).isEnabled());
  assert.equal(await page.locator('video').count(),1);assert.equal(await page.getByText('강퇴되어 이번 방송이 끝날 때까지 채팅과 시청이 제한됩니다.',{exact:true}).count(),0);
 });
 
 test('delayed current-live response cannot reopen a broadcast after LIVE_ENDED',async()=>{
  const page=await open();await waitFor(async()=>await page.getByLabel('채팅 메시지',{exact:true}).isEnabled());await waitFor(()=>clients.size>0);
- state.delayCurrent=600;const reads=state.currentReads;await page.getByRole('button',{name:'새로고침',exact:true}).click();await waitFor(()=>state.currentReads>reads);
+ state.delayCurrent=600;const reads=state.currentReads;await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await waitFor(()=>state.currentReads>reads);
  state.active=false;emit('LIVE_ENDED',{});await page.getByRole('heading',{name:'방송이 종료되었습니다'}).waitFor();await new Promise(r=>setTimeout(r,800));
  assert.equal(await page.locator('video').count(),0);assert.equal(await page.getByLabel('채팅 메시지',{exact:true}).isDisabled(),true);
 });
@@ -392,15 +407,17 @@ test('mock and API viewers share desktop geometry and theater controls without i
  assert.doesNotMatch(await api.locator('.yt-description').innerText(),/2,341|1시간 전/);
  // #28: 장식 요소는 같은 자리에 있고 값만 다르다. 계약에 없는 값(시청자·구독자 수)은 API에서 숨긴다.
  for(const page of [mock,api]){
-  for(const sel of ['.yt-masthead-end .mode-badge','.yt-masthead-end .yt-deco[title="알림"]','.yt-channel-avatar','.yt-subscribe','.yt-actions .yt-segment'])assert.equal(await page.locator(sel).count(),1,sel);
+  for(const sel of ['.yt-masthead-end .account-menu-trigger','.yt-channel-avatar','.yt-subscribe','.yt-actions .yt-segment'])assert.equal(await page.locator(sel).count(),1,sel);
   assert.equal(await page.locator('.yt-actions .yt-pill').count(),2);
   assert.equal(await page.locator('.yt-live-dot').innerText(),'실시간');
   assert.match(await page.locator('.yt-time').innerText(),/^\d+:\d{2}:\d{2}$/);
   assert.match(await page.locator('.yt-description b').innerText(),/^방송 시작: /);
  }
- assert.equal(await mock.locator('.mode-badge').innerText(),'MOCK 데이터');assert.match(await api.locator('.mode-badge').innerText(),/^(ON AIR|연결 대기)$/);
+ for(const page of [mock,api])assert.equal(await page.locator('.mode-badge').count(),0);
  assert.equal(await mock.locator('.yt-watching').count(),1);assert.equal(await api.locator('.yt-watching').count(),0);
- assert.equal(await api.getByTitle('새로고침',{exact:true}).count(),1);assert.equal(await mock.getByTitle('새로고침',{exact:true}).count(),0);
+ assert.equal(await api.getByTitle('새로고침',{exact:true}).count(),0);
+ assert.equal(await api.locator('.yt-masthead-end [title="만들기"],.yt-masthead-end [title="알림"]').count(),0);
+ assert.equal(await mock.locator('.yt-masthead-end [title="만들기"],.yt-masthead-end [title="알림"]').count(),0);assert.equal(await mock.getByTitle('새로고침',{exact:true}).count(),0);
  await capture(mock,'shared-viewer-mock-desktop');await capture(api,'shared-viewer-api-desktop');
  await api.getByTitle('영화관 모드 (t)',{exact:true}).click();
  const player=await api.locator('.yt-player-area').boundingBox(),chat=await api.locator('.yt-secondary').boundingBox();
@@ -428,7 +445,7 @@ test('shared API viewer waits for a broadcast before enabling video and sending'
  await page.getByRole('heading',{name:'진행 중인 방송이 없습니다',exact:true}).waitFor();
  assert.equal(await page.locator('video').count(),0);
  assert.equal(await page.getByLabel('채팅 메시지',{exact:true}).isDisabled(),true);
- state.active=true;await page.getByRole('button',{name:'새로고침',exact:true}).click();
+ state.active=true;await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
  await waitFor(async()=>await page.getByLabel('채팅 메시지',{exact:true}).isEnabled());
  assert.equal(await page.locator('video').count(),1);assert.equal(state.posts,0);
 });
@@ -475,7 +492,7 @@ test('API operator on a stale review gets STALE_VERSION, sees the notice and rel
  await gotoQueue(first);await gotoQueue(second);await card(first).waitFor();await card(second).waitFor();
  // 두 번째 화면은 첫 번째 운영자의 보류를 아직 모르는 상태로 둔다.
  const stale={};await second.route(/\/api\/reviews\?/,async route=>{const u=route.request().url();if(!stale[u]){const r=await route.fetch();stale[u]=await r.text();}await route.fulfill({status:200,contentType:'application/json',body:stale[u]});});
- await second.getByRole('button',{name:'새로고침',exact:true}).click();await waitFor(()=>Object.keys(stale).length===2);
+ await second.evaluate(()=>window.dispatchEvent(new Event('focus')));await waitFor(()=>Object.keys(stale).length===2);
  await decideCard(card(first),'보류');
  await waitFor(()=>state.decisions.length===1);await first.locator('.studio-review[data-review-id="review-ctx"][data-version="2"]').waitFor();
  await decideCard(card(second),'정상 확정');
@@ -483,7 +500,7 @@ test('API operator on a stale review gets STALE_VERSION, sees the notice and rel
  // 5초 주기 재확인이 지나도 안내가 남아 있어야 한다.
  await new Promise(r=>setTimeout(r,6000));assert.equal(await staleNotice.count(),1);assert.equal(await second.getByRole('alert').count(),0);
  assert.equal(state.decisions.length,1);assert.equal(state.reviews[0].status,'PENDING');
- await second.unrouteAll({behavior:'ignoreErrors'});await second.getByRole('button',{name:'새로고침',exact:true}).click();
+ await second.unrouteAll({behavior:'ignoreErrors'});await second.evaluate(()=>window.dispatchEvent(new Event('focus')));
  await second.locator('.studio-review[data-review-id="review-ctx"][data-version="2"]').waitFor();
 });
 
@@ -499,7 +516,7 @@ test('API kick rejection is accepted without blocking the viewer and keeps exist
  assert.equal(state.decisions[0].path,'/api/kick-reviews/review-kick/decision');assert.equal(state.decisions[0].body.decision,'REJECT');
  await operator.getByRole('status').filter({hasText:'강퇴 기각 · 기존 제재 유지'}).first().waitFor();
  await kick.waitFor({state:'detached'});
- await viewer.getByRole('button',{name:'새로고침',exact:true}).click();await viewer.locator('[data-message-id="old-1"]').waitFor();
+ await viewer.evaluate(()=>window.dispatchEvent(new Event('focus')));await viewer.locator('[data-message-id="old-1"]').waitFor();
  assert.equal(await viewer.getByRole('heading',{name:'이 방송의 이용이 제한되었습니다'}).count(),0);
  assert.match(await viewer.locator('[data-message-id="old-1"]').innerText(),/숨김/);
 });
@@ -535,7 +552,9 @@ test('API context card shows when the message was sent and earlier cases with th
  state.reviews=[{reviewId:'review-again',kind:'CONTEXT',liveId:'live-1',caseId:'case-again',status:'PENDING',version:1,createdAt:'2026-10-22T13:40:13Z',aiVerdict:'VIOLATION',messages:state.cases[1].messages,targetMessageIds:['again'],findings:[],basisCaseIds:[],summary:'AI 제안을 확인하고 최종 결정해 주세요'}];
  const page=await open('operator');
  await gotoQueue(page);const card=page.locator('.studio-review[data-review-id="review-again"]');await card.waitFor();
- assert.equal(await card.locator('.review-head small').innerText(),'2026-10-22 22:40');
+ assert.equal(await card.locator('.review-head small,.review-excerpt').count(),0);
+ assert.equal(await card.locator('.review-chat-row .chat-time').getAttribute('title'),'2026-10-22 22:40');
+ assert.equal(await card.locator('.context-review-step').first().getByText('2026-10-22 22:40').count(),0);
  await openMore(card);const repeats=card.locator('.review-repeats');await repeats.waitFor();
  assert.equal((await repeats.innerText()).replace(/\s+/g,' '),'같은 시청자가 같은 문장을 1번 더 보냈습니다: 2026-10-22 22:39 위반 확정');
 });
@@ -560,7 +579,7 @@ test('API case flow shows AI investigation from live events, basis reasons and t
  // 아직 결정되지 않은 사건의 AI 조사가 실시간으로 진행된다.
  await waitFor(()=>clients.size>=2);
  emit('TOOL_START',{caseId:'case-held',tool:'get_context',callId:'c1'});emit('TOOL_END',{caseId:'case-held',tool:'get_context',callId:'c1',status:'OK',elapsedMs:900});
- await page.getByRole('navigation',{name:'운영자 메뉴'}).getByRole('button',{name:'사건 이력',exact:true}).click();
+ await gotoRecords(page);
  await page.locator('.case-row[data-case-id="case-held"]').click();
  const flow=page.locator('.case-flow');await flow.waitFor();
  const steps=await flow.locator('li').evaluateAll(items=>items.map(li=>li.querySelector('b').textContent+' / '+li.querySelector('span').textContent));
@@ -582,7 +601,8 @@ test('API case flow shows AI investigation from live events, basis reasons and t
 test('mock review card opens the case flow for that case',async()=>{
  const page=await openMockModerator();
  await showQueue(page,'문맥 검토');const card=page.locator('.studio-review.context').first();await card.waitFor();
- await openMore(card);const text=await card.locator('.review-target').innerText();
+ await openMore(card);const text=await card.locator('.review-chat-row .chat-text').innerText();
+ assert.equal(await card.locator('.review-body .review-target').count(),0);
  await card.getByRole('button',{name:'처리 흐름 보기 →',exact:true}).click();
  const flow=page.locator('.case-flow');await flow.waitFor();
  assert.match(await flow.locator('li').first().innerText(),new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
@@ -594,7 +614,7 @@ test('API chat archive lists every message for the operator, pages older chats a
  state.messages=[message('old-public','observer',undefined,{text:'오래된 공개 채팅'}),message('hidden-1','author','HIDDEN',{text:'숨긴 욕설 채팅'}),message('new-public','observer',undefined,{text:'최근 공개 채팅'})];
  state.cases=[{caseId:'case-hidden',liveId:'live-1',version:2,confirmationStatus:'CONFIRMED_VIOLATION',handlingRoute:'RULE_CONFIRMED',messages:[{messageId:'hidden-1',authorAlias:'U1',text:'숨긴 욕설 채팅',visibility:'HIDDEN',sentAt:timestamp()}],targetMessageIds:['hidden-1'],confirmedFindings:[{findingId:'f-h',category:'PROFANITY',status:'CONFIRMED',confirmedAt:timestamp(),revokedAt:null}],findings:[],createdAt:timestamp(),violationCount:1}];
  const page=await open('operator');
- await page.getByRole('navigation',{name:'운영자 메뉴'}).getByRole('button',{name:'채팅 기록',exact:true}).click();
+ await gotoRecords(page,'전체 채팅');
  const more=page.getByRole('button',{name:'이전 채팅 더 불러오기',exact:true});await more.waitFor();
  await more.click();await more.waitFor({state:'detached'});
  const rows=page.locator('.chat-db tbody tr');await waitFor(async()=>await rows.count()===3);
@@ -609,12 +629,12 @@ test('API chat archive lists every message for the operator, pages older chats a
 
 test('mock chat archive links a moderated message to its case flow',async()=>{
  const page=await openMockModerator();
- await page.getByRole('navigation',{name:'운영자 메뉴'}).getByRole('button',{name:'채팅 기록',exact:true}).click();
+ await gotoRecords(page,'전체 채팅');
  await page.getByRole('group',{name:'채팅 상태 필터'}).getByRole('button',{name:/^사건 있음/}).click();
  const row=page.locator('.chat-db tbody tr').first();const text=await row.locator('.chat-db-text').innerText();
  await row.getByRole('button',{name:'처리 흐름 →',exact:true}).click();
  const flow=page.locator('.case-flow');await flow.waitFor();
- assert.equal(await page.locator('.status-strip b').first().innerText(),'사건 이력');
+ assert.equal(await page.getByRole('heading',{name:'사건 이력',exact:true}).count(),1);
  assert.match(await flow.locator('li').first().innerText(),new RegExp(text.slice(0,6).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
 });
 
@@ -636,13 +656,38 @@ async function openTracking(){
  return page;
 }
 
-test('streamer monitor shows only the stream and the live chat; chat tracking lives in the admin page',async()=>{
+test('admin Tracking keeps a selected chat in place while new mock chats arrive',async()=>{
+ const page=await openTracking();
+ const list=page.locator('.tracking-grid .chat-list');
+ const row=page.locator('.tracking-grid .chat-list .chat-row').filter({hasText:'와 방금 컨트롤 미쳤다'});
+ await row.click();
+ const before=await list.locator('.chat-row').evaluateAll(rows=>rows.map(r=>r.dataset.messageId));
+ const scroll=await list.evaluate(el=>el.scrollTop);
+ assert.equal(await page.locator('.tracking-grid.is-focused').count(),1);
+ assert.equal(await row.getAttribute('aria-pressed'),'true');
+ assert.equal(await page.getByRole('button',{name:'채팅 재개',exact:true}).count(),1);
+ await page.waitForFunction(()=>getComputedStyle(document.querySelector('.tracking-grid .chat-list .chat-row:not(.selected)')).filter==='grayscale(1)');
+ await page.clock.runFor(4600);
+ await page.getByRole('button',{name:/새 메시지 \d+개 · 채팅 재개/}).waitFor();
+ assert.deepEqual(await list.locator('.chat-row').evaluateAll(rows=>rows.map(r=>r.dataset.messageId)),before);
+ assert.equal(await list.evaluate(el=>el.scrollTop),scroll);
+ await page.getByRole('button',{name:/새 메시지 \d+개 · 채팅 재개/}).click();
+ assert.equal(await page.locator('.tracking-grid.is-focused').count(),0);
+ assert((await list.locator('.chat-row').count())>before.length);
+ assert.equal(await list.evaluate(el=>el.scrollHeight-el.clientHeight-el.scrollTop<40),true);
+});
+
+test('streamer monitoring keeps chat and both decision queues visible; tracking stays in the admin page',async()=>{
  const page=await openMockModerator();
  await page.locator('.chat-panel').waitFor();
  assert.equal(await page.locator('.chat-detail').count(),0);
  assert.equal(await page.locator('.chat-row[role=button]').count(),0,'chat rows are not selectable on the streamer screen');
- const chat=await page.locator('.chat-panel').boundingBox(),stream=await page.locator('.stream-panel').boundingBox();
- assert.equal(Math.round(chat.width),Math.round(stream.width));
+ const chat=await page.locator('.chat-panel').boundingBox(),summary=await page.locator('.studio-broadcast-summary').boundingBox();
+ const grid=await page.locator('.live-monitoring-grid').boundingBox();
+ assert(summary.y+summary.height<=grid.y,'broadcast summary is above all three columns');
+ assert.equal(await page.getByRole('region',{name:'강퇴 승인 대기',exact:true}).count(),1);
+ assert.equal(await page.getByRole('region',{name:'문맥 검토 대기',exact:true}).count(),1);
+ assert(chat.x>grid.x,'chat occupies the rightmost column');
  // 채팅 시각은 시:분, 마우스를 올리면 날짜까지.
  const time=page.locator('.chat-row .chat-time').first();
  assert.match(await time.innerText(),/^\d{2}:\d{2}$/);assert.match(await time.getAttribute('title'),/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
@@ -650,6 +695,9 @@ test('streamer monitor shows only the stream and the live chat; chat tracking li
 
 test('admin chat tracking: an AI-decided case is released by the backend without an operator (v3.2 §5)',async()=>{
  const page=await openTracking();const detail=page.locator('.chat-detail');
+ const picker=page.getByRole('group',{name:'추적할 방송 선택'});
+ assert.equal(await picker.getByRole('button',{name:'LIVE:GUARD'}).getAttribute('aria-pressed'),'true');
+ assert.match(await page.locator('.configured-broadcast').innerText(),/선택한 방송/);
  const row=page.locator('.tracking-grid .chat-row').filter({hasText:'고객센터 help@game-corp.example'});
  assert.equal(await row.locator('.state-pill').count(),0);
  await row.click();
@@ -662,6 +710,11 @@ test('admin chat tracking: an AI-decided case is released by the backend without
  await detail.locator('.flow-graph [data-flow-node="verify"]').click();
  await detail.locator('[data-flow-evidence]').getByText('결과: 가림 해제',{exact:true}).waitFor();
  await detail.locator('[data-flow-history]').getByText(/개인정보 정상 판정 → 운영자 검토 없이 공개/).waitFor();
+ await picker.getByRole('button',{name:'롤 랭크 올리기'}).click();
+ assert.equal(await page.locator('.tracking-grid .chat-row').count(),0);
+ assert.match(await page.locator('.configured-broadcast').innerText(),/롤 랭크 올리기/);
+ await picker.getByRole('button',{name:'LIVE:GUARD'}).click();
+ await row.waitFor();
 });
 
 test('admin chat tracking shows the filter result, rule outcome and AI judgment without inventing one',async()=>{
@@ -754,7 +807,7 @@ test('mock follows the Backend v3.2 personal-data candidate rules (rules-v2)',as
  await openDemo(page);await page.getByRole('button',{name:'계좌번호',exact:true}).click();
  const row=page.locator('.chat-row').filter({hasText:'후원은 123-456-789012'});await row.waitFor();
  assert.match(await row.getAttribute('class'),/hidden/);
- await page.getByRole('navigation',{name:'운영자 메뉴'}).getByRole('button',{name:'채팅 기록',exact:true}).click();
+ await gotoRecords(page,'전체 채팅');
  await page.getByLabel('채팅 기록 검색',{exact:true}).fill('후원은 123-456-789012');
  await page.locator('.chat-db tbody tr').filter({hasText:'후원은 123-456-789012'}).getByText('숨김',{exact:true}).waitFor();
  await captureReview(page,'policy-v32-account-confirmed');
@@ -766,7 +819,7 @@ test('mock CP-3.3 example: group exclusion goes to context review with an AI sug
  const row=page.locator('.chat-row').filter({hasText:'○○ 출신은 다 꺼져라'});await row.waitFor();
  assert.match(await row.getAttribute('class'),/held/);
  await showQueue(page,'문맥 검토');
- const card=page.locator('.studio-review').filter({hasText:'○○ 출신은 다 꺼져라'});await openCard(card);
+ const card=page.locator('.studio-review.context').filter({hasText:'○○ 출신은 다 꺼져라'});await openCard(card);
  const evidence=card.getByRole('region',{name:'AI 판단 근거'});
  await evidence.getByText('CP-3.3',{exact:true}).waitFor();await evidence.getByText('괴롭힘',{exact:true}).waitFor();
  await card.getByText('AI 제안 · 위반 의심',{exact:true}).waitFor();
@@ -792,7 +845,7 @@ test('API review opened without an AI judgment (A-25) shows "AI 결과 없음", 
  assert.equal(await card.getByText('판단 보류',{exact:false}).count(),0);
  assert.equal(await card.getByRole('region',{name:'AI 판단 근거'}).count(),0);
  // 사건 이력도 "AI 조사 중"이 아니라 결정 대기 · AI 결과 없음으로 보인다.
- await page.getByRole('navigation',{name:'운영자 메뉴'}).getByRole('button',{name:'사건 이력',exact:true}).click();
+ await gotoRecords(page);
  await page.getByText('결정 대기 · AI 결과 없음',{exact:true}).first().waitFor();
  // 결정 전에 판정이 늦게 오면 같은 검토에 붙고 버전이 오른다. 카드는 AI 제안으로 바뀐다.
  const finding={messageId:'held-1',verdict:'VIOLATION',categories:['HARASSMENT'],policyIds:['CP-3.2'],reason:'특정 시청자를 반복해서 공격합니다.',missingFacts:[]};
@@ -813,7 +866,7 @@ test('mock "Agent 응답 없음" (A-25): the card says AI 결과 없음 and the 
  const row=page.locator('.chat-row').filter({hasText:'진짜 미쳤냐 그만 좀 해'});await row.waitFor();
  assert.match(await row.getAttribute('class'),/held/);
  await showQueue(page,'문맥 검토');
- const card=page.locator('.studio-review').filter({hasText:'진짜 미쳤냐 그만 좀 해'});await openCard(card);
+ const card=page.locator('.studio-review.context').filter({hasText:'진짜 미쳤냐 그만 좀 해'});await openCard(card);
  await card.getByRole('note',{name:'AI 결과 없음'}).waitFor();
  await decideCard(card,'정상 확정');
  await gotoMonitor(page);await waitFor(async()=>!/held/.test(await row.getAttribute('class')));
@@ -839,9 +892,9 @@ test('admin chat tracking shows the no-AI path (A-25) and counts real DEFER deci
 test('admin chat tracking shows a real DEFER as "보류 1회" (from the decision event, not the review version)',async()=>{
  const page=await openMockModerator();
  await showQueue(page,'문맥 검토');
- const card=page.locator('.studio-review').filter({hasText:'아 진짜 노잼이네 꺼져라'});await openCard(card);
+ const card=page.locator('.studio-review.context').filter({hasText:'아 진짜 노잼이네 꺼져라'});await openCard(card);
  await decideCard(card,'보류');await page.waitForTimeout(200);
- await page.getByRole('button',{name:'로그아웃',exact:true}).click();
+ await logoutPage(page);
  await page.getByRole('button',{name:'시스템 운영자 전용',exact:true}).click();await page.getByRole('button',{name:'로그인',exact:true}).click();
  await page.getByRole('tab',{name:'채팅관제 Tracking',exact:true}).click();
  const detail=page.locator('.chat-detail');
@@ -855,7 +908,7 @@ test('mock context review stays held on defer, then applies normal and violation
   const page=await openMockModerator();await openDemo(page);await page.getByRole('button',{name:'공격 표현',exact:true}).click();
   const row=page.locator('.chat-row').filter({hasText:'너 같은 건 방송 접어라'});await row.waitFor();
   assert.match(await row.getAttribute('class'),/held/);
-  await showQueue(page,'문맥 검토');const card=page.locator('.studio-review').filter({hasText:'너 같은 건 방송 접어라'});await openCard(card);
+  await showQueue(page,'문맥 검토');const card=page.locator('.studio-review.context').filter({hasText:'너 같은 건 방송 접어라'});await openCard(card);
   await card.getByText('AI 제안 · 위반 의심',{exact:true}).waitFor();await card.getByRole('region',{name:'AI 판단 근거'}).getByText('CP-3.2',{exact:true}).waitFor();
   await decideCard(card,label);await page.waitForTimeout(200);const remaining=await card.count();
   await gotoMonitor(page);
@@ -877,7 +930,7 @@ test('mock 24-hour timeout is automatic and the kick review lists its three basi
  const page=await openMockModerator();await gotoQueue(page);
  const card=page.locator('.studio-review.kick');await card.waitFor();
  assert.equal(await card.locator('tbody tr').count(),3);
- assert.equal(await card.locator('.review-excerpt').innerText(),'확정 사건 3건');
+ assert.equal(await card.locator('.review-head').innerText(),'어둠의유저');
  await openMore(card);assert.match(await card.locator('.review-summary').innerText(),/서로 다른 확정 사건 3건/);
  await page.getByRole('button',{name:'채팅 관제 운영 정책',exact:true}).click();
  await page.getByText('모든 채팅 제한은 자동 적용되며, 24시간 제한도 강퇴가 아닙니다.',{exact:false}).waitFor();
@@ -888,18 +941,18 @@ test('mock kick approval is explicitly simulated and blocks that viewer for the 
  const page=await openMockModerator();await gotoQueue(page);
  await decideCard(page.locator('.studio-review.kick'),'강퇴 승인');
  await page.getByRole('status').filter({hasText:'결정 접수 · 실행 결과 대기'}).first().waitFor();
- await page.getByRole('button',{name:'로그아웃',exact:true}).click();
+ await logoutPage(page);
  await page.getByRole('button',{name:'시청자로 시작하기',exact:true}).click();
  await page.getByRole('button',{name:'로그인',exact:true}).click();await page.locator('.viewer-shell').waitFor();
  await page.getByLabel('목업 시청자 선택').selectOption('22222222-2222-4222-8222-222222222222');
  assert.equal(await page.getByRole('heading',{name:'이 방송의 이용이 제한되었습니다'}).count(),0);
- await page.getByRole('button',{name:'로그아웃',exact:true}).click();
+ await logoutPage(page);
  await page.getByRole('button',{name:'스트리머로 시작하기',exact:true}).click();
  await page.getByRole('button',{name:'로그인',exact:true}).click();await page.locator('.app-shell').waitFor();
  await page.getByRole('button',{name:'모의 적용 성공',exact:true}).click();
  await page.getByRole('status').filter({hasText:'강퇴 적용 완료'}).first().waitFor();
  await page.locator('.studio-notice').getByText('강퇴가 모의 적용됐습니다.',{exact:true}).waitFor();
- await page.getByRole('button',{name:'로그아웃',exact:true}).click();
+ await logoutPage(page);
  await page.getByRole('button',{name:'시청자로 시작하기',exact:true}).click();
  await page.getByRole('button',{name:'로그인',exact:true}).click();await page.locator('.viewer-shell').waitFor();
  await page.getByLabel('목업 시청자 선택').selectOption('22222222-2222-4222-8222-222222222222');
@@ -916,7 +969,7 @@ test('mock kick failure and unknown outcomes never apply a viewer ban',async()=>
   await decideCard(page.locator('.studio-review.kick'),'강퇴 승인');
   await page.getByRole('button',{name:outcome.button,exact:true}).click();
   await page.getByRole('status').filter({hasText:outcome.status}).first().waitFor();
-  await page.getByRole('button',{name:'로그아웃',exact:true}).click();
+  await logoutPage(page);
   await page.getByRole('button',{name:'시청자로 시작하기',exact:true}).click();
   await page.getByRole('button',{name:'로그인',exact:true}).click();await page.locator('.viewer-shell').waitFor();
   await page.getByLabel('목업 시청자 선택').selectOption('22222222-2222-4222-8222-222222222222');
@@ -936,16 +989,15 @@ test('mock and API operators share the Studio screen and API decisions send the 
  const api=await open('operator'),mock=await openMockModerator();
  const menus=page=>page.getByRole('navigation',{name:'운영자 메뉴'}).locator('button span').allInnerTexts();
  assert.deepEqual(await menus(api),await menus(mock));
- assert.deepEqual(await menus(api),['실시간 관제','결정 대기','시청자 관리','사건 이력','채팅 기록','채팅 관제 운영 정책']);
+ assert.deepEqual(await menus(api),['실시간 모니터링','시청자 관리','기록','채팅 관제 운영 정책']);
  for(const page of [api,mock]){
-  // 강퇴 승인과 문맥 검토는 탭으로 나뉜다. 강퇴 요청이 있으면 강퇴 탭이 먼저 보이고, 다른 탭에는 대기 표시가 붙는다.
-  assert.equal(await page.locator('.studio-review').count(),0);await gotoQueue(page);
-  const tabs=page.getByRole('tablist',{name:'결정 대기 종류'});
-  assert.deepEqual((await tabs.getByRole('tab').allInnerTexts()).map(x=>x.replace(/\s+/g,' ').trim()),['강퇴 승인 1',`문맥 검토 ${page===mock?2:1}`]); // 목업은 'AI 결과 없음' 검토(A-25)가 하나 더 있다
-  assert.match(await tabs.getByRole('tab',{selected:true}).innerText(),/^강퇴 승인/);
-  assert.equal(await page.locator('.studio-review.context').count(),0);assert.equal(await tabs.locator('.tab-alert').count(),1);
-  await showQueue(page,'문맥 검토');assert.equal(await page.locator('.studio-review.kick').count(),0);assert.equal(await page.locator('.studio-review.context.open').count(),1);
-  await showQueue(page,'강퇴 승인');
+  // 채팅·문맥 검토·강퇴 승인을 한 화면에 표시한다. 각 대기열은 하나씩 펼쳐 둔다.
+  await gotoQueue(page);
+  assert.equal(await page.getByRole('tablist',{name:'결정 대기 종류'}).count(),0);
+  assert.equal(await page.locator('.studio-review.kick').count(),1);
+  assert.equal(await page.locator('.studio-review.context').count(),page===mock?2:1);
+  assert.equal(await page.locator('.studio-review.context.open').count(),1);
+  assert.equal(await page.locator('.studio-review.kick.open').count(),1);
   assert.equal(await page.locator('.auto-section').count(),0);
   assert.equal(await page.locator('.studio-review.kick tbody tr').count(),3);
  }
@@ -1086,7 +1138,9 @@ test('API admin shows the same system screen as the mock with empty data and no 
   sections:await page.locator('.sys-section h2').allInnerTexts()
  });
  assert.deepEqual(await shape(api),await shape(mock));
- assert.equal(await api.locator('.mode-badge').innerText(),'연결 대기');assert.equal(await mock.locator('.mode-badge').innerText(),'MOCK 데이터');
+ assert.equal(await api.locator('.mode-badge').count(),0);assert.equal(await mock.locator('.mode-badge').count(),0);
+ await captureReview(api,'off-air-gray');
+
  // 차트도 가짜 0 없이 비워 둔다
  assert.equal(await api.locator('.sys-chart-card .stacked-empty').filter({hasText:'연동 API 없음'}).count(),2);
  assert.equal(await api.locator('.sys-chart-card .stacked-legend, .sys-base').count(),0);
@@ -1095,6 +1149,8 @@ test('API admin shows the same system screen as the mock with empty data and no 
  for(const invented of ['행복한게임방','2,341','명 시청','LIVE 1'])assert(!text.includes(invented),invented);
  await capture(mock,'admin-mock');await capture(api,'admin-api');
  await api.getByRole('tab',{name:'채팅관제 Tracking',exact:true}).click();
+ assert.equal(await api.locator('.configured-broadcast').count(),0);
+ assert.equal(await api.getByRole('group',{name:'추적할 방송 선택'}).getByRole('button').count(),0);
  await api.locator('.tracking-grid').getByText('표시할 채팅이 없습니다.',{exact:true}).waitFor();
  await capture(api,'admin-api-tracking');
 });
@@ -1131,8 +1187,11 @@ test('admin period stats default to the last 7 days, include ended broadcasts an
  const page=await context.newPage();page.on('pageerror',e=>runtimeErrors.push(e.message));
  await page.goto(mockBase);await page.getByRole('button',{name:'시스템 운영자 전용',exact:true}).click();
  await page.getByRole('button',{name:'로그인',exact:true}).click();await page.locator('.sys-shell').waitFor();
- assert.deepEqual(await page.getByRole('tab').allInnerTexts(),['실시간 관제','기간 통계','채팅관제 Tracking']);
- await page.getByRole('tab',{name:'기간 통계',exact:true}).click();
+ assert.equal(await page.locator('.configured-broadcast').count(),0);
+ assert.deepEqual(await page.getByRole('tab').allInnerTexts(),['실시간 관제','채팅관제 Tracking','대시보드']);
+ await page.getByRole('tab',{name:'대시보드',exact:true}).click();
+ assert.equal(await page.locator('.configured-broadcast').count(),0);
+ assert.equal(await page.locator('.sys-head h1').innerText(),'대시보드');
  const range=page.getByRole('group',{name:'기간'});
  assert.equal(await range.getByRole('button',{name:'최근 7일'}).getAttribute('aria-pressed'),'true');
  const count=t=>Number(t.replace(/[^0-9]/g,''));
@@ -1160,7 +1219,8 @@ test('admin period stats default to the last 7 days, include ended broadcasts an
 
 test('API admin period stats stay empty until the backend period API exists',async()=>{
  const page=await open('admin');await page.locator('.sys-shell').waitFor();
- await page.getByRole('tab',{name:'기간 통계',exact:true}).click();
+ await page.getByRole('tab',{name:'대시보드',exact:true}).click();
+ assert.equal(await page.locator('.configured-broadcast').count(),0);
  assert.equal(await page.locator('.sys-chart-card .stacked-empty').filter({hasText:'연동 API 없음'}).count(),2);
  assert.equal(await page.locator('.trend-empty').innerText(),'연동 API 없음');
  assert.equal(await page.locator('.sys-base, .period-table').count(),0);
@@ -1225,7 +1285,8 @@ test('admin attention filters, responsive row details and chart scales remain us
   }
   await snapshot(`review-admin-live-${width}`);
  }
- await page.getByRole('tab',{name:'기간 통계',exact:true}).click();
+ await page.getByRole('button',{name:'메뉴 열기',exact:true}).click();
+ await page.getByRole('tab',{name:'대시보드',exact:true}).click();
  assert.match(await page.locator('.chart-scale-note').innerText(),/세로축 자동 눈금/);
  assert.equal(await page.locator('.rate-axis span').count(),3);
  for(const text of await page.locator('.sys-channel-meta').allInnerTexts())assert.match(text,/검사 [0-9,]+건/);
@@ -1271,9 +1332,9 @@ test('admin counts distinct basis cases with multiple types and separates invali
   const r=mock.reviews.find(r=>r.kind==='KICK');const c=mock.cases.find(c=>c.caseId===r.basisCaseIds[0]);
   c.confirmedFindings.push({...c.confirmedFindings[0],findingId:'extra-category',category:'HARASSMENT'});
  });
- await page.getByRole('button',{name:'로그아웃',exact:true}).click();
+ await logoutPage(page);
  await page.getByRole('button',{name:'시스템 운영자 전용',exact:true}).click();await page.getByRole('button',{name:'로그인',exact:true}).click();
- await page.locator('.sys-filter').getByRole('button',{name:/행복한게임방/}).click();
+ await page.locator('.sys-filter').getByRole('button',{name:/LIVE:GUARD/}).click();
  assert.equal(await page.locator('.request-table td:nth-child(5)').innerText(),'3건');
  await captureReview(page,'contract-basis-desktop');
  await page.setViewportSize({width:390,height:844});
@@ -1294,8 +1355,8 @@ test('admin counts distinct basis cases with multiple types and separates invali
 test('operator navigation shortcuts avoid typing and IME, validate keys and isolate local account settings',async()=>{
  const page=await openMockModerator();
  await page.evaluate(()=>document.activeElement?.blur?.());await page.keyboard.press('j');await page.locator('.queue-page').waitFor();
- const head=page.locator('.studio-review.open .review-head');assert(await head.count()>0);
- await page.keyboard.press('o');assert.equal(await page.locator('.studio-review.open').count(),0);
+ const head=page.locator('.studio-review.context.open .review-head');assert(await head.count()>0);
+ await page.keyboard.press('o');assert.equal(await page.locator('.studio-review.context.open').count(),0);
  await page.keyboard.press('o');assert(await page.locator('.studio-review.open').count()>0);
  await page.keyboard.press('/');const search=page.getByLabel('채팅 기록 검색',{exact:true});await search.waitFor();
  assert.equal(await search.evaluate(e=>document.activeElement===e),true);
@@ -1303,7 +1364,7 @@ test('operator navigation shortcuts avoid typing and IME, validate keys and isol
  assert.equal(await page.locator('.queue-page').count(),0);
  await page.evaluate(()=>document.activeElement?.blur?.());
  await page.dispatchEvent('body','keydown',{key:'j',isComposing:true});assert.equal(await page.locator('.queue-page').count(),0);
- await page.getByRole('button',{name:'알림·단축키 설정',exact:true}).click();
+ await openToolSettings(page);
  await page.getByLabel('다음 요청 단축키',{exact:true}).fill('k');assert.equal(await page.getByRole('button',{name:'설정 저장',exact:true}).isDisabled(),true);
  await page.getByLabel('다음 요청 단축키',{exact:true}).fill('n');await page.getByRole('button',{name:'설정 저장',exact:true}).click();
  await page.getByText('이 계정의 설정을 이 브라우저에 저장했습니다.',{exact:true}).waitFor();
@@ -1311,7 +1372,7 @@ test('operator navigation shortcuts avoid typing and IME, validate keys and isol
  await page.getByRole('button',{name:'설정 닫기',exact:true}).click();await page.evaluate(()=>document.activeElement?.blur?.());
  await page.keyboard.press('n');await page.locator('.queue-page').waitFor();
  await page.evaluate(async()=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');const s=useLiveGuard();s.me={...s.me,userId:'different-operator'};});
- await page.getByRole('button',{name:'알림·단축키 설정',exact:true}).click();assert.equal(await page.getByLabel('다음 요청 단축키',{exact:true}).inputValue(),'j');
+ await openToolSettings(page);assert.equal(await page.getByLabel('다음 요청 단축키',{exact:true}).inputValue(),'j');
  await page.evaluate(()=>{Storage.prototype.setItem=function(){throw new DOMException('unavailable','QuotaExceededError');};});
  await page.getByRole('button',{name:'설정 저장',exact:true}).click();await page.getByText('설정을 저장하지 못해 이번 화면에서만 적용합니다.',{exact:true}).waitFor();
  await page.setViewportSize({width:390,height:844});await page.clock.runFor(100);
@@ -1321,16 +1382,16 @@ test('operator navigation shortcuts avoid typing and IME, validate keys and isol
 
 test('web operator alerts show no original text, open the current pending review and deduplicate updates',async()=>{
  const page=await openMockModerator();await openDemo(page);await page.getByRole('button',{name:'공격 표현',exact:true}).click();
- await page.getByRole('button',{name:/^관제 알림 [0-9]+$/}).click();
+ await openToolActivity(page);
  const list=page.getByRole('region',{name:'관제 알림 목록',exact:true});
  const incoming=list.getByRole('button',{name:'새 문맥 검토 요청 →',exact:true});await incoming.waitFor();
  const text=await list.innerText();assert(!text.includes('접어라'));assert(!text.includes('어둠의유저'));assert(!text.includes('010-'));
  await page.evaluate(async()=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');useLiveGuard().mock.state.reviews.find(r=>r.kind==='CONTEXT'&&r.status==='PENDING').version++;});
  assert.equal(await incoming.count(),1);await captureReview(page,'operator-tools-alerts-desktop');
- await incoming.click();await page.locator('.queue-page').waitFor();assert.equal(await page.getByRole('tab',{name:/^문맥 검토/}).getAttribute('aria-selected'),'true');
- assert.equal(await page.locator('.studio-review.open .review-head').evaluate(e=>document.activeElement===e),true);
- assert.equal(await page.locator('.studio-review.open').getByRole('button',{name:'제출',exact:true}).isDisabled(),true);
- await page.getByRole('button',{name:/^관제 알림 [0-9]+$/}).click();
+ await incoming.click();await page.locator('.queue-page').waitFor();assert.equal(await page.locator('.studio-review.context.open').count(),1);
+ assert.equal(await page.locator('.studio-review.open .review-head:focus').evaluate(e=>document.activeElement===e),true);
+ assert.equal(await page.locator('.studio-review.context.open').getByRole('button',{name:'제출',exact:true}).isDisabled(),true);
+ await openToolActivity(page);
  await list.getByRole('button',{name:'새 문맥 검토 요청 알림 지우기',exact:true}).click();
  await page.evaluate(async()=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');useLiveGuard().mock.state.reviews.find(r=>r.kind==='CONTEXT'&&r.status==='PENDING').version++;});
  assert.equal(await incoming.count(),0);
@@ -1339,13 +1400,13 @@ test('web operator alerts show no original text, open the current pending review
 test('web failure alerts exclude unknown results and open the matching case without taking a decision',async()=>{
  const page=await openMockModerator();
  const change=async(state)=>page.evaluate(async(state)=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');const m=useLiveGuard().mock.state;const r=m.reviews.find(r=>r.kind==='KICK');r.status='DECIDED';m.kickProgress[r.reviewId]=state;return r.caseId;},state);
- await change('실행 결과 확인 중 · 실패로 단정하지 않음');await page.getByRole('button',{name:/^관제 알림 [0-9]+$/}).click();
+ await change('실행 결과 확인 중 · 실패로 단정하지 않음');await openToolActivity(page);
  assert.equal(await page.getByRole('button',{name:'강퇴 실행 실패 확인 →',exact:true}).count(),0);
  const caseId=await change('강퇴 실행 실패 · 기존 제재 유지');await captureReview(page,'operator-tools-failure');await page.getByRole('button',{name:'강퇴 실행 실패 확인 →',exact:true}).click();
  await page.locator('.case-row.open').waitFor();assert.equal(await page.locator('.case-row.open').getAttribute('data-case-id'),caseId);
  await captureReview(page,'operator-tools-case-flow');
  await page.evaluate(async()=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');useLiveGuard().mock.state.reviews.find(r=>r.kind==='KICK').status='INVALIDATED';});
- await page.getByRole('button',{name:/^관제 알림 [0-9]+$/}).click();assert.equal(await page.getByRole('button',{name:'강퇴 실행 실패 확인 →',exact:true}).count(),0);
+ await openToolActivity(page);assert.equal(await page.getByRole('button',{name:'강퇴 실행 실패 확인 →',exact:true}).count(),0);
 });
 
 
@@ -1398,6 +1459,13 @@ test('decision notification bell shows pending details, opens the selected revie
  const page=await openMockModerator();
  const bell=page.getByRole('button',{name:/^알림 · 결정 대기/});
  assert.equal(await page.locator('.queue-link').count(),0);
+ assert.equal(await page.locator('.operator-tools-bar,.operator-announcement').count(),0);
+ assert.equal(await page.getByRole('button',{name:'알림·단축키 설정',exact:true}).count(),0);
+ assert.equal(await page.locator('.topbar-right > .decision-notifications').count(),1);
+ assert.equal(await page.locator('.topbar-right').getByRole('button',{name:'새로고침',exact:true}).count(),0);
+ assert.equal(await page.locator('.status-controls').getByRole('button',{name:'새로고침',exact:true}).count(),0);
+ const bellBounds=await bell.boundingBox(),profileBounds=await page.getByRole('button',{name:'계정 메뉴',exact:true}).boundingBox();
+ assert(bellBounds.x+bellBounds.width<=profileBounds.x,'bell is left of the streamer profile');
  await bell.click();const panel=page.getByRole('dialog',{name:'알림',exact:true});await panel.waitFor();
  assert.equal(await bell.getAttribute('aria-expanded'),'true');
  const items=panel.locator('.decision-notification-item');assert(await items.count()>0);
@@ -1406,8 +1474,8 @@ test('decision notification bell shows pending details, opens the selected revie
  await captureReview(page,'decision-bell-desktop');
  await page.keyboard.press('Escape');await panel.waitFor({state:'detached'});assert.equal(await panel.count(),0);assert.equal(await bell.evaluate(e=>document.activeElement===e),true);
  await bell.click();await page.locator('.studio-live-line > span').first().click();await panel.waitFor({state:'detached'});assert.equal(await panel.count(),0);
- await bell.click();await items.first().click();await page.locator('.studio-review.open').waitFor();
- assert.equal(await panel.count(),0);assert.equal(await page.locator('.studio-review.open .review-head').evaluate(e=>document.activeElement===e),true);
+ await bell.click();await items.first().click();await page.locator('.studio-review.open').first().waitFor();
+ assert.equal(await panel.count(),0);assert.equal(await page.locator('.studio-review.open .review-head:focus').evaluate(e=>document.activeElement===e),true);
  await gotoMonitor(page);
  for(const width of [390,360]){
   await page.setViewportSize({width,height:844});await bell.click();await panel.waitFor();
@@ -1436,4 +1504,235 @@ test('decision notification bell caps its badge and removes decided, old-live an
  const emptyBell=page.getByRole('button',{name:'알림 · 결정 대기 0건',exact:true});await emptyBell.click();
  await page.getByRole('dialog',{name:'알림',exact:true}).getByText('방송이 종료되었습니다.',{exact:true}).waitFor();
  assert.equal(state.decisions.length,0);
+});
+
+
+test('unified monitoring has three columns and responsive decision queues without separate navigation',async()=>{
+ const page=await openMockModerator();
+ const menu=page.getByRole('navigation',{name:'운영자 메뉴'});
+ assert.equal(await menu.getByRole('button',{name:'실시간 모니터링',exact:true}).count(),1);
+ assert.equal(await menu.getByRole('button',{name:/^결정 대기/}).count(),0);
+ const left=page.locator('.live-monitoring-grid > .monitor-grid'),context=page.getByRole('region',{name:'문맥 검토 대기',exact:true}),kick=page.getByRole('region',{name:'강퇴 승인 대기',exact:true});
+ const a=await left.boundingBox(),b=await context.boundingBox(),c=await kick.boundingBox();
+ assert(c.x+c.width<=b.x&&b.x+b.width<=a.x);assert(Math.abs(a.y-b.y)<2&&Math.abs(b.y-c.y)<2);
+ assert.equal(await page.locator('.review-arrival').count(),0,'initial data does not flash');
+ await captureReview(page,'monitoring-three-columns');
+ for(const width of [1024,390,360]){
+  await page.setViewportSize({width,height:844});await page.screenshot({animations:'disabled'});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  if(width<760){const l=await left.boundingBox(),m=await context.boundingBox(),r=await kick.boundingBox();assert(r.y+r.height<=m.y&&m.y+m.height<=l.y);}
+  await captureReview(page,`monitoring-${width}`);
+ }
+});
+
+test('new decision requests highlight once, keep focus and selections, expire and respect reduced motion',async()=>{
+ const page=await openMockModerator();
+ const card=page.locator('.studio-review.context.open');await card.getByRole('radio',{name:'정상 확정',exact:true}).check();
+ const selected=card.locator('input:checked');await selected.focus();
+ const add=async(kind,id)=>page.evaluate(async({kind,id})=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');const m=useLiveGuard().mock.state;const source=m.reviews.find(r=>r.kind===kind&&r.status==='PENDING');m.reviews.push({...JSON.parse(JSON.stringify(source)),reviewId:id,createdAt:new Date().toISOString(),version:1});},{kind,id});
+ await add('CONTEXT','arrival-context');await add('KICK','arrival-kick');
+ await page.locator('[data-review-id="arrival-context"].review-arrival').waitFor();await page.locator('[data-review-id="arrival-kick"].review-arrival').waitFor();
+ assert.equal(await selected.isChecked(),true);assert.equal(await selected.evaluate(e=>document.activeElement===e),true);
+ assert.equal(await page.locator('.queue-new-indicator').count(),2);
+ await captureReview(page,'monitoring-new-requests');
+ await page.emulateMedia({reducedMotion:'reduce'});
+ assert.equal(await page.locator('.review-arrival').first().evaluate(e=>getComputedStyle(e).animationName),'none');
+ await captureReview(page,'monitoring-reduced-motion');
+ await page.clock.runFor(8100);assert.equal(await page.locator('.review-arrival').count(),0);
+ await page.evaluate(async()=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');const m=useLiveGuard().mock.state;m.reviews.find(r=>r.reviewId==='arrival-context').version++;});
+ assert.equal(await page.locator('.review-arrival').count(),0,'version update does not replay an arrival');
+});
+
+test('empty unified monitoring shows both queues and ended broadcasts clear arrival effects',async()=>{
+ const page=await open('operator');await page.getByRole('region',{name:'문맥 검토 대기',exact:true}).getByText('문맥 검토할 채팅이 없습니다.',{exact:true}).waitFor();
+ await page.getByRole('region',{name:'강퇴 승인 대기',exact:true}).getByText('강퇴 승인 요청이 없습니다.',{exact:true}).waitFor();
+ assert.equal(await page.locator('.status-summary-count').count(),0);
+ assert.equal(await page.locator('.status-summary-empty').count(),2);
+ assert.equal(await page.locator('.status-summary-empty svg,.status-summary-description').count(),0);
+ assert.equal(await page.getByText('AI 제안은 참고용입니다. 공개 여부는 운영자가 결정합니다.',{exact:true}).count(),0);
+ assert.equal(await page.getByText(/유형과 관계없이 확정 위반 3건이 쌓인 시청자입니다/).count(),0);
+ assert.equal(await page.locator('.status-summary-action').count(),0);
+ await captureReview(page,'monitoring-empty-api');
+ state.reviews=[{reviewId:'new-live-review',kind:'CONTEXT',liveId:'live-1',caseId:'case-new',status:'PENDING',version:1,createdAt:timestamp(),aiVerdict:'NEEDS_REVIEW',messages:[],targetMessageIds:[],findings:[],basisCaseIds:[],summary:'AI 결과 없음'}];
+ emit('CONTEXT_REVIEW_REQUIRED',{reviewId:'new-live-review',version:1});await page.locator('.review-arrival').waitFor();
+ assert.equal(await page.locator('.status-summary-count.is-pending').count(),1);
+ assert.equal(await page.getByText('처리 대기 중인 항목이 있습니다.',{exact:true}).count(),0);
+ assert.equal(await page.getByRole('region',{name:'강퇴 승인 대기',exact:true}).locator('.status-summary-count.is-pending').count(),0);
+ await captureReview(page,'summary-one-pending-api');
+ state.active=false;emit('LIVE_ENDED',{liveId:'live-1'});await page.locator('.review-arrival').waitFor({state:'detached'});
+ assert.equal(await page.getByRole('button',{name:'제출',exact:true}).isDisabled(),true);assert.equal(state.decisions.length,0);
+});
+
+
+test('create menu switches between API start and end and status follows broadcast state',async()=>{
+ state.active=false;const page=await open('operator');await page.locator('.studio-empty').waitFor();
+ const trigger=page.locator('.broadcast-status');const status=page.locator('.broadcast-status');assert.equal(await page.getByRole('button',{name:'만들기',exact:true}).count(),0);assert.equal(await status.getAttribute('data-live'),'false');
+ assert.equal(await page.getByRole('button',{name:'새로고침',exact:true}).count(),0);
+ await trigger.click();await captureReview(page,'create-menu-ready');await page.getByRole('menuitem',{name:'라이브 스트리밍 시작',exact:true}).click();
+ await page.locator('.live-monitoring-grid').waitFor();await page.getByRole('heading',{name:'🔴 실시간 | <라이브 방송> A20 LITE 데뷔',exact:true}).waitFor();assert.equal(await page.locator('.status-strip').count(),0);assert.equal(state.liveStarts,1);assert.equal(await status.getAttribute('data-live'),'true');
+ await status.click();const end=page.getByRole('menuitem',{name:'방송 종료',exact:true});await end.waitFor();await captureReview(page,'create-menu-live');await end.click();
+ await page.locator('.studio-live-line .ended').waitFor();await page.getByRole('heading',{name:'방송이 종료되었습니다',exact:true}).waitFor();await captureReview(page,'broadcast-ended-heading');assert.equal(state.liveEnds,1);assert.equal(await status.getAttribute('data-live'),'false');
+ await trigger.click();await page.getByRole('menuitem',{name:'라이브 스트리밍 시작',exact:true}).waitFor();assert.equal(state.liveStarts,1);
+});
+
+test('create menu keeps mock starts disabled, supports keyboard and mobile, and shows API errors',async()=>{
+ const page=await openMockModerator();const trigger=page.locator('.broadcast-status');await trigger.click();
+ const item=page.getByRole('menuitem',{name:'방송 종료',exact:true});assert.equal(await item.getAttribute('aria-disabled'),'true');
+ await page.keyboard.press('Escape');assert.equal(await trigger.evaluate(e=>document.activeElement===e),true);
+ for(const width of [390,360]){await page.setViewportSize({width,height:844});await trigger.click();await page.screenshot({animations:'disabled'});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await captureReview(page,`create-menu-${width}`);await page.keyboard.press('Escape');}
+ state.active=false;state.startError=true;const api=await open('operator');await api.locator('.studio-empty').waitFor();await api.locator('.broadcast-status').click();await api.getByRole('menuitem',{name:'라이브 스트리밍 시작',exact:true}).click();
+ await api.getByRole('alert').filter({hasText:'방송 시작을 처리하지 못했습니다.'}).waitFor();assert.equal(await api.locator('.live-monitoring-grid').count(),0);assert.equal(state.liveStarts,1);
+});
+
+
+test('streamer account icon reveals nickname and logout only on open, dismisses and logs out',async()=>{
+ const page=await openMockModerator();const header=page.locator('.topbar-right');
+ assert.equal(await header.locator('.operator-info').count(),0);assert.equal(await page.getByRole('menuitem',{name:'로그아웃',exact:true}).count(),0);
+ const trigger=page.getByRole('button',{name:'계정 메뉴',exact:true});await trigger.click();
+ const panel=page.getByRole('menu',{name:'계정',exact:true});await panel.getByText('스트리머',{exact:true}).waitFor();
+ await panel.getByRole('menuitem',{name:'로그아웃',exact:true}).waitFor();await captureReview(page,'account-menu-desktop');
+ await page.keyboard.press('Escape');await panel.waitFor({state:'detached'});assert.equal(await trigger.evaluate(e=>document.activeElement===e),true);
+ for(const width of [390,360]){await page.setViewportSize({width,height:844});await trigger.click();await page.screenshot({animations:'disabled'});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await captureReview(page,`account-menu-${width}`);await page.keyboard.press('Escape');}
+ await trigger.click();await panel.getByRole('menuitem',{name:'로그아웃',exact:true}).click();await page.getByRole('button',{name:'스트리머로 시작하기',exact:true}).waitFor();
+});
+
+for(const mode of ['mock','api'])test(`admin drawer and account menu work in ${mode}`,async()=>{
+ let page;
+ if(mode==='api')page=await open('admin');
+ else{const context=await browser.newContext({viewport:{width:1280,height:1000}});contexts.push(context);page=await context.newPage();await page.goto(mockBase);await page.getByRole('button',{name:'시스템 운영자 전용',exact:true}).click();await page.getByRole('button',{name:'로그인',exact:true}).click();}
+ await page.locator('.sys-shell').waitFor();
+ await page.getByRole('button',{name:'메뉴 닫기',exact:true}).click();
+ assert.equal(await page.getByRole('tab').count(),3);
+ assert.equal(await page.locator('.sys-side.compact').count(),1);
+ await page.getByRole('button',{name:'메뉴 열기',exact:true}).click();
+ await page.getByRole('tab',{name:'대시보드',exact:true}).click();
+ await captureReview(page,`admin-${mode}-desktop`);
+ for(const width of [360,390]){
+ await page.setViewportSize({width,height:844});
+ await page.locator('#system-navigation[aria-hidden="true"]').waitFor({state:'attached'});
+ assert.equal(await page.getByRole('tab').count(),0);
+ await page.getByRole('button',{name:'메뉴 열기',exact:true}).click();
+ assert.equal(await page.getByRole('tab',{selected:true}).innerText(),'대시보드');
+ await captureReview(page,`admin-${mode}-drawer-${width}`);
+ await page.getByRole('tab',{name:'채팅관제 Tracking',exact:true}).click();
+ assert.equal(await page.getByRole('tab').count(),0);
+ await page.getByRole('button',{name:'메뉴 열기',exact:true}).click();await page.keyboard.press('Escape');
+ assert.equal(await page.getByRole('button',{name:'메뉴 열기',exact:true}).evaluate(e=>e===document.activeElement),true);
+ await page.getByRole('button',{name:'메뉴 열기',exact:true}).click();
+ await page.getByRole('tab',{name:'대시보드',exact:true}).click();
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ }
+ assert.equal(await page.locator('.topbar .operator-info').count(),0);
+ assert.equal(await page.getByRole('button',{name:'로그아웃',exact:true}).count(),0);
+ await page.getByRole('button',{name:'계정 메뉴',exact:true}).click();
+ await page.getByRole('menu',{name:'계정',exact:true}).getByText('시스템 운영자 계정',{exact:true}).waitFor();
+ await captureReview(page,`admin-${mode}-account-390`);
+ await page.getByRole('menuitem',{name:'로그아웃',exact:true}).click();
+ await page.getByRole('button',{name:'시스템 운영자 전용',exact:true}).waitFor();
+});
+
+for(const mode of ['mock','api'])test(`viewer account popup replaces status and logout controls in ${mode}`,async()=>{
+ const page=mode==='mock'?await openMock():await open();
+ const header=page.locator('.yt-masthead');
+ assert.equal(await header.locator('.mode-badge').count(),0);
+ assert.equal(await page.getByRole('button',{name:'로그아웃',exact:true}).count(),0);
+ const trigger=page.getByRole('button',{name:'계정 메뉴',exact:true});
+ for(const width of [1280,390,360]){
+ await page.setViewportSize({width,height:844});await trigger.click();
+ await page.getByRole('menu',{name:'계정',exact:true}).getByText('시청자 계정',{exact:true}).waitFor();
+ await captureReview(page,`viewer-${mode}-account-${width}`);
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ await page.keyboard.press('Escape');assert.equal(await trigger.evaluate(e=>e===document.activeElement),true);
+ }
+ await logoutPage(page);await page.getByRole('button',{name:'시청자로 시작하기',exact:true}).waitFor();
+});
+
+for(const mode of ['mock','api'])test(`viewer assistant sends 30 chats through the normal chat flow in ${mode}`,async()=>{
+ const page=mode==='mock'?await openMock():await open('author','2026-10-25T00:00:00Z');
+ if(mode==='api'){await page.getByLabel('채팅 메시지',{exact:true}).waitFor();await page.clock.pauseAt(new Date('2026-10-25T00:01:00Z'));}
+ let posts=0;page.on('request',r=>{if(r.method()==='POST'&&new URL(r.url()).pathname.endsWith('/messages'))posts++;});
+ await page.getByLabel('채팅 메시지',{exact:true}).fill('내 작성 중 초안');
+ const trigger=page.getByRole('button',{name:'시연 도우미 열기',exact:true});await trigger.click();
+ const panel=page.getByRole('dialog',{name:'어떤 것을 도와드릴까요?',exact:true});
+ const prompt=panel.getByRole('button',{name:'시연을 위해 목업 채팅을 만들어줘. 1초에 1개씩 30개만',exact:true});
+ await prompt.click();await page.clock.runFor(999);assert.equal(await panel.locator('li').count(),0);
+ await page.clock.runFor(1);await waitFor(async()=>await panel.locator('li').count()===1);
+ assert.equal(await prompt.isDisabled(),true);
+ for(let n=2;n<=30;n++){
+ await page.clock.runFor(1000);
+ if(mode==='mock'&&await prompt.isDisabled()&&await page.locator('.viewer-assistant-stop').count()===0)break;
+ await waitFor(async()=>await panel.locator('li').count()===n);
+ }
+ if(mode==='mock'){
+ assert(await panel.locator('li').count()>=2);assert(await page.locator('.yt-chat-row.myHidden').count()>=2);
+ await captureReview(page,`assistant-chat-${mode}-desktop`);await page.keyboard.press('Escape');return;
+ }
+ await page.clock.runFor(3000);assert.equal(await panel.locator('li').count(),30);assert.equal(posts,mode==='api'?30:0);
+ assert.equal(await page.locator('.yt-chat-items').getByText('[시연 30/30] 아 씨발 진짜 못하네',{exact:false}).count(),1);
+ assert.equal(await page.getByLabel('채팅 메시지',{exact:true}).inputValue(),'내 작성 중 초안');
+ await captureReview(page,`assistant-chat-${mode}-desktop`);
+ await prompt.click();await page.clock.runFor(1000);await waitFor(async()=>await panel.locator('li').count()===1);
+ await panel.getByRole('button',{name:'중단하기',exact:true}).click();await page.clock.runFor(2000);assert.equal(await panel.locator('li').count(),1);
+ await page.setViewportSize({width:360,height:844});await captureReview(page,`assistant-chat-${mode}-360`);
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ const backgroundBefore=posts;await prompt.click();await page.keyboard.press('Escape');await panel.waitFor({state:'detached'});await waitFor(async()=>await trigger.evaluate(e=>e===document.activeElement));
+ for(let n=1;n<=3;n++){await page.clock.runFor(1000);await waitFor(()=>Promise.resolve(posts===backgroundBefore+n));}
+ await trigger.click();await waitFor(async()=>await panel.locator('li').count()===3);
+ await panel.getByRole('button',{name:'중단하기',exact:true}).click();const stopped=posts;await page.clock.runFor(3000);assert.equal(posts,stopped);
+});
+
+test('viewer assistant stops after API failure or broadcast end and cannot run without a broadcast',async()=>{
+ state.active=false;const empty=await open('author');await empty.getByText('진행 중인 방송이 없습니다',{exact:true}).waitFor();
+ await empty.getByRole('button',{name:'시연 도우미 열기',exact:true}).click();
+ assert.equal(await empty.locator('.viewer-assistant-prompt').isDisabled(),true);
+ await empty.context().close();
+ state.active=true;const page=await open('author','2026-10-25T00:00:00Z');await page.getByLabel('채팅 메시지',{exact:true}).waitFor();await page.clock.pauseAt(new Date('2026-10-25T00:01:00Z'));
+ await page.getByRole('button',{name:'시연 도우미 열기',exact:true}).click();
+ const prompt=page.locator('.viewer-assistant-prompt');
+ state.postError={code:'TEMPORARY_UNAVAILABLE',message:'Try later',retryable:true};await prompt.click();await page.clock.runFor(1000);
+ await waitFor(async()=>await page.locator('.viewer-assistant [role="alert"]').count()===1);
+ await page.clock.runFor(5000);assert.equal(state.posts,1);assert.equal(await page.locator('.viewer-assistant-chats li').count(),0);
+ state.postError=null;await prompt.click();await page.clock.runFor(1000);await waitFor(async()=>await page.locator('.viewer-assistant-chats li').count()===1);
+ const before=state.posts;state.active=false;emit('LIVE_ENDED',{liveId:'live-1'});await waitFor(async()=>await prompt.isDisabled());await page.clock.runFor(5000);assert.equal(state.posts,before);
+});
+
+for(const mode of ['mock','api'])test(`streamer collapsed navigation keeps clickable labeled icons in ${mode}`,async()=>{
+ const page=mode==='mock'?await openMockModerator():await open('operator');
+ await page.getByRole('button',{name:'메뉴 닫기',exact:true}).click();
+ const rail=page.locator('#operator-nav');assert.equal(await rail.getAttribute('aria-hidden'),'false');
+ assert.equal(await rail.locator('nav button').count(),4);
+ assert.equal(Math.round((await rail.boundingBox()).width),72);
+ await rail.getByRole('button',{name:'채팅 관제 운영 정책',exact:true}).click();
+ assert.equal(await rail.getByRole('button',{name:'채팅 관제 운영 정책',exact:true}).getAttribute('aria-current'),'page');
+ assert.equal(await page.locator('.studio-broadcast-summary').count(),0);
+ await captureReview(page,`icon-rail-${mode}-streamer`);
+ await page.getByRole('button',{name:'메뉴 열기',exact:true}).click();
+ assert((await rail.boundingBox()).width>72);
+ assert.equal(await rail.getByRole('button',{name:'채팅 관제 운영 정책',exact:true}).getAttribute('aria-current'),'page');
+});
+
+test('mock assistant keeps sending with its panel closed until stopped explicitly',async()=>{
+ const page=await openMock();const trigger=page.getByRole('button',{name:'시연 도우미 열기',exact:true});await trigger.click();
+ const panel=page.getByRole('dialog',{name:'어떤 것을 도와드릴까요?',exact:true});await panel.locator('.viewer-assistant-prompt').click();await panel.getByRole('button',{name:'시연 도우미 닫기',exact:true}).click();
+ await page.clock.runFor(3000);assert.equal(await panel.count(),0);await page.locator('.yt-chat-items').getByText('[시연 3/30] 다들 반가워요 👋',{exact:true}).waitFor();
+ await trigger.click();assert.equal(await panel.locator('li').count(),3);await panel.getByRole('button',{name:'중단하기',exact:true}).click();await page.clock.runFor(3000);assert.equal(await panel.locator('li').count(),3);
+});
+
+test('case history has one heading and a vertical timeline with integrated review requests',async()=>{
+ const page=await openMockModerator();await gotoRecords(page);
+ assert.equal(await page.getByRole('heading',{name:'사건 이력',exact:true}).count(),1);
+ assert.equal(await page.getByRole('tab',{name:/검토 기록/}).count(),0);
+ await page.locator('.case-row').first().click();const flow=page.getByRole('list',{name:'사건 처리 흐름',exact:true});
+ const labels=await flow.locator('.case-step-heading b').allInnerTexts();assert.deepEqual(labels.slice(0,2),['채팅','사건 생성']);assert(labels.includes('조치'));
+ const rows=await flow.locator('li').evaluateAll(items=>items.map(e=>e.getBoundingClientRect().top));assert(rows.every((v,i)=>!i||v>rows[i-1]));
+ await captureReview(page,'case-timeline-mock-desktop');
+ await page.setViewportSize({width:390,height:844});await captureReview(page,'case-timeline-mock-390');
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+});
+
+test('case history preserves review requests whose cases are unavailable',async()=>{
+ state.cases=[];state.reviews=[{reviewId:'orphan-review',kind:'CONTEXT',liveId:'live-1',caseId:'missing-case',status:'DECIDED',version:1,createdAt:timestamp(),aiVerdict:'NEEDS_REVIEW',messages:[],targetMessageIds:[],findings:[],basisCaseIds:[],summary:'검토 요청'}];
+ const page=await open('operator');await gotoRecords(page);
+ const records=page.locator('.unlinked-review-records');await records.locator('summary').click();assert.match(await records.innerText(),/문맥 검토/);assert.match(await records.innerText(),/결정됨/);
+ await captureReview(page,'case-timeline-api-unlinked');
 });

@@ -1,11 +1,15 @@
 <script setup lang="ts">
+import { BROADCAST_CHANNEL_NAME, BROADCAST_TITLE } from './broadcastPresentation';
 // 운영자(스트리머) Studio 화면. 목업과 실제 API가 같은 화면을 쓴다(#12).
 // 화면은 API v1.0 모양의 데이터와 사용자 동작만 다룬다. API·SSE 연결은 LiveConsole.vue, 목업 판정은 mockLive.ts가 맡는다.
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
-import { AlertCircle, BookOpen, ChevronDown, ChevronRight, ClipboardCheck, FileClock, LogOut, Menu, MessagesSquare, Pause, Play, Radio, RefreshCcw, ShieldCheck, Sparkles, Users, UserX } from 'lucide-vue-next';
+import { AlertCircle, BookOpen, ChevronDown, ChevronRight, ClipboardCheck, FileClock, Menu, MessagesSquare, Pause, Play, Radio, ShieldCheck, Users } from 'lucide-vue-next';
 import ViewerManage from './ViewerManage.vue';
 import OperatorTools from './OperatorTools.vue';
 import DecisionNotifications from './DecisionNotifications.vue';
+import StatusSummaryWidget from './StatusSummaryWidget.vue';
+import StreamCreateMenu from './StreamCreateMenu.vue';
+import AccountMenu from './AccountMenu.vue';
 import type { ShortcutAction, OperatorAlert } from './operatorTools';
 import ModeBadge from './ModeBadge.vue';
 import AiEvidence from './AiEvidence.vue';
@@ -20,7 +24,7 @@ import { KICK_THRESHOLD, priorColumns, routeRows, sanctionFor, sanctionLabel, sa
 import { filterDictionary } from './mock';
 
 export interface StudioLog { id: string; time: string; event: string; detail: string; caseId?: string; reviewId?: string }
-type Page = 'monitor' | 'reviews' | 'viewers' | 'cases' | 'chats' | 'policy';
+type Page = 'monitor' | 'viewers' | 'cases' | 'chats' | 'policy';
 
 const props = withDefaults(defineProps<{
   mock?: boolean; nickname: string; channelName?: string;
@@ -34,16 +38,16 @@ const props = withDefaults(defineProps<{
   // 채팅 기록 페이지: 이전 페이지까지 불러온 채팅. 없으면 messages를 쓴다(목업).
   archive?: Message[] | null; archiveMore?: boolean; archiveLoading?: boolean;
   busy?: boolean; error?: string; notice?: string; feedOn?: boolean | null;
-}>(), { mock: false, channelName: '내 채널', ended: false, loading: false, online: false, busy: false, error: '', notice: '', feedOn: null, archive: null, archiveMore: false, archiveLoading: false });
+}>(), { mock: false, channelName: BROADCAST_CHANNEL_NAME, ended: false, loading: false, online: false, busy: false, error: '', notice: '', feedOn: null, archive: null, archiveMore: false, archiveLoading: false });
 const emit = defineEmits<{
   decide: [review: LiveReview, value: ContextDecision | KickDecision, reason: string, categories: Category[]];
   revoke: [caseId: string, findingId: string, reason: string];
-  page: [page: Page]; refresh: []; start: []; end: []; logout: []; toggleFeed: []; loadOlder: [];
+  page: [page: Page]; start: []; end: []; logout: []; toggleFeed: []; loadOlder: [];
 }>();
 
 const operatorToolsRef=ref<InstanceType<typeof OperatorTools>|null>(null);
 const page = ref<Page>('monitor');
-const pageTitles: Record<Page, string> = { monitor: '실시간 관제', reviews: '결정 대기', viewers: '시청자 관리', cases: '사건 이력', chats: '채팅 기록', policy: '채팅 관제 운영 정책' };
+const pageTitles: Record<Page, string> = { monitor: '실시간 모니터링', viewers: '시청자 관리', cases: '사건 이력', chats: '채팅 기록', policy: '채팅 관제 운영 정책' };
 function goto(p: Page) { page.value = p; navOpen.value = false; emit('page', p); }
 
 // 메뉴: 넓은 화면에서는 왼쪽에 고정하고 ☰로 접고 편다. 좁은 화면에서는 ☰로 여닫는 서랍이다.
@@ -84,6 +88,27 @@ watch(() => shownMessages.value.map(m => m.messageId), async (ids, previous) => 
 // 운영자 결정 대기: 강퇴 승인 → 문맥 검토, 각각 오래 기다린 순서
 const pending = computed(() => props.reviews.filter(r => r.status === 'PENDING' && r.liveId === props.live?.liveId)
   .sort((a, b) => Number(b.kind === 'KICK') - Number(a.kind === 'KICK') || Date.parse(iso(a.createdAt)) - Date.parse(iso(b.createdAt))));
+const freshReviews=ref(new Set<string>()),arrivalAnnouncement=ref('');
+let arrivalScope='',seenReviews:Set<string>|null=null;
+const arrivalTimers=new Map<string,ReturnType<typeof setTimeout>>();
+function clearArrivals(){for(const timer of arrivalTimers.values())clearTimeout(timer);arrivalTimers.clear();freshReviews.value=new Set();arrivalAnnouncement.value='';}
+watch([()=>props.live?.liveId,()=>props.loading,()=>props.ended,()=>pending.value.map(r=>r.reviewId).join(',')],()=>{
+ const scope=props.live?.liveId??'';
+ if(scope!==arrivalScope){clearArrivals();seenReviews=null;arrivalScope=scope;}
+ if(!scope||props.ended){clearArrivals();seenReviews=null;return;}
+ if(props.loading)return;
+ const ids=pending.value.map(r=>r.reviewId);
+ if(!seenReviews){seenReviews=new Set(ids);return;}
+ const added=ids.filter(id=>!seenReviews!.has(id));
+ for(const id of ids)seenReviews.add(id);
+ const current=new Set(ids);freshReviews.value=new Set([...freshReviews.value].filter(id=>current.has(id)));
+ if(!freshReviews.value.size)arrivalAnnouncement.value='';
+ if(!added.length)return;
+ freshReviews.value=new Set([...freshReviews.value,...added]);
+ arrivalAnnouncement.value=`새 결정 대기 요청 ${freshReviews.value.size}건이 도착했습니다.`;
+ for(const id of added){arrivalTimers.set(id,setTimeout(()=>{freshReviews.value=new Set([...freshReviews.value].filter(x=>x!==id));arrivalTimers.delete(id);if(!freshReviews.value.size)arrivalAnnouncement.value='';},8000));}
+},{immediate:true});
+onBeforeUnmount(clearArrivals);
 // 같은 시청자가 같은 문장을 보낸 다른 사건. 문장이 같으면 이미 결정한 검토가 다시 열린 것처럼 보이므로 함께 보여 준다.
 const sameText = (t: string | null) => (t ?? '').replace(/\s+/g, ' ').trim();
 function repeatsOf(r: LiveReview) {
@@ -108,8 +133,8 @@ function toggleCategory(r: LiveReview, c: Category, on: boolean) { const now = c
 // 결정 대기는 강퇴 승인과 문맥 검토를 따로 보여 준다(정책상 별개의 결정).
 // 영역마다 한 줄 목록이고, 고른 건 하나만 펼친다. 처음에는 영역의 맨 위(오래 기다린) 건을 펼친다.
 const queues = computed(() => [
-  { kind: 'KICK' as const, title: '강퇴 승인 대기', note: `유형과 관계없이 확정 위반 ${KICK_THRESHOLD}건이 쌓인 시청자입니다. 승인해도 기준 사건을 다시 확인한 뒤 실행됩니다.`, empty: '강퇴 승인 요청이 없습니다.', items: pending.value.filter(r => r.kind === 'KICK') },
-  { kind: 'CONTEXT' as const, title: '문맥 검토 대기', note: 'AI 제안은 참고용입니다. 공개 여부는 운영자가 결정합니다.', empty: '문맥 검토할 채팅이 없습니다.', items: pending.value.filter(r => r.kind === 'CONTEXT') }
+  { kind: 'KICK' as const, title: '강퇴 승인 대기', empty: '강퇴 승인 요청이 없습니다.', items: pending.value.filter(r => r.kind === 'KICK') },
+  { kind: 'CONTEXT' as const, title: '문맥 검토 대기', empty: '문맥 검토할 채팅이 없습니다.', items: pending.value.filter(r => r.kind === 'CONTEXT') }
 ]);
 const openIds = reactive<Record<LiveReview['kind'], string | null>>({ KICK: null, CONTEXT: null }); // '' = 모두 접음
 function activeOf(kind: LiveReview['kind']) {
@@ -117,9 +142,10 @@ function activeOf(kind: LiveReview['kind']) {
   return id === '' ? null : (items.find(r => r.reviewId === id) ?? items[0])?.reviewId ?? null;
 }
 const isOpen = (r: LiveReview) => activeOf(r.kind) === r.reviewId;
-// 두 대기열은 탭으로 나눈다. 처음에는 강퇴 요청이 있으면 강퇴 탭, 없으면 문맥 탭을 보여 주고, 그다음부터는 고른 탭을 유지한다.
+// 두 열을 동시에 표시한다. 클릭·키보드 초점이 있는 열에서 탐색 단축키를 적용한다.
 const queueTab = ref<LiveReview['kind'] | null>(null);
-const shownQueue = computed(() => { const kind = queueTab.value ?? (queues.value[0].items.length ? 'KICK' : 'CONTEXT'); return queues.value.find(q => q.kind === kind)!; });
+const monitorQueues=computed(()=>[queues.value[0],queues.value[1]]);
+const shownQueue = computed(() => { const kind = queueTab.value ?? (queues.value[1].items.length ? 'CONTEXT' : 'KICK'); return queues.value.find(q => q.kind === kind)!; });
 function toggleReview(r: LiveReview) { openIds[r.kind] = isOpen(r) ? '' : r.reviewId; }
 // 결정은 하나를 고른 뒤 제출한다. 위반 확정을 고를 때만 위반 유형을 고른다.
 const choice = reactive<Record<string, ContextDecision | KickDecision>>({});
@@ -133,7 +159,6 @@ function submit(r: LiveReview) {
   if (!value) return;
   emit('decide', r, value, '', value === 'CONFIRM_VIOLATION' ? categoriesOf(r) : []);
 }
-const excerptOf = (r: LiveReview) => r.kind === 'KICK' ? `확정 사건 ${r.basisCaseIds.length}건` : targetText(r) ?? '';
 // 결정이 반영되어 대기 목록에서 빠지면 입력값을 지운다.
 watch(() => pending.value.map(r => r.reviewId), ids => { for (const id of Object.keys(choice)) if (!ids.includes(id)) { delete picked[id]; delete choice[id]; } });
 const basisCases = (r: LiveReview) => r.basisCaseIds.map(id => ({ id, item: caseById.value.get(id) }));
@@ -194,6 +219,7 @@ function flowOf(c: LiveCase): FlowStep[] {
       ? { label: 'AI 판정', time: null, detail: `${verdictLabels[finding.verdict]} (${finding.verdict}) · ${finding.reason}${finding.policyIds.length ? ` · 정책 ${finding.policyIds.join(', ')}` : ''}`, tone: 'done' }
       : review ? { label: 'AI 판정', time: null, detail: '없음 · 운영자가 주변 문맥을 보고 직접 결정', tone: 'skip' }
       : { label: 'AI 판정', time: null, detail: '판정 대기', tone: 'wait' });
+    if(review)steps.push({label:'문맥 검토 요청',time:asTime(review.createdAt),detail:reviewStatusLabels[review.status] ?? review.status,tone:review.status==='PENDING'?'wait':'done'});
     const decided = last('REVIEW_DECIDED');
     if (review?.status === 'PENDING' || c.confirmationStatus === 'PENDING') steps.push({ label: '운영자 결정', time: null, detail: decided ? `보류됨 (${at(decided)}) · 다시 결정 대기` : '결정 대기', tone: 'wait' });
     else steps.push({ label: '운영자 결정', time: at(decided), detail: c.confirmationStatus === 'CONFIRMED_NORMAL' ? '정상 확정' : '위반 확정', tone: 'done' });
@@ -210,10 +236,10 @@ function flowOf(c: LiveCase): FlowStep[] {
 }
 const openCase = ref<string | null>(null);
 function toggleCase(id: string) { openCase.value = openCase.value === id ? null : id; }
-function showFlow(caseId: string) { openCase.value = caseId; caseTab.value = 'cases'; caseFilter.value = 'ALL'; goto('cases'); }
-// 사건 이력: '사건'과 '검토 기록'을 탭으로 나누고, 사건은 상태로 걸러 본다.
+function showFlow(caseId: string) { openCase.value = caseId; caseFilter.value = 'ALL'; goto('cases'); }
+// 검토 정보는 사건의 처리 흐름에 합치고, 사건을 찾을 수 없는 요청은 별도로 남긴다.
 type CaseFilter = 'ALL' | 'PENDING' | 'VIOLATION' | 'RULE' | 'CLEARED';
-const caseTab = ref<'cases' | 'reviews'>('cases');
+const unlinkedReviews = computed(() => props.reviews.filter(r => !props.cases.some(c => c.caseId===r.caseId || (r.kind==='KICK' && r.basisCaseIds.includes(c.caseId)))));
 const caseFilter = ref<CaseFilter>('ALL');
 const caseFilters: { key: CaseFilter; label: string; match: (c: LiveCase) => boolean }[] = [
   { key: 'ALL', label: '전체', match: () => true },
@@ -261,21 +287,22 @@ const shownChats = computed(() => {
   return chatRows.value.filter(m => f.match(m) && (!q || m.text.includes(q) || m.authorAlias.includes(q)));
 });
 
+function focusReview(id:string){document.querySelector<HTMLElement>(`[data-review-id="${CSS.escape(id)}"] .review-head`)?.focus();}
 async function navigateTool(action: ShortcutAction) {
  if(!props.live||props.ended||props.busy)return;
  if(action==='search'){
   goto('chats');await nextTick();document.querySelector<HTMLInputElement>('[aria-label="채팅 기록 검색"]')?.focus();return;
  }
- const items=shownQueue.value.items;if(!items.length){goto('reviews');return;}
- const active=page.value==='reviews'?items.findIndex(r=>isOpen(r)):-1;
+ const items=shownQueue.value.items;if(!items.length){goto('monitor');return;}
+ const active=page.value==='monitor'?items.findIndex(r=>isOpen(r)):-1;
  if(action==='toggle'){
-  if(page.value!=='reviews'){goto('reviews');}
+  if(page.value!=='monitor'){goto('monitor');}
   else toggleReview(items[Math.max(0,active)]);
  }else{
   const index=active<0?(action==='next'?0:items.length-1):Math.max(0,Math.min(items.length-1,active+(action==='next'?1:-1)));
-  openIds[shownQueue.value.kind]=items[index].reviewId;goto('reviews');
+  openIds[shownQueue.value.kind]=items[index].reviewId;goto('monitor');
  }
- await nextTick();document.querySelector<HTMLElement>('.studio-review.open .review-head')?.focus();
+ await nextTick();focusReview(activeOf(shownQueue.value.kind)??items[Math.max(0,active)].reviewId);
 }
 async function openToolAlert(reviewId:string,kind:OperatorAlert['kind']){
  const r=props.reviews.find(r=>r.reviewId===reviewId&&r.liveId===props.live?.liveId);
@@ -284,18 +311,14 @@ async function openToolAlert(reviewId:string,kind:OperatorAlert['kind']){
   showFlow(r.caseId);await nextTick();
   document.querySelector<HTMLElement>(`[data-case-id="${CSS.escape(r.caseId)}"] .vm-expand`)?.focus();return;
  }
- if(r.status==='PENDING'){openDecision(r);await nextTick();document.querySelector<HTMLElement>('.studio-review.open .review-head')?.focus();}
+ if(r.status==='PENDING'){openDecision(r);await nextTick();focusReview(r.reviewId);}
 }
-function openDecision(r: LiveReview) { queueTab.value = r.kind; openIds[r.kind] = r.reviewId; goto('reviews'); }
+function openDecision(r: LiveReview) { queueTab.value = r.kind; openIds[r.kind] = r.reviewId; goto('monitor'); }
 
 // 시청자 관리: 사건·검토를 시청자 이름으로 묶는다. 무효가 된 검토는 빼고 보여 준다.
 const viewerRows = computed(() => groupByViewer(
   props.cases.map((c): ViewerCase => ({ caseId: c.caseId, name: nameOf(c.caseId), createdAt: iso(c.createdAt), text: targetText(c), confirmationStatus: c.confirmationStatus, findings: c.confirmedFindings.map(f => ({ findingId: f.findingId, category: f.category, status: f.status })), violationCount: c.violationCount ?? null, version: c.version })),
   props.reviews.filter(r => r.status !== 'INVALIDATED').map((r): ViewerReview => ({ reviewId: r.reviewId, kind: r.kind, status: r.status === 'PENDING' ? 'PENDING' : 'DECIDED', createdAt: iso(r.createdAt), summary: r.summary, caseIds: r.kind === 'CONTEXT' ? [r.caseId] : r.basisCaseIds }))));
-function onViewerDecide(v: ViewerReview, value: string, reason: string) {
-  const r = props.reviews.find(x => x.reviewId === v.reviewId); if (!r) return;
-  emit('decide', r, value as ContextDecision | KickDecision, reason, value === 'CONFIRM_VIOLATION' ? categoriesOf(r) : []);
-}
 function onViewerRevoke(item: ViewerCase, f: ViewerFinding, reason: string) { emit('revoke', item.caseId, f.findingId, reason); }
 
 const casesByTime = computed(() => [...props.cases].sort((a, b) => Date.parse(iso(b.createdAt)) - Date.parse(iso(a.createdAt))));
@@ -312,26 +335,23 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
 
 <template>
   <div class="app-shell studio-shell">
-    <header class="topbar"><div class="topbar-title"><button class="yt-icon-button" :class="{on: navVisible}" :title="navVisible ? '메뉴 닫기' : '메뉴 열기'" aria-controls="operator-nav" :aria-expanded="navVisible" @click="toggleNav"><Menu :size="22"/></button><span class="yt-logo"><span class="yt-logo-mark"><ShieldCheck :size="15"/></span><b>LIVE<span>:</span>GUARD</b></span><span class="console-tag">Studio</span></div>
-      <div class="topbar-right"><ModeBadge :mock="mock" :online="online"/><span class="yt-me" :style="{background: avatarColor(nickname)}" :title="nickname">{{nickname.slice(0,1)}}</span><span class="operator-info">{{nickname}}</span><button class="header-logout" @click="emit('logout')"><LogOut :size="16"/> 로그아웃</button></div></header>
+    <header class="topbar"><div class="topbar-title"><button class="yt-icon-button" :class="{on: navVisible}" :title="navVisible ? '메뉴 닫기' : '메뉴 열기'" aria-controls="operator-nav" :aria-expanded="navVisible" @click="toggleNav"><Menu :size="22"/></button><span class="yt-logo" role="img" aria-label="LIVE:GUARD Studio"><span class="yt-logo-mark"><ShieldCheck :size="15"/></span><b>LIVE<span>:</span>GUARD</b></span><span class="console-tag">Studio</span></div>
+      <div class="topbar-right"><ModeBadge v-if="mock" mock/><StreamCreateMenu :live="!!live && !ended" :disabled="mock || loading || busy" :reason="loading ? '방송 상태를 확인하고 있습니다.' : busy ? '요청을 처리하고 있습니다.' : mock ? '목업 방송을 시연 중입니다.' : ''" @start="emit('start')" @end="emit('end')"/><DecisionNotifications :reviews="ended ? [] : pending" :live-id="live?.liveId??''" :ended="ended" @settings="operatorToolsRef?.openSettings()" @activity="operatorToolsRef?.openAlerts()" @open="openToolAlert($event.reviewId, 'new')"/><AccountMenu brand-avatar :nickname="nickname" @logout="emit('logout')"/></div></header>
     <div class="app-body">
       <div v-if="!wide && navOpen" class="nav-backdrop" @click="navOpen = false"/>
-      <aside id="operator-nav" class="sidebar" :class="{open: !wide && navOpen, docked: wide && !navCollapsed}" :aria-hidden="!navVisible" :inert="!navVisible">
-        <div class="sidebar-channel"><span class="yt-channel-avatar big">🎮</span><b>채널 콘텐츠 관제</b><small>{{channelName}}</small></div>
+      <aside id="operator-nav" class="sidebar" :class="{open: !wide && navOpen, docked: wide, compact: wide && navCollapsed}" :aria-hidden="!wide && !navOpen" :inert="!wide && !navOpen">
+        <div class="sidebar-channel"><span class="yt-channel-avatar big brand-channel-avatar" role="img" aria-label="LIVE:GUARD 채널"><ShieldCheck :size="48" :stroke-width="1.8"/></span><b>채널 콘텐츠 관제</b><small>{{channelName}}</small></div>
         <nav class="side-nav" aria-label="운영자 메뉴">
-          <button :class="{active: page==='monitor'}" :aria-current="page==='monitor' ? 'page' : undefined" @click="goto('monitor')"><Radio :size="22" :stroke-width="1.8"/><span>실시간 관제</span></button>
-          <button :class="{active: page==='reviews'}" :aria-current="page==='reviews' ? 'page' : undefined" @click="goto('reviews')"><ClipboardCheck :size="22" :stroke-width="1.8"/><span>결정 대기</span><b v-if="pending.length" class="side-count">{{pending.length}}</b></button>
-          <button :class="{active: page==='viewers'}" :aria-current="page==='viewers' ? 'page' : undefined" @click="goto('viewers')"><Users :size="22" :stroke-width="1.8"/><span>시청자 관리</span></button>
-          <button :class="{active: page==='cases'}" :aria-current="page==='cases' ? 'page' : undefined" @click="goto('cases')"><FileClock :size="22" :stroke-width="1.8"/><span>사건 이력</span></button>
- <button :class="{active: page==='chats'}" :aria-current="page==='chats' ? 'page' : undefined" @click="goto('chats')"><MessagesSquare :size="22" :stroke-width="1.8"/><span>채팅 기록</span></button>
-          <button :class="{active: page==='policy'}" :aria-current="page==='policy' ? 'page' : undefined" @click="goto('policy')"><BookOpen :size="22" :stroke-width="1.8"/><span>채팅 관제 운영 정책</span></button>
+          <button :title="pending.length ? `실시간 모니터링 · 결정 대기 ${pending.length}건` : '실시간 모니터링'" aria-label="실시간 모니터링" :class="{active: page==='monitor'}" :aria-current="page==='monitor' ? 'page' : undefined" @click="goto('monitor')"><Radio :size="22" :stroke-width="1.8"/><span>실시간 모니터링</span><i v-if="pending.length" class="side-unread-dot" aria-hidden="true"/></button>
+          <button title="시청자 관리" aria-label="시청자 관리" :class="{active: page==='viewers'}" :aria-current="page==='viewers' ? 'page' : undefined" @click="goto('viewers')"><Users :size="22" :stroke-width="1.8"/><span>시청자 관리</span></button>
+          <button title="기록" aria-label="기록" :class="{active: page==='cases' || page==='chats'}" :aria-current="page==='cases' || page==='chats' ? 'page' : undefined" @click="goto('cases')"><FileClock :size="22" :stroke-width="1.8"/><span>기록</span></button>
+          <button class="sidebar-policy-link" title="채팅 관제 운영 정책" aria-label="채팅 관제 운영 정책" :class="{active: page==='policy'}" :aria-current="page==='policy' ? 'page' : undefined" @click="goto('policy')"><BookOpen :size="22" :stroke-width="1.8"/><span>채팅 관제 운영 정책</span></button>
         </nav>
-        <div class="sidebar-foot">운영정책 v3.2 기준</div>
+        <div class="sidebar-foot"><span>운영정책 v3.2 기준</span><span>LIVE:GUARD · API v1.0 (liveId)</span></div>
       </aside>
       <div class="workspace">
         <main class="main-content">
-          <div class="status-strip"><div><Sparkles :size="16"/><b>{{pageTitles[page]}}</b></div>
-            <div class="status-controls"><button v-if="!mock" @click="emit('refresh')"><RefreshCcw :size="14"/> 새로고침</button><button v-if="!mock && !loading && (!live || ended)" class="primary" :disabled="busy" @click="emit('start')">방송 시작</button><button v-if="!mock && live && !ended" :disabled="busy" @click="emit('end')">방송 종료</button></div></div>
+          <div v-if="(page!=='monitor' || !live) && page!=='cases' && page!=='chats' && page!=='viewers'" class="status-strip"><div><Radio :size="18"/><b>{{pageTitles[page]}}</b></div></div>
           <OperatorTools ref="operatorToolsRef" :live-id="live?.liveId??''" :ended="ended" :reviews="reviews" :progress="kickProgress" @navigate="navigateTool" @open="openToolAlert"/>
           <p v-if="error" class="error-inline" role="alert"><AlertCircle :size="17"/> {{error}}</p>
           <p v-if="notice" class="studio-notice" role="status">{{notice}}</p>
@@ -339,52 +359,52 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
 
           <section v-if="!live && !loading" class="card secondary-page studio-empty"><Radio :size="30"/><h2>진행 중인 방송이 없습니다</h2><p>방송을 시작하면 시청자 채팅과 AI 조사 결과를 확인할 수 있습니다.</p></section>
           <template v-else-if="live">
-            <div class="studio-live-line"><span :class="ended ? 'ended' : 'on'">{{ended ? '종료' : '● LIVE'}}</span> 방송 {{live.liveId.slice(0,8)}} · {{asTime(live.startedAt)}} 시작<template v-if="ended"> · 방송이 종료되어 결정할 수 없습니다</template><DecisionNotifications :reviews="ended ? [] : pending" :live-id="live.liveId" :ended="ended" @settings="operatorToolsRef?.openSettings()" @open="openToolAlert($event.reviewId, 'new')"/></div>
-
-            <template v-if="page==='monitor'">
-            <section class="monitor-grid chat-only">
-              <div class="stream-panel card"><div class="stream-caption"><span class="yt-channel-avatar">🎮</span><div><b>{{mock ? '오늘도 게임하는 날! 같이 놀아요 🎮' : '오늘의 라이브'}}</b><small>{{channelName}} · <span class="live-badge">{{ended ? '방송 종료' : '● 실시간'}}</span></small></div></div></div>
-              <div class="chat-panel card"><div class="panel-heading"><h2>실시간 채팅 <ChevronDown :size="17"/></h2><div class="panel-heading-end"><button v-if="feedOn !== null" class="icon-control" :class="{on: feedOn}" :title="feedOn ? '채팅 흐름 일시정지 (MOCK)' : '채팅 흐름 재생 (MOCK)'" :aria-pressed="feedOn" @click="emit('toggleFeed')"><Pause v-if="feedOn" :size="17"/><Play v-else :size="17"/></button><button class="blocked-toggle" :class="{on: filter==='private'}" :aria-pressed="filter==='private'" @click="filter = filter==='all' ? 'private' : 'all'" :title="filter==='all' ? '임시 비노출·숨김 채팅만 보기' : '전체 채팅 보기'">비공개 채팅 <b>{{privateCount}}</b></button></div></div>
-                <div class="scan-wrap"><span class="ai-scan" aria-hidden="true"/><div ref="chatRef" class="chat-list" @scroll.passive="onScroll">
-                  <div v-for="m in shownMessages" :key="m.messageId" :data-message-id="m.messageId" class="chat-row" :class="{held: m.visibility==='HELD', hidden: m.visibility==='HIDDEN'}"><span class="chat-avatar" :style="{background: avatarColor(m.authorAlias)}">{{m.authorAlias.slice(0,1)}}</span><span class="chat-line"><b>{{m.authorAlias}}</b><span class="chat-text">{{m.text}}</span></span><span v-if="m.visibility!=='PUBLIC'" class="state-pill" :class="m.visibility.toLowerCase()">{{visibilityLabels[m.visibility]}}</span><time class="chat-time" :datetime="iso(m.sentAt)" :title="asTime(m.sentAt)">{{hourMinute(iso(m.sentAt))}}</time></div>
-                  <div v-if="!shownMessages.length" class="empty-block">표시할 채팅이 없습니다.</div></div>
-                  <button v-if="unread" class="new-msg-pill" @click="toBottom()">새 메시지 {{unread}}개 <ChevronDown :size="15"/></button></div>
-                <div class="chat-footer"><div class="ai-notice"><ShieldCheck :size="15"/> 임시 비노출·숨김 채팅은 작성자와 담당 운영자에게만 보입니다.</div><details v-if="$slots.demo" class="demo-fold"><summary>목업 빠른 시연</summary><slot name="demo"/></details></div>
-              </div>
-            </section>
-            </template>
-
-            <section v-else-if="page==='reviews'" class="queue-page">
-                <section class="hitl-section decision-queue" :class="shownQueue.kind.toLowerCase()" aria-label="운영자 결정 대기">
-                  <header class="section-head"><span class="section-icon human"><ClipboardCheck :size="17"/></span><b>운영자 결정 대기</b><span class="pending-count">{{pending.length}}건</span></header>
-                  <div class="studio-tabs queue-tabs" role="tablist" aria-label="결정 대기 종류"><button v-for="q in queues" :key="q.kind" role="tab" :aria-selected="shownQueue.kind===q.kind" :class="{on: shownQueue.kind===q.kind}" @click="queueTab=q.kind"><UserX v-if="q.kind==='KICK'" :size="15"/><ClipboardCheck v-else :size="15"/>{{q.kind==='KICK' ? '강퇴 승인' : '문맥 검토'}} <b>{{q.items.length}}</b><i v-if="q.items.length && shownQueue.kind!==q.kind" class="tab-alert" aria-label="대기 중"/></button></div>
-                  <p class="queue-note">{{shownQueue.note}}</p>
-                  <p v-if="!shownQueue.items.length" class="section-empty">{{shownQueue.empty}}</p>
-                  <article v-for="r in shownQueue.items" :key="r.reviewId" class="studio-review" :class="[r.kind.toLowerCase(), {open: isOpen(r)}]" :data-review-id="r.reviewId" :data-version="r.version">
-                    <button type="button" class="review-head" :aria-expanded="isOpen(r)" @click="toggleReview(r)">
-                      <ChevronDown v-if="isOpen(r)" :size="16"/><ChevronRight v-else :size="16"/>
-                      <b>{{nameOf(r.caseId)}}</b>
-                      <span class="review-excerpt">{{excerptOf(r)}}</span>
-                      <span v-if="r.kind==='CONTEXT' && findingsOf(r)[0]" class="verdict-badge" :class="verdictTone(findingsOf(r)[0].verdict)">{{verdictLabels[findingsOf(r)[0].verdict]}}</span><span v-else-if="noAiResult(r)" class="verdict-badge no-ai">AI 결과 없음</span>
-                      <small :title="r.kind==='CONTEXT' && sentAt(r) ? `메시지 보낸 시각 · 검토 요청 ${asTime(r.createdAt)} · 버전 ${r.version}` : `강퇴 승인 요청 시각 · 버전 ${r.version}`">{{asTime(r.kind==='CONTEXT' && sentAt(r) ? sentAt(r) : r.createdAt)}}</small>
+            <div v-if="page==='monitor'" class="studio-broadcast-summary"><h1 v-if="page==='monitor'">{{ended ? '방송이 종료되었습니다' : BROADCAST_TITLE}}</h1><b v-if="page!=='monitor' || ended">{{BROADCAST_TITLE}}</b><div class="studio-live-line"><span>{{channelName}}</span><span>· {{asTime(live.startedAt)}} 시작</span><span v-if="ended" class="ended">· 방송 종료 — 결정할 수 없습니다</span></div></div>
+            <p v-if="arrivalAnnouncement" class="monitor-arrival-announcement" role="status">{{arrivalAnnouncement}}</p>
+            <div v-if="page==='monitor'" class="live-monitoring-grid queue-page">
+                <StatusSummaryWidget v-for="q in monitorQueues" :key="q.kind" :title="q.title" :kind="q.kind" :count="q.items.length" :empty-text="q.empty" :fresh="q.items.some(r=>freshReviews.has(r.reviewId))" :ended="ended" @focusin="queueTab=q.kind" @click="queueTab=q.kind">
+                  <article v-for="r in q.items" :key="r.reviewId" class="studio-review" :class="[r.kind.toLowerCase(), {open: isOpen(r), 'review-arrival': freshReviews.has(r.reviewId)}]" :data-review-id="r.reviewId" :data-version="r.version">
+                    <button v-if="r.kind==='CONTEXT'" type="button" class="review-head review-chat-row" :aria-expanded="isOpen(r)" @click="toggleReview(r)">
+                      <span class="chat-avatar" :style="{background: avatarColor(nameOf(r.caseId))}" aria-hidden="true">{{nameOf(r.caseId).slice(0,1)}}</span>
+                      <span class="chat-line"><b>{{nameOf(r.caseId)}}</b><span class="chat-text">{{targetText(r) ?? '원문 없음'}}</span><span v-if="freshReviews.has(r.reviewId)" class="review-new-badge">NEW</span><span v-if="findingsOf(r)[0]" class="verdict-badge" :class="verdictTone(findingsOf(r)[0].verdict)">{{verdictLabels[findingsOf(r)[0].verdict]}}</span><span v-else-if="noAiResult(r)" class="verdict-badge no-ai">AI 결과 없음</span></span>
+                      <time class="chat-time" :datetime="iso(sentAt(r) ?? r.createdAt)" :title="asTime(sentAt(r) ?? r.createdAt)">{{hourMinute(iso(sentAt(r) ?? r.createdAt))}}</time>
+                      <ChevronDown v-if="isOpen(r)" class="review-chat-chevron" :size="16"/><ChevronRight v-else class="review-chat-chevron" :size="16"/>
                     </button>
-                    <div v-if="isOpen(r)" class="review-body">
+                    <button v-else type="button" class="review-head" :aria-expanded="isOpen(r)" @click="toggleReview(r)"><ChevronDown v-if="isOpen(r)" :size="16"/><ChevronRight v-else :size="16"/><b>{{nameOf(r.caseId)}}</b></button>
+                    <div v-if="isOpen(r)" class="review-body" :class="{'context-review-body': r.kind==='CONTEXT'}">
                       <template v-if="r.kind==='CONTEXT'">
-                        <blockquote v-if="targetText(r)" class="review-target">{{targetText(r)}}</blockquote>
-                        <div v-if="noAiResult(r)" class="no-ai-box" role="note" aria-label="AI 결과 없음"><b>AI 결과 없음</b><p>{{r.summary || NO_AI_NOTICE}}</p><small>AI 판정이 마감(기본 3분) 안에 오지 않았거나 분석이 실패해 AI 결과 없이 검토가 열렸습니다. 메시지는 계속 임시 비노출입니다. 결정하면 백엔드가 바로 적용합니다. 그 전에 판정이 늦게 오면 이 카드에 AI 제안이 붙습니다.</small></div>
-                        <AiEvidence v-else :findings="findingsOf(r)" :mock="mock"/>
-                        <div class="review-choice" role="radiogroup" aria-label="결정"><label v-for="opt in contextChoices" :key="opt.value" :class="{on: choice[r.reviewId]===opt.value}"><input type="radio" :name="'choice-' + r.reviewId" :value="opt.value" v-model="choice[r.reviewId]" :disabled="busy || ended"/>{{opt.label}}</label></div>
-                        <fieldset v-if="choice[r.reviewId]==='CONFIRM_VIOLATION'" class="review-categories"><legend>적용할 위반 유형</legend><label v-for="(name, key) in categoryLabels" :key="key"><input type="checkbox" :checked="categoriesOf(r).includes(key)" :disabled="busy || ended" @change="toggleCategory(r, key, ($event.target as HTMLInputElement).checked)"/>{{name}}</label></fieldset>
-                        <div class="review-submit"><button class="primary" :disabled="!canSubmit(r)" @click="submit(r)">제출</button></div>
+                        <ol class="context-review-flow" aria-label="문맥 검토 판단 흐름">
+                          <li class="context-review-step">
+                            <div class="context-review-step-head"><span class="context-review-step-number" aria-hidden="true">1</span><div><h3>주변 대화 확인</h3><small>위 채팅의 전후 문맥을 확인합니다.</small></div></div>
+                            <div class="context-review-step-content">
+                              <div v-if="r.messages.some(m => !r.targetMessageIds.includes(m.messageId))" class="review-context"><b>주변 메시지 · U1은 검토 대상 작성자</b><ol><li v-for="m in r.messages.filter(m => !r.targetMessageIds.includes(m.messageId))" :key="m.messageId"><time>{{hourMinute(iso(m.sentAt))}}</time><b>{{m.authorAlias}}</b><span>{{m.text}}</span></li></ol></div>
+                              <p v-else class="context-review-hint">제공된 주변 메시지가 없습니다. 위 채팅과 AI 근거를 함께 확인해 주세요.</p>
+                            </div>
+                          </li>
+                          <li class="context-review-step">
+                            <div class="context-review-step-head"><span class="context-review-step-number" aria-hidden="true">2</span><div><h3>AI 판단과 근거 확인</h3><small>AI 제안은 운영자 결정을 대신하지 않습니다.</small></div></div>
+                            <div class="context-review-step-content">
+                              <div v-if="noAiResult(r)" class="no-ai-box" role="note" aria-label="AI 결과 없음"><b>AI 결과 없음</b><p>{{r.summary || NO_AI_NOTICE}}</p><small>AI 판정이 마감(기본 3분) 안에 오지 않았거나 분석이 실패했습니다. 늦게 도착한 판정은 이 카드에 표시됩니다.</small></div>
+                              <AiEvidence v-else :findings="findingsOf(r)" :mock="mock"/>
+                            </div>
+                          </li>
+                          <li class="context-review-step context-review-decision">
+                            <div class="context-review-step-head"><span class="context-review-step-number" aria-hidden="true">3</span><div><h3>운영자 최종 결정</h3><small>제출하면 결정에 따른 채팅 공개·제한 상태가 적용됩니다.</small></div></div>
+                            <div class="context-review-step-content">
+                              <div class="review-choice" role="radiogroup" aria-label="결정"><label v-for="opt in contextChoices" :key="opt.value" :class="{on: choice[r.reviewId]===opt.value}"><input type="radio" :name="'choice-' + r.reviewId" :value="opt.value" v-model="choice[r.reviewId]" :disabled="busy || ended"/>{{opt.label}}</label></div>
+                              <fieldset v-if="choice[r.reviewId]==='CONFIRM_VIOLATION'" class="review-categories"><legend>적용할 위반 유형</legend><label v-for="(name, key) in categoryLabels" :key="key"><input type="checkbox" :checked="categoriesOf(r).includes(key)" :disabled="busy || ended" @change="toggleCategory(r, key, ($event.target as HTMLInputElement).checked)"/>{{name}}</label></fieldset>
+                              <p class="review-foot">정상 확정: 공개 · 위반 확정: 숨김 및 기준표의 채팅 제한 · 보류: 임시 비노출 유지</p>
+                              <div class="review-submit"><button class="primary" :disabled="!canSubmit(r)" @click="submit(r)">제출</button></div>
+                            </div>
+                          </li>
+                        </ol>
                         <details class="review-more"><summary>자세히</summary>
                           <p v-if="repeatsOf(r).length" class="review-repeats">같은 시청자가 같은 문장을 {{repeatsOf(r).length}}번 더 보냈습니다: <span v-for="x in repeatsOf(r)" :key="x.caseId">{{x.time}} {{x.status}}</span></p>
-                          <div class="review-context"><b>마스킹된 주변 문맥 · U1 = 검토 대상 작성자</b><ol><li v-for="m in r.messages" :key="m.messageId" :class="{target: r.targetMessageIds.includes(m.messageId)}"><b>{{m.authorAlias}}</b> {{m.text}}</li></ol></div>
-                          <p class="review-foot">정상 확정은 공개, 위반 확정은 숨김과 기준표의 채팅 제한, 보류는 임시 비노출을 유지합니다.</p>
                           <button type="button" class="review-flow-link" @click="showFlow(r.caseId)">처리 흐름 보기 →</button>
                         </details>
                       </template>
                       <template v-else>
-                        <table class="sanction-log basis-log"><caption>기준 사건 {{r.basisCaseIds.length}}건</caption><thead><tr><th>시간</th><th>유형</th><th>메시지</th><th>상태</th></tr></thead><tbody>
+                        <table class="sanction-log basis-log" aria-label="강퇴 요청 근거 사건"><thead><tr><th>시간</th><th>유형</th><th>메시지</th><th>상태</th></tr></thead><tbody>
                           <tr v-for="b in basisCases(r)" :key="b.id" :data-case-id="b.id"><td class="log-time">{{b.item ? asTime(b.item.createdAt) : '-'}}</td><td class="log-cat">{{b.item ? activeCategories(b.item).map(categoryName).join('·') || '-' : '-'}}</td><td class="log-text">{{b.item ? targetText(b.item) ?? '원문 없음' : `사건 ${b.id.slice(0,8)}`}}<small v-if="b.item" class="basis-reason">{{basisReason(b.item)}}</small></td><td>{{b.item ? confirmationLabels[b.item.confirmationStatus] : '확인 중'}}</td></tr></tbody></table>
                         <details v-for="b in basisCases(r).filter(b => b.item && !isRule(b.item))" :key="'evidence-' + b.id" class="review-more"><summary>기준 사건 AI 판단 근거 · {{b.id.slice(0,8)}}</summary><AiEvidence :findings="b.item?.findings ?? []" :mock="mock"/></details>
                         <div class="review-choice" role="radiogroup" aria-label="결정"><label v-for="opt in kickChoices" :key="opt.value" :class="{on: choice[r.reviewId]===opt.value}"><input type="radio" :name="'choice-' + r.reviewId" :value="opt.value" v-model="choice[r.reviewId]" :disabled="busy || ended"/>{{opt.label}}</label></div>
@@ -396,25 +416,30 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
                       </template>
                     </div>
                   </article>
-                </section>
+                </StatusSummaryWidget>
+            <section class="monitor-grid chat-only">
+
+              <div class="chat-panel card"><div class="panel-heading"><h2>실시간 채팅 <ChevronDown :size="17"/></h2><div class="panel-heading-end"><button v-if="feedOn !== null" class="icon-control" :class="{on: feedOn}" :title="feedOn ? '채팅 흐름 일시정지 (MOCK)' : '채팅 흐름 재생 (MOCK)'" :aria-pressed="feedOn" @click="emit('toggleFeed')"><Pause v-if="feedOn" :size="17"/><Play v-else :size="17"/></button><button class="blocked-toggle" :class="{on: filter==='private'}" :aria-pressed="filter==='private'" @click="filter = filter==='all' ? 'private' : 'all'" :title="filter==='all' ? '임시 비노출·숨김 채팅만 보기' : '전체 채팅 보기'">비공개 채팅 <b>{{privateCount}}</b></button></div></div>
+                <div class="scan-wrap"><span class="ai-scan" aria-hidden="true"/><div ref="chatRef" class="chat-list" @scroll.passive="onScroll">
+                  <div v-for="m in shownMessages" :key="m.messageId" :data-message-id="m.messageId" class="chat-row" :class="{held: m.visibility==='HELD', hidden: m.visibility==='HIDDEN'}"><span class="chat-avatar" :style="{background: avatarColor(m.authorAlias)}">{{m.authorAlias.slice(0,1)}}</span><span class="chat-line"><b>{{m.authorAlias}}</b><span class="chat-text">{{m.text}}</span></span><span v-if="m.visibility!=='PUBLIC'" class="state-pill" :class="m.visibility.toLowerCase()">{{visibilityLabels[m.visibility]}}</span><time class="chat-time" :datetime="iso(m.sentAt)" :title="asTime(m.sentAt)">{{hourMinute(iso(m.sentAt))}}</time></div>
+                  <div v-if="!shownMessages.length" class="empty-block">표시할 채팅이 없습니다.</div></div>
+                  <button v-if="unread" class="new-msg-pill" @click="toBottom()">새 메시지 {{unread}}개 <ChevronDown :size="15"/></button></div>
+                <div class="chat-footer"><div class="ai-notice"><ShieldCheck :size="15"/> 임시 비노출·숨김 채팅은 작성자와 담당 운영자에게만 보입니다.</div><details v-if="$slots.demo" class="demo-fold"><summary>목업 빠른 시연</summary><slot name="demo"/></details></div>
+              </div>
             </section>
+            </div>
 
-            <ViewerManage v-else-if="page==='viewers'" :rows="viewerRows" :busy="busy || ended" scope="현재 방송" @decide="onViewerDecide" @revoke="onViewerRevoke"/>
+            <ViewerManage v-else-if="page==='viewers'" :rows="viewerRows" :busy="busy || ended" scope="현재 방송" @revoke="onViewerRevoke" @open-case="showFlow" @open-review="openToolAlert($event, 'new')"/>
 
-            <section v-else-if="page==='cases'" class="secondary-page card"><div class="secondary-heading"><div><h2><FileClock :size="24"/> 사건 이력</h2><p>행을 펼치면 사건 하나가 어떻게 처리됐는지 단계별로 볼 수 있습니다.</p></div></div>
-              <div class="studio-tabs" role="tablist" aria-label="사건 이력 보기"><button role="tab" :aria-selected="caseTab==='cases'" :class="{on: caseTab==='cases'}" @click="caseTab='cases'">사건 <b>{{cases.length}}</b></button><button role="tab" :aria-selected="caseTab==='reviews'" :class="{on: caseTab==='reviews'}" @click="caseTab='reviews'">검토 기록 <b>{{reviews.length}}</b></button></div>
-              <template v-if="caseTab==='cases'">
+            <section v-else-if="page==='cases'" class="secondary-page card case-history"><div class="secondary-heading"><div><h2><FileClock :size="24"/> 사건 이력</h2><p>사건을 펼치면 채팅부터 판정·결정·조치까지 시간 흐름을 확인할 수 있습니다.</p></div></div>
+                <div class="studio-tabs record-tabs" role="tablist" aria-label="기록 종류"><button role="tab" aria-selected="true" @click="goto('cases')">판정·조치 이력</button><button role="tab" aria-selected="false" @click="goto('chats')">전체 채팅</button></div>
                 <div class="vm-chips" role="group" aria-label="사건 상태 필터"><button v-for="f in caseFilters" :key="f.key" :class="{on: caseFilter===f.key}" :aria-pressed="caseFilter===f.key" @click="caseFilter=f.key">{{f.label}} <b>{{caseCount(f.key)}}</b></button></div>
                 <div class="table-scroll"><table class="data-table case-table"><thead><tr><th class="vm-toggle-col"></th><th>시각</th><th>시청자</th><th>메시지 (마스킹)</th><th>상태</th></tr></thead><tbody>
                   <template v-for="c in shownCases" :key="c.caseId"><tr class="case-row" :class="{open: openCase===c.caseId}" :data-case-id="c.caseId" @click="toggleCase(c.caseId)"><td class="vm-toggle-col"><button class="vm-expand" :aria-expanded="openCase===c.caseId" :aria-label="`${nameOf(c.caseId)} 사건 처리 흐름 ${openCase===c.caseId ? '닫기' : '보기'}`" @click.stop="toggleCase(c.caseId)"><ChevronDown v-if="openCase===c.caseId" :size="18"/><ChevronRight v-else :size="18"/></button></td><td class="nowrap">{{asTime(c.createdAt)}}</td><td class="nowrap">{{nameOf(c.caseId)}}</td><td class="log-text">{{targetText(c) ?? '-'}}</td><td><span class="case-state" :class="caseStateOf(c).tone">{{caseStateOf(c).label}}</span></td></tr>
-                  <tr v-if="openCase===c.caseId" class="case-flow-row"><td colspan="5"><ol class="case-flow" aria-label="사건 처리 흐름"><li v-for="(step, n) in flowOf(c)" :key="n" :class="step.tone"><b>{{step.label}}</b><time>{{step.time ?? ''}}</time><span>{{step.detail}}</span></li></ol><small class="vm-muted">AI 조사 시작·완료와 운영자 결정 시각은 실시간 이벤트에만 있어, 이 화면을 연 뒤의 일만 보입니다. 새로고침하면 사라집니다.</small></td></tr></template></tbody></table></div>
+                  <tr v-if="openCase===c.caseId" class="case-flow-row"><td colspan="5"><ol class="case-flow" aria-label="사건 처리 흐름"><li v-for="(step, n) in flowOf(c)" :key="n" :class="step.tone"><div class="case-step-heading"><b>{{step.label}}</b><time>{{step.time ?? '시각 미기록'}}</time></div><span class="case-step-detail">{{step.detail}}</span></li></ol><small class="vm-muted">AI 조사 시작·완료와 운영자 결정 시각은 실시간 이벤트에만 있어, 이 화면을 연 뒤의 일만 보입니다. 새로고침하면 사라집니다.</small></td></tr></template></tbody></table></div>
                 <p v-if="!shownCases.length" class="empty-block">{{cases.length ? '조건에 맞는 사건이 없습니다.' : '아직 사건이 없습니다.'}}</p>
-              </template>
-              <template v-else>
-                <div class="table-scroll"><table class="data-table"><thead><tr><th>요청 시각</th><th>종류</th><th>시청자</th><th>상태</th></tr></thead><tbody>
-                  <tr v-for="r in reviews" :key="r.reviewId"><td class="nowrap">{{asTime(r.createdAt)}}</td><td>{{r.kind==='KICK' ? '강퇴 승인' : '문맥 검토'}}</td><td>{{nameOf(r.caseId)}}</td><td>{{reviewStatusLabels[r.status] ?? r.status}}<template v-if="kickStateOf(r)"> · {{kickStateOf(r)}}</template></td></tr></tbody></table></div>
-                <p v-if="!reviews.length" class="empty-block">아직 검토 기록이 없습니다.</p>
-              </template></section>
+              <details v-if="unlinkedReviews.length" class="unlinked-review-records"><summary>연결 사건을 조회할 수 없는 검토 {{unlinkedReviews.length}}건</summary><p class="vm-muted">목록에 연결 사건이 없어 검토 요청 정보를 별도로 표시합니다.</p><ul><li v-for="r in unlinkedReviews" :key="r.reviewId">{{asTime(r.createdAt)}} · {{r.kind==='KICK'?'강퇴 승인':'문맥 검토'}} · {{nameOf(r.caseId)}} · {{reviewStatusLabels[r.status] ?? r.status}}<template v-if="kickStateOf(r)"> · {{kickStateOf(r)}}</template></li></ul></details>
+              </section>
 
             <section v-else-if="page==='policy'" class="secondary-page card"><div class="secondary-heading"><div><h2><BookOpen :size="24"/> 채팅 관제 운영 정책</h2><p>운영정책 v3.2(2026-10-23) 기준의 처리 경로와 제재 기준입니다. 읽기 전용이며 제재 기간은 운영자가 정하지 않습니다. 전환 전에 열린 사건은 그 사건에 기록된 v3.1로 판정합니다.</p></div></div>
               <h3 class="studio-subhead">처리 경로</h3>
@@ -442,6 +467,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
               <ul class="studio-rules"><li>유형과 관계없이 최근 24시간의 서로 다른 확정 사건이 {{KICK_THRESHOLD}}건 이상이면 강퇴 승인 요청이 만들어집니다.</li><li>운영자가 승인하면 기준 사건을 다시 확인한 뒤 실행합니다. 효력은 <b>이번 방송 종료까지</b>입니다.</li><li>승인·기각으로 결정된 요청에 쓰인 사건은 소진되어 다음 강퇴 심사에서 다시 세지 않습니다.</li><li>기준 사건이 오판 취소되면 그 강퇴 요청은 무효가 되고, 이미 실행된 강퇴도 풀립니다. 결정된 뒤 무효가 된 요청의 나머지 사건도 소진 상태로 남습니다.</li></ul></section>
 
             <section v-else-if="page==='chats'" class="secondary-page card"><div class="secondary-heading"><div><h2><MessagesSquare :size="24"/> 채팅 기록</h2><p>이번 방송의 채팅을 한곳에서 찾아봅니다. 숨김·검토 중인 채팅도 운영자에게는 보입니다.</p></div><span>{{chatRows.length}}건</span></div>
+              <div class="studio-tabs record-tabs" role="tablist" aria-label="기록 종류"><button role="tab" aria-selected="false" @click="goto('cases')">판정·조치 이력</button><button role="tab" aria-selected="true" @click="goto('chats')">전체 채팅</button></div>
               <div class="chat-db-tools"><input v-model="chatQuery" type="search" placeholder="메시지·시청자 검색" aria-label="채팅 기록 검색"/><div class="vm-chips" role="group" aria-label="채팅 상태 필터"><button v-for="f in chatFilters" :key="f.key" :class="{on: chatFilter===f.key}" :aria-pressed="chatFilter===f.key" @click="chatFilter=f.key">{{f.label}} <b>{{chatCount(f.key)}}</b></button></div></div>
               <div class="table-scroll"><table class="data-table chat-db"><thead><tr><th>시각</th><th>시청자</th><th>메시지</th><th>공개 상태</th><th>사건</th></tr></thead><tbody>
                 <tr v-for="m in shownChats" :key="m.messageId" :data-message-id="m.messageId"><td class="nowrap">{{asTime(m.sentAt)}}</td><td class="nowrap">{{m.authorAlias}}</td><td class="chat-db-text">{{m.text}}</td><td class="nowrap"><span v-if="m.visibility!=='PUBLIC'" class="state-pill" :class="m.visibility.toLowerCase()">{{visibilityLabels[m.visibility]}}</span><span v-else class="vm-muted">공개</span></td>
@@ -450,7 +476,6 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
               <div v-if="archiveMore" class="chat-db-more"><button type="button" :disabled="archiveLoading" @click="emit('loadOlder')">{{archiveLoading ? '불러오는 중…' : '이전 채팅 더 불러오기'}}</button></div>
             </section>
           </template>
-          <footer class="dashboard-footer"><span>LIVE:GUARD · API v1.0 (liveId)</span><span>프론트는 <code>/api/**</code>만 사용합니다. <code>/internal/**</code>·MCP·Agent 호출은 백엔드 담당입니다.</span></footer>
         </main>
       </div>
     </div>

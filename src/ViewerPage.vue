@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { BROADCAST_CHANNEL_NAME, BROADCAST_TITLE } from './broadcastPresentation';
 import { computed, ref } from 'vue';
 import ViewerScreen from './ViewerScreen.vue';
 import { useLiveGuard } from './stores/liveGuard';
@@ -22,8 +23,8 @@ function previewTimeout(seconds: 0 | 10 | 86400) {
 
 <template>
   <!-- 채널 이름·구독자·시청자·좋아요·알림 수는 목업 예시 값이다. 실제 API는 계약에 없어 비워 둔다 -->
-  <ViewerScreen v-model:draft="input" :messages="store.viewerMessages" :nickname="store.viewerAlias" :scope-key="store.channelId + ':' + store.viewerId" :clock="store.clock" mock :busy="store.busy" :blocked="store.kicked" :timed-out="store.timedOut" :timeout-until="store.viewerTimeoutUntil" :timeout-reason="timeoutReason" :started-at="store.mock.state.live.startedAt" :error="store.error" :notice="store.notice"
-    title="오늘도 게임하는 날! 같이 놀아요 💜 | 24시간 소통 라이브" channel-name="행복한게임방" channel-avatar="🎮" subscribers="12.4만명" viewers="2,341" :likes="3400" alerts="9+" @send="send" @logout="store.logout()">
+  <ViewerScreen :send-demo-chat="store.sendMessage" v-model:draft="input" :messages="store.viewerMessages" :nickname="store.viewerAlias" :scope-key="store.channelId + ':' + store.viewerId" :clock="store.clock" mock :busy="store.busy" :blocked="store.kicked" :timed-out="store.timedOut" :timeout-until="store.viewerTimeoutUntil" :timeout-reason="timeoutReason" :started-at="store.mock.state.live.startedAt" :error="store.error" :notice="store.notice"
+    :title="BROADCAST_TITLE" :channel-name="BROADCAST_CHANNEL_NAME" channel-avatar="🎮" subscribers="12.4만명" viewers="2,341" :likes="3400" @send="send" @logout="store.logout()">
     <template #demo>
       <div class="viewer-demo">
         <b>목업 시연</b><span>시청자 계정을 변경하면 본인의 비공개 메시지 가시성을 확인할 수 있습니다.</span>

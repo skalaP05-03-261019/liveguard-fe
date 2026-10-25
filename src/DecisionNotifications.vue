@@ -5,7 +5,7 @@ import type {LiveReview} from './contracts';
 import {dateTimeText} from './chatTime';
 const props=defineProps<{reviews:LiveReview[];liveId:string;ended:boolean}>();
 const iso=(value:string|number)=>typeof value==='number'?new Date(value).toISOString():value;
-const emit=defineEmits<{open:[review:LiveReview];settings:[]}>();
+const emit=defineEmits<{open:[review:LiveReview];settings:[];activity:[]}>();
 const expanded=ref(false),root=ref<HTMLElement|null>(null),bell=ref<HTMLButtonElement|null>(null),closeButton=ref<HTMLButtonElement|null>(null);
 async function toggle(){expanded.value=!expanded.value;if(expanded.value){await nextTick();closeButton.value?.focus();}}
 function close(restore=false){expanded.value=false;if(restore)bell.value?.focus();}
@@ -40,7 +40,7 @@ onBeforeUnmount(()=>{document.removeEventListener('pointerdown',outside);documen
      </li>
     </ul>
    </div>
-   <footer>항목을 선택하면 해당 요청의 상세 내용이 열립니다.</footer>
+   <footer>항목을 선택하면 해당 요청의 상세 내용이 열립니다.<button type="button" class="notification-activity-link" @click="close();emit('activity')">처리 알림 보기</button></footer>
   </section>
  </div>
 </template>
