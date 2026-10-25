@@ -81,6 +81,14 @@ async function gotoMonitor(page){await page.getByRole('navigation',{name:'운영
 async function showQueue(page,name){if(!(await page.locator('.queue-page').count()))await gotoQueue(page);await page.getByRole('tablist',{name:'결정 대기 종류'}).getByRole('tab',{name:new RegExp('^'+name)}).click();}
 async function openDemo(page){const fold=page.locator('.demo-fold');if(!(await fold.evaluate(el=>el.open)))await fold.locator('summary').click();}
 async function capture(page,name){if(evidence){await fs.mkdir(evidence,{recursive:true});await page.screenshot({path:path.join(evidence,`${name}.png`),fullPage:true,animations:'disabled'});}}
+async function captureReview(page,name){
+ if(!evidence)return;
+ await fs.mkdir(evidence,{recursive:true});
+ await page.evaluate(()=>{document.activeElement?.blur?.();window.scrollTo(0,0);});
+ await page.mouse.move(0,0);
+ await page.screenshot({path:path.join(evidence,`${name}.png`),fullPage:true,animations:'disabled',style:'.toast{visibility:hidden}'});
+}
+
 before(async()=>{
  server=http.createServer(async(req,res)=>{
   const role=req.headers['x-test-role']||'author',url=new URL(req.url,'http://fixture');
@@ -186,7 +194,7 @@ test('timeout is restored without own messages, keeps video and clears after ser
  state.until.author=new Date(Date.now()+600000).toISOString();state.messages=[message('other','observer')];
  const page=await open();await page.getByText('채팅이 일시 제한되었습니다',{exact:true}).waitFor();await assertTimeoutComposer(page);
  await page.reload();await page.getByText('채팅이 일시 제한되었습니다',{exact:true}).waitFor();await capture(page,'timeout-restored');
- state.until.author=null;emit('MESSAGE_RESTORED',{messageId:'other',visibility:'PUBLIC',version:2});await waitFor(async()=>await page.getByLabel('채팅 메시지',{exact:true}).isEnabled());
+ state.until.author=null;state.messages[0].version=2;emit('MESSAGE_RESTORED',{messageId:'other',visibility:'PUBLIC',version:2});await waitFor(async()=>await page.getByLabel('채팅 메시지',{exact:true}).isEnabled());
  await page.getByLabel('채팅 메시지',{exact:true}).fill('복구 후 전송');await page.getByRole('button',{name:'채팅 전송',exact:true}).click();await waitFor(()=>state.posts===1);
 });
 
@@ -1120,9 +1128,11 @@ test('admin period stats default to the last 7 days, include ended broadcasts an
  const daily=()=>page.locator('.period-daily tbody tr').count();
  assert.equal(await daily(),7);
  const week=count(await page.locator('.sys-chart-card .sys-base').first().innerText());
+ await captureReview(page,'contract-period-7days');
  // 기간 통계는 끝난 방송도 포함한다(실시간 관제에서는 빠지는 코딩 라이브)
  await range.getByRole('button',{name:'최근 30일'}).click();
  assert.equal(await daily(),30);
+ await captureReview(page,'contract-period-30days');
  assert(count(await page.locator('.sys-chart-card .sys-base').first().innerText())>week);
  assert(await page.locator('.sys-channel-name').filter({hasText:'코딩 라이브'}).count()===1);
  // 일별 그래프에 마우스를 올리면 날짜·비율 툴팁
@@ -1254,13 +1264,101 @@ test('admin counts distinct basis cases with multiple types and separates invali
  await page.getByRole('button',{name:'시스템 운영자 전용',exact:true}).click();await page.getByRole('button',{name:'로그인',exact:true}).click();
  await page.locator('.sys-filter').getByRole('button',{name:/행복한게임방/}).click();
  assert.equal(await page.locator('.request-table td:nth-child(5)').innerText(),'3건');
+ await captureReview(page,'contract-basis-desktop');
  await page.setViewportSize({width:390,height:844});
  await page.locator('.request-table .mobile-row-detail summary').click();
  assert.match(await page.locator('.request-table .mobile-row-detail').innerText(),/기준 사건 3건/);
+ await captureReview(page,'contract-basis-390');
  const status=async(value)=>page.evaluate(async(value)=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');useLiveGuard().mock.state.reviews.find(r=>r.kind==='KICK').status=value;},value);
  await status('INVALIDATED');await page.getByText('무효 · 계약 확인 필요',{exact:true}).waitFor();
+ await captureReview(page,'contract-invalidated-390');
  assert.equal(await page.locator('.attention-grid strong').first().innerText(),'0건');
  await status('DECIDED');await page.getByText('결정 정보 미확인',{exact:true}).waitFor();
+ await captureReview(page,'contract-unavailable-390');
  assert.equal(await page.locator('.sys-chart-card').nth(1).locator('.stacked-legend').count(),0);
  assert.equal(await page.getByText('스트리머 결정',{exact:true}).count(),0);
+});
+
+
+test('operator navigation shortcuts avoid typing and IME, validate keys and isolate local account settings',async()=>{
+ const page=await openMockModerator();
+ await page.evaluate(()=>document.activeElement?.blur?.());await page.keyboard.press('j');await page.locator('.queue-page').waitFor();
+ const head=page.locator('.studio-review.open .review-head');assert(await head.count()>0);
+ await page.keyboard.press('o');assert.equal(await page.locator('.studio-review.open').count(),0);
+ await page.keyboard.press('o');assert(await page.locator('.studio-review.open').count()>0);
+ await page.keyboard.press('/');const search=page.getByLabel('채팅 기록 검색',{exact:true});await search.waitFor();
+ assert.equal(await search.evaluate(e=>document.activeElement===e),true);
+ await search.fill('jko/한글');await page.keyboard.press('j');assert.match(await search.inputValue(),/j$/);
+ assert.equal(await page.locator('.queue-page').count(),0);
+ await page.evaluate(()=>document.activeElement?.blur?.());
+ await page.dispatchEvent('body','keydown',{key:'j',isComposing:true});assert.equal(await page.locator('.queue-page').count(),0);
+ await page.getByRole('button',{name:'알림·단축키 설정',exact:true}).click();
+ await page.getByLabel('다음 요청 단축키',{exact:true}).fill('k');assert.equal(await page.getByRole('button',{name:'설정 저장',exact:true}).isDisabled(),true);
+ await page.getByLabel('다음 요청 단축키',{exact:true}).fill('n');await page.getByRole('button',{name:'설정 저장',exact:true}).click();
+ await page.getByText('이 계정의 설정을 이 브라우저에 저장했습니다.',{exact:true}).waitFor();
+ await captureReview(page,'operator-tools-settings-desktop');
+ await page.getByRole('button',{name:'설정 닫기',exact:true}).click();await page.evaluate(()=>document.activeElement?.blur?.());
+ await page.keyboard.press('n');await page.locator('.queue-page').waitFor();
+ await page.evaluate(async()=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');const s=useLiveGuard();s.me={...s.me,userId:'different-operator'};});
+ await page.getByRole('button',{name:'알림·단축키 설정',exact:true}).click();assert.equal(await page.getByLabel('다음 요청 단축키',{exact:true}).inputValue(),'j');
+ await page.evaluate(()=>{Storage.prototype.setItem=function(){throw new DOMException('unavailable','QuotaExceededError');};});
+ await page.getByRole('button',{name:'설정 저장',exact:true}).click();await page.getByText('설정을 저장하지 못해 이번 화면에서만 적용합니다.',{exact:true}).waitFor();
+ await page.setViewportSize({width:390,height:844});await page.clock.runFor(100);
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,JSON.stringify(await page.evaluate(()=>[...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>innerWidth+1).slice(0,12).map(e=>({tag:e.tagName,cls:e.className,right:e.getBoundingClientRect().right})))));
+ await captureReview(page,'operator-tools-settings-390');
+});
+
+test('web operator alerts show no original text, open the current pending review and deduplicate updates',async()=>{
+ const page=await openMockModerator();await openDemo(page);await page.getByRole('button',{name:'공격 표현',exact:true}).click();
+ await page.getByRole('button',{name:/^관제 알림 [0-9]+$/}).click();
+ const list=page.getByRole('region',{name:'관제 알림 목록',exact:true});
+ const incoming=list.getByRole('button',{name:'새 문맥 검토 요청 →',exact:true});await incoming.waitFor();
+ const text=await list.innerText();assert(!text.includes('접어라'));assert(!text.includes('어둠의유저'));assert(!text.includes('010-'));
+ await page.evaluate(async()=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');useLiveGuard().mock.state.reviews.find(r=>r.kind==='CONTEXT'&&r.status==='PENDING').version++;});
+ assert.equal(await incoming.count(),1);await captureReview(page,'operator-tools-alerts-desktop');
+ await incoming.click();await page.locator('.queue-page').waitFor();assert.equal(await page.getByRole('tab',{name:/^문맥 검토/}).getAttribute('aria-selected'),'true');
+ assert.equal(await page.locator('.studio-review.open .review-head').evaluate(e=>document.activeElement===e),true);
+ assert.equal(await page.locator('.studio-review.open').getByRole('button',{name:'제출',exact:true}).isDisabled(),true);
+ await page.getByRole('button',{name:/^관제 알림 [0-9]+$/}).click();
+ await list.getByRole('button',{name:'새 문맥 검토 요청 알림 지우기',exact:true}).click();
+ await page.evaluate(async()=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');useLiveGuard().mock.state.reviews.find(r=>r.kind==='CONTEXT'&&r.status==='PENDING').version++;});
+ assert.equal(await incoming.count(),0);
+});
+
+test('web failure alerts exclude unknown results and open the matching case without taking a decision',async()=>{
+ const page=await openMockModerator();
+ const change=async(state)=>page.evaluate(async(state)=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');const m=useLiveGuard().mock.state;const r=m.reviews.find(r=>r.kind==='KICK');r.status='DECIDED';m.kickProgress[r.reviewId]=state;return r.caseId;},state);
+ await change('실행 결과 확인 중 · 실패로 단정하지 않음');await page.getByRole('button',{name:/^관제 알림 [0-9]+$/}).click();
+ assert.equal(await page.getByRole('button',{name:'강퇴 실행 실패 확인 →',exact:true}).count(),0);
+ const caseId=await change('강퇴 실행 실패 · 기존 제재 유지');await captureReview(page,'operator-tools-failure');await page.getByRole('button',{name:'강퇴 실행 실패 확인 →',exact:true}).click();
+ await page.locator('.case-row.open').waitFor();assert.equal(await page.locator('.case-row.open').getAttribute('data-case-id'),caseId);
+ await captureReview(page,'operator-tools-case-flow');
+ await page.evaluate(async()=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');useLiveGuard().mock.state.reviews.find(r=>r.kind==='KICK').status='INVALIDATED';});
+ await page.getByRole('button',{name:/^관제 알림 [0-9]+$/}).click();assert.equal(await page.getByRole('button',{name:'강퇴 실행 실패 확인 →',exact:true}).count(),0);
+});
+
+
+test('closure audit: shortcuts ignore editable fields, decided requests and previous live data',async()=>{
+ const page=await openMockModerator();await page.evaluate(()=>document.activeElement?.blur?.());await page.keyboard.press('/');
+ await page.getByLabel('채팅 기록 검색',{exact:true}).waitFor();
+ for(const tag of ['textarea','select','div']){
+  await page.evaluate(tag=>{const e=document.createElement(tag);e.id='audit-editor';if(tag==='div')e.contentEditable='true';if(tag==='select')e.appendChild(new Option('선택','one'));document.body.appendChild(e);e.focus();},tag);
+  await page.keyboard.press('j');assert.equal(await page.locator('.queue-page').count(),0,tag);
+  await page.locator('#audit-editor').evaluate(e=>e.remove());
+ }
+ await page.evaluate(async()=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');for(const r of useLiveGuard().mock.state.reviews)r.status='DECIDED';});
+ await page.evaluate(()=>document.activeElement?.blur?.());await page.keyboard.press('j');await page.locator('.queue-page').waitFor();
+ assert.equal(await page.locator('.studio-review').count(),0);
+ await page.evaluate(async()=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');const m=useLiveGuard().mock.state;m.reviews.find(r=>r.kind==='KICK').status='PENDING';m.live.liveId='audit-new-live';m.live.channelId='audit-new-channel';});
+ await page.keyboard.press('j');assert.equal(await page.locator('.studio-review').count(),0);
+ assert.equal(await page.getByRole('button',{name:'제출',exact:true}).count(),0);
+});
+
+test('closure audit: operator shortcuts stop after the live ends',async()=>{
+ const page=await open('operator');await waitFor(()=>clients.size>=2);
+ await page.evaluate(()=>document.activeElement?.blur?.());await page.keyboard.press('/');await page.getByLabel('채팅 기록 검색',{exact:true}).waitFor();
+ await gotoMonitor(page);emit('LIVE_ENDED',{liveId:'live-1'});
+ await page.locator('.studio-live-line .ended').waitFor();
+ await page.evaluate(()=>document.activeElement?.blur?.());await page.keyboard.press('/');
+ assert.equal(await page.getByLabel('채팅 기록 검색',{exact:true}).count(),0);
 });

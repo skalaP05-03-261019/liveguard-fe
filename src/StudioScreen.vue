@@ -4,6 +4,8 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { AlertCircle, BookOpen, ChevronDown, ChevronRight, ClipboardCheck, FileClock, LogOut, Menu, MessagesSquare, Pause, Play, Radio, RefreshCcw, ShieldCheck, Sparkles, Users, UserX } from 'lucide-vue-next';
 import ViewerManage from './ViewerManage.vue';
+import OperatorTools from './OperatorTools.vue';
+import type { ShortcutAction, OperatorAlert } from './operatorTools';
 import ModeBadge from './ModeBadge.vue';
 import AiEvidence from './AiEvidence.vue';
 import { groupByViewer, type ViewerCase, type ViewerFinding, type ViewerReview } from './viewerManage';
@@ -78,7 +80,7 @@ watch(() => shownMessages.value.map(m => m.messageId), async (ids, previous) => 
 });
 
 // 운영자 결정 대기: 강퇴 승인 → 문맥 검토, 각각 오래 기다린 순서
-const pending = computed(() => props.reviews.filter(r => r.status === 'PENDING')
+const pending = computed(() => props.reviews.filter(r => r.status === 'PENDING' && r.liveId === props.live?.liveId)
   .sort((a, b) => Number(b.kind === 'KICK') - Number(a.kind === 'KICK') || Date.parse(iso(a.createdAt)) - Date.parse(iso(b.createdAt))));
 // 같은 시청자가 같은 문장을 보낸 다른 사건. 문장이 같으면 이미 결정한 검토가 다시 열린 것처럼 보이므로 함께 보여 준다.
 const sameText = (t: string | null) => (t ?? '').replace(/\s+/g, ' ').trim();
@@ -122,8 +124,9 @@ const choice = reactive<Record<string, ContextDecision | KickDecision>>({});
 const contextChoices: { value: ContextDecision; label: string }[] = [{ value: 'CONFIRM_NORMAL', label: '정상 확정' }, { value: 'CONFIRM_VIOLATION', label: '위반 확정' }, { value: 'DEFER', label: '보류' }];
 const kickChoices: { value: KickDecision; label: string }[] = [{ value: 'APPROVE', label: '강퇴 승인' }, { value: 'REJECT', label: '강퇴 기각' }];
 // 결정 사유는 받지 않는다(Backend A-26: 사유는 선택이고 운영자 화면에는 입력란이 없다). 결정 값과 위반 유형만 보낸다.
-const canSubmit = (r: LiveReview) => !props.busy && !props.ended && !!choice[r.reviewId] && (choice[r.reviewId] !== 'CONFIRM_VIOLATION' || categoriesOf(r).length > 0);
+const canSubmit = (r: LiveReview) => r.status === 'PENDING' && r.liveId === props.live?.liveId && !props.busy && !props.ended && !!choice[r.reviewId] && (choice[r.reviewId] !== 'CONFIRM_VIOLATION' || categoriesOf(r).length > 0);
 function submit(r: LiveReview) {
+  if (!canSubmit(r)) return;
   const value = choice[r.reviewId];
   if (!value) return;
   emit('decide', r, value, '', value === 'CONFIRM_VIOLATION' ? categoriesOf(r) : []);
@@ -256,6 +259,31 @@ const shownChats = computed(() => {
   return chatRows.value.filter(m => f.match(m) && (!q || m.text.includes(q) || m.authorAlias.includes(q)));
 });
 
+async function navigateTool(action: ShortcutAction) {
+ if(!props.live||props.ended||props.busy)return;
+ if(action==='search'){
+  goto('chats');await nextTick();document.querySelector<HTMLInputElement>('[aria-label="채팅 기록 검색"]')?.focus();return;
+ }
+ const items=shownQueue.value.items;if(!items.length){goto('reviews');return;}
+ const active=page.value==='reviews'?items.findIndex(r=>isOpen(r)):-1;
+ if(action==='toggle'){
+  if(page.value!=='reviews'){goto('reviews');}
+  else toggleReview(items[Math.max(0,active)]);
+ }else{
+  const index=active<0?(action==='next'?0:items.length-1):Math.max(0,Math.min(items.length-1,active+(action==='next'?1:-1)));
+  openIds[shownQueue.value.kind]=items[index].reviewId;goto('reviews');
+ }
+ await nextTick();document.querySelector<HTMLElement>('.studio-review.open .review-head')?.focus();
+}
+async function openToolAlert(reviewId:string,kind:OperatorAlert['kind']){
+ const r=props.reviews.find(r=>r.reviewId===reviewId&&r.liveId===props.live?.liveId);
+ if(!r||props.ended)return;
+ if(kind==='failure'){
+  showFlow(r.caseId);await nextTick();
+  document.querySelector<HTMLElement>(`[data-case-id="${CSS.escape(r.caseId)}"] .vm-expand`)?.focus();return;
+ }
+ if(r.status==='PENDING'){openDecision(r);await nextTick();document.querySelector<HTMLElement>('.studio-review.open .review-head')?.focus();}
+}
 function openDecision(r: LiveReview) { queueTab.value = r.kind; openIds[r.kind] = r.reviewId; goto('reviews'); }
 
 // 시청자 관리: 사건·검토를 시청자 이름으로 묶는다. 무효가 된 검토는 빼고 보여 준다.
@@ -302,6 +330,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
         <main class="main-content">
           <div class="status-strip"><div><Sparkles :size="16"/><b>{{pageTitles[page]}}</b></div>
             <div class="status-controls"><button v-if="!mock" @click="emit('refresh')"><RefreshCcw :size="14"/> 새로고침</button><button v-if="!mock && !loading && (!live || ended)" class="primary" :disabled="busy" @click="emit('start')">방송 시작</button><button v-if="!mock && live && !ended" :disabled="busy" @click="emit('end')">방송 종료</button></div></div>
+          <OperatorTools :live-id="live?.liveId??''" :ended="ended" :reviews="reviews" :progress="kickProgress" @navigate="navigateTool" @open="openToolAlert"/>
           <p v-if="error" class="error-inline" role="alert"><AlertCircle :size="17"/> {{error}}</p>
           <p v-if="notice" class="studio-notice" role="status">{{notice}}</p>
           <p v-for="k in kickStates" :key="k.review.reviewId" class="kick-progress" role="status"><span>강퇴 처리 · {{nameOf(k.review.caseId)}}: <b>{{k.state}}</b></span><slot name="kick-actions" :review-id="k.review.reviewId" :state="k.state"/></p>

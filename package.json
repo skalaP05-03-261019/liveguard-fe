@@ -11,7 +11,8 @@
     "build": "vue-tsc --noEmit && vite build",
     "test:chat": "node --test tests/live-chat.test.cjs",
     "preview": "vite preview --host 0.0.0.0",
-    "test:contracts": "node --test tests/contract-alignment.test.cjs"
+    "test:contracts": "node --test tests/contract-alignment.test.cjs",
+    "test:tools": "node --test tests/operator-tools.test.cjs"
   },
   "dependencies": {
     "lucide-vue-next": "^0.468.0",
