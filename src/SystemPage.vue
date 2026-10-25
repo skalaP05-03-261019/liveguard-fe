@@ -69,11 +69,20 @@ const onAir = (channelId: string) => channels.value.some(c => c.id === channelId
 const channelName = (id: string) => channels.value.find(c => c.id === id)?.name ?? id;
 const channelFilter = ref<string>('ALL');
 const statusFilter = ref<'ALL' | ReportStatus>('ALL');
+const executionOnly = ref(false);
+const requestSection = ref<HTMLElement | null>(null);
+function showRequests(kind: 'pending' | 'failed') {
+  statusFilter.value = kind === 'pending' ? 'PENDING' : 'ALL';
+  executionOnly.value = kind === 'failed';
+  requestSection.value?.focus();
+  requestSection.value?.scrollIntoView({ behavior: 'auto', block: 'start' });
+}
+
 const inChannel = <T extends { channelId?: string; id?: string }>(x: T, id = (x as { channelId?: string }).channelId ?? (x as { id: string }).id) => channelFilter.value === 'ALL' || id === channelFilter.value;
 
 const allReports = computed(() => (props.api ? [] : [...liveReports.value, ...sysReports]).filter(r => onAir(r.channelId)).sort((a, b) => b.reportedAt.localeCompare(a.reportedAt)));
 const reports = computed(() => allReports.value.filter(r => inChannel(r)));
-const shownReports = computed(() => reports.value.filter(r => statusFilter.value === 'ALL' || r.status === statusFilter.value));
+const shownReports = computed(() => reports.value.filter(r => (statusFilter.value === 'ALL' || r.status === statusFilter.value) && (!executionOnly.value || r.execution === 'FAILED')));
 const logs = computed(() => (props.api ? [] : [...liveLogs.value, ...sysLogs]).filter(l => onAir(l.channelId) && inChannel(l)).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 40));
 const shownChannels = computed(() => channels.value.filter(c => inChannel(c, c.id)));
 
@@ -94,6 +103,10 @@ const kickSummary = computed(() => {
   const pending = reports.value.filter(r => r.status === 'PENDING').sort((a, b) => a.reportedAt.localeCompare(b.reportedAt));
   const approvalRate = rate(reports.value);
   return { approval: approvalRate === null ? '-' : `${approvalRate}%`, oldest: pending.length ? `가장 오래 ${span(pending[0].reportedAt, now.value)}째 대기` : '대기 없음', waiting: pending.length > 0 };
+});
+const attention = computed(() => {
+  const pending = reports.value.filter(r => r.status === 'PENDING').sort((a,b) => a.reportedAt.localeCompare(b.reportedAt));
+  return { pending: pending.length, oldest: pending.length ? span(pending[0].reportedAt, now.value) : '대기 없음', failed: reports.value.filter(r => r.execution === 'FAILED').length };
 });
 // 채팅관제 Tracking: 실제 API는 관리자용 방송 채팅·사건 조회가 없어 빈 데이터를 넘긴다.
 const tracking = computed(() => props.api
@@ -132,11 +145,16 @@ const channelStats = computed(() => shownChannels.value.map(c => {
       </div>
       <div class="sys-filter" role="group" aria-label="방송 필터"><button :class="{on: channelFilter==='ALL'}" @click="channelFilter='ALL'">전체 방송</button><button v-for="c in channels" :key="c.id" :class="{on: channelFilter===c.id}" @click="channelFilter=c.id"><i v-if="c.live" class="live-dot" aria-label="방송 중"/>{{c.name}}</button></div>
 
+      <section class="attention-grid" aria-label="우선 확인할 항목">
+        <button class="card attention-card" :disabled="api" @click="showRequests('pending')"><span>강퇴 결정 대기</span><strong>{{api ? '—' : `${attention.pending}건`}}</strong><small>{{api ? '연동 API 없음' : '대기 요청 보기 →'}}</small></button>
+        <button class="card attention-card" :disabled="api" @click="showRequests('pending')"><span>최장 대기</span><strong>{{api ? '—' : attention.oldest}}</strong><small>{{api ? '연동 API 없음' : '대기 요청 보기 →'}}</small></button>
+        <button class="card attention-card danger" :disabled="api" @click="showRequests('failed')"><span>강퇴 실행 실패</span><strong>{{api ? '—' : `${attention.failed}건`}}</strong><small>{{api ? '연동 API 없음' : '확인된 실패만 보기 →'}}</small></button>
+      </section>
       <!-- ① 전체 채팅 판정과 ② 강퇴 승인 처리를 따로 본다. 모수가 다르다(검사한 채팅 / 강퇴 승인 요청) -->
       <section class="sys-charts" aria-label="주요 지표">
         <article class="card sys-chart-card">
           <header><h2>전체 채팅 판정 현황</h2><span v-if="judgmentTotal" class="sys-base">{{nf.format(judgmentTotal)}}건 기준</span></header>
-          <p class="sys-chart-note">AI가 검사한 채팅의 지금 상태입니다. 판정 대기는 AI 조사 중이거나 운영자 문맥 검토를 기다리는 채팅입니다.</p>
+          <p class="sys-chart-note">비정상·대기를 먼저 확인하세요. 판정 대기는 AI 조사 또는 문맥 검토 중입니다.</p>
           <StackedBar :segments="judgment" label="전체 채팅 판정 현황" :empty="api ? '연동 API 없음' : channels.length ? '검사한 채팅 없음' : '방송 중인 채널 없음'"/>
         </article>
         <article class="card sys-chart-card">
@@ -146,14 +164,15 @@ const channelStats = computed(() => shownChannels.value.map(c => {
         </article>
       </section>
 
-      <section class="card sys-section">
+      <section ref="requestSection" class="card sys-section request-section" tabindex="-1" aria-label="강퇴 승인 요청 추적">
         <header class="sys-section-head"><div><h2>강퇴 승인 요청 추적</h2><p>확정 위반 3건이 쌓여 생긴 강퇴 요청을 스트리머가 승인했는지, 강퇴가 실제로 적용됐는지 확인합니다.</p></div>
-          <div class="sys-chips" role="group" aria-label="결정 상태 필터"><button v-for="f in ([['ALL','전체'],['PENDING','대기'],['APPROVED','승인'],['REJECTED','기각']] as const)" :key="f[0]" :class="{on: statusFilter===f[0]}" @click="statusFilter=f[0]">{{f[1]}} <b>{{f[0]==='ALL' ? reports.length : count(reports, f[0])}}</b></button></div></header>
-        <div class="table-scroll"><table class="data-table sys-table">
+          <div class="sys-chips" role="group" aria-label="결정 상태 필터"><button v-for="f in ([['ALL','전체'],['PENDING','대기'],['APPROVED','승인'],['REJECTED','기각']] as const)" :key="f[0]" :class="{on: statusFilter===f[0]}" @click="statusFilter=f[0]; executionOnly=false">{{f[1]}} <b>{{f[0]==='ALL' ? reports.length : count(reports, f[0])}}</b></button></div></header>
+        <p v-if="executionOnly" class="request-filter-note" role="status">확인된 실행 실패만 표시 중 <button @click="executionOnly=false">필터 해제</button></p>
+        <div class="table-scroll"><table class="data-table sys-table request-table">
           <thead><tr><th>요청</th><th>방송</th><th>대상 사용자</th><th>요청 사유</th><th>기준 사건</th><th>스트리머 결정</th><th>결정까지</th><th>강퇴 실행</th></tr></thead>
           <tbody>
             <tr v-for="r in shownReports" :key="r.id">
-              <td class="nowrap">{{asTime(r.reportedAt)}}</td>
+              <td class="nowrap">{{asTime(r.reportedAt)}}<details class="mobile-row-detail"><summary>요청 상세</summary><p>{{channelName(r.channelId)}} · {{r.userAlias}}</p><p>{{r.summary}}</p><p>{{r.categories.map(catName).join(' · ')}} · 기준 사건 {{r.categories.length}}건</p><p>{{r.status==='PENDING' ? `${span(r.reportedAt, now)}째 대기` : r.decidedAt ? `결정까지 ${span(r.reportedAt, new Date(r.decidedAt).getTime())}` : ''}}</p></details></td>
               <td class="nowrap">{{channelName(r.channelId)}}</td>
               <td class="nowrap"><b>{{r.userAlias}}</b></td>
               <td class="sys-reason">{{r.summary}}<small>{{r.categories.map(catName).join(' · ')}}</small></td>
@@ -162,7 +181,7 @@ const channelStats = computed(() => shownChannels.value.map(c => {
               <td class="nowrap">{{r.status==='PENDING' ? `${span(r.reportedAt, now)}째` : r.decidedAt ? span(r.reportedAt, new Date(r.decidedAt).getTime()) : '-'}}</td>
               <td class="nowrap"><span v-if="r.execution==='EXECUTED'" class="exec ok"><CheckCircle2 :size="14"/>실행 완료</span><span v-else-if="r.execution==='FAILED'" class="exec fail"><AlertTriangle :size="14"/>실행 실패</span><span v-else-if="r.status==='APPROVED'" class="exec wait"><Clock3 :size="14"/>실행 대기</span><span v-else class="muted-dash">-</span></td>
             </tr>
-            <tr v-if="!shownReports.length"><td colspan="9" class="empty-block">{{api ? NO_API : channels.length ? '해당하는 강퇴 승인 요청이 없습니다.' : '방송 중인 채널이 없습니다.'}}</td></tr>
+            <tr v-if="!shownReports.length"><td colspan="8" class="empty-block">{{api ? NO_API : channels.length ? '해당하는 강퇴 승인 요청이 없습니다.' : '방송 중인 채널이 없습니다.'}}</td></tr>
           </tbody>
         </table></div>
       </section>
@@ -170,18 +189,18 @@ const channelStats = computed(() => shownChannels.value.map(c => {
       <section class="card sys-section">
         <header class="sys-section-head"><div><h2>방송별 현황</h2><p>방송마다 채팅 판정 분포와 강퇴 요청 결정 결과입니다. 비정상 비율이 높은 방송이 위에 옵니다.<template v-if="channels.length"> 방송 {{shownChannels.length}}개 · 방송 중 {{shownChannels.filter(c => c.live).length}}개</template></p></div></header>
         <RateBars :rows="rateRows"/>
-        <div class="table-scroll"><table class="data-table sys-table">
+        <div class="table-scroll"><table class="data-table sys-table channel-stats-table">
           <thead><tr><th>방송</th><th>스트리머</th><th>상태</th><th class="num">검사한 채팅</th><th class="num">자동 숨김</th><th class="num">판정 대기</th><th class="num">숨김률</th><th class="num">강퇴 요청</th><th class="num">승인</th><th class="num">기각</th><th class="num">대기</th><th class="num">승인율</th></tr></thead>
-          <tbody><tr v-for="c in channelStats" :key="c.id"><td class="nowrap"><b>{{c.name}}</b></td><td class="nowrap">{{c.streamer}}</td><td class="nowrap"><span v-if="c.live" class="onair"><i class="live-dot"/>방송 중 · {{nf.format(c.viewers)}}명</span><span v-else class="offair">방송 종료</span></td><td class="num">{{nf.format(c.scanned)}}</td><td class="num">{{nf.format(c.hidden)}}</td><td class="num">{{nf.format(c.held)}}</td><td class="num">{{c.hiddenRate}}%</td><td class="num">{{c.reports}}</td><td class="num">{{c.approved}}</td><td class="num">{{c.rejected}}</td><td class="num" :class="{pending: c.pending}">{{c.pending}}</td><td class="num">{{c.rate === null ? '-' : `${c.rate}%`}}</td></tr>
+          <tbody><tr v-for="c in channelStats" :key="c.id"><td class="nowrap"><b>{{c.name}}</b><details class="mobile-row-detail"><summary>채널 상세</summary><p>{{c.streamer}} · {{c.live ? '방송 중' : '방송 종료'}}</p><p v-if="c.live">시청 {{nf.format(c.viewers)}}명</p><p>검사 {{nf.format(c.scanned)}}건 · 자동 숨김 {{nf.format(c.hidden)}}건 · 판정 대기 {{nf.format(c.held)}}건</p><p>강퇴 요청 {{c.reports}}건 · 승인 {{c.approved}}건 · 기각 {{c.rejected}}건 · 대기 {{c.pending}}건 · 승인율 {{c.rate===null ? '-' : `${c.rate}%`}}</p></details></td><td class="nowrap">{{c.streamer}}</td><td class="nowrap"><span v-if="c.live" class="onair"><i class="live-dot"/>방송 중 · {{nf.format(c.viewers)}}명</span><span v-else class="offair">방송 종료</span></td><td class="num">{{nf.format(c.scanned)}}</td><td class="num">{{nf.format(c.hidden)}}</td><td class="num">{{nf.format(c.held)}}</td><td class="num">{{c.hiddenRate}}%</td><td class="num">{{c.reports}}</td><td class="num">{{c.approved}}</td><td class="num">{{c.rejected}}</td><td class="num" :class="{pending: c.pending}">{{c.pending}}</td><td class="num">{{c.rate === null ? '-' : `${c.rate}%`}}</td></tr>
             <tr v-if="!channelStats.length"><td colspan="12" class="empty-block">{{api ? NO_API : '방송 중인 채널이 없습니다.'}}</td></tr></tbody>
         </table></div>
       </section>
 
       <section class="card sys-section">
         <header class="sys-section-head"><div><h2>AI 모니터링 내역</h2><p>사건이 된 메시지와 확정 상태·조치입니다. 최근 40건을 보여줍니다.</p></div></header>
-        <div class="table-scroll"><table class="data-table sys-table">
+        <div class="table-scroll"><table class="data-table sys-table monitor-log-table">
           <thead><tr><th>시간</th><th>방송</th><th>사용자</th><th>메시지</th><th>유형</th><th>확정 상태</th><th>조치</th></tr></thead>
-          <tbody><tr v-for="l in logs" :key="l.id"><td class="nowrap">{{asTime(l.at)}}</td><td class="nowrap">{{channelName(l.channelId)}}</td><td class="nowrap"><b>{{l.userAlias}}</b></td><td class="sys-msg">{{l.text}}</td><td class="nowrap">{{catName(l.category)}}</td><td class="nowrap"><span class="verdict-badge" :class="verdictTone(l.verdict)">{{verdictName(l.verdict)}}</span></td><td class="nowrap" :class="{report: l.action==='강퇴 승인 요청'}">{{l.action}}</td></tr>
+          <tbody><tr v-for="l in logs" :key="l.id"><td class="nowrap">{{asTime(l.at)}}<details class="mobile-row-detail"><summary>메시지 상세</summary><p>{{channelName(l.channelId)}} · {{l.userAlias}}</p><p>{{l.text}}</p><p>{{catName(l.category)}} · {{l.action}}</p></details></td><td class="nowrap">{{channelName(l.channelId)}}</td><td class="nowrap"><b>{{l.userAlias}}</b></td><td class="sys-msg">{{l.text}}</td><td class="nowrap">{{catName(l.category)}}</td><td class="nowrap"><span class="verdict-badge" :class="verdictTone(l.verdict)">{{verdictName(l.verdict)}}</span></td><td class="nowrap" :class="{report: l.action==='강퇴 승인 요청'}">{{l.action}}</td></tr>
             <tr v-if="!logs.length"><td colspan="7" class="empty-block">{{api ? NO_API : channels.length ? '모니터링 내역이 없습니다.' : '방송 중인 채널이 없습니다.'}}</td></tr></tbody>
         </table></div>
       </section>

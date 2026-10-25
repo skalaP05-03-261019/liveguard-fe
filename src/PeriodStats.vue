@@ -71,7 +71,7 @@ const when = (iso: string) => new Date(iso).toLocaleString('ko-KR', { timeZone: 
 
 <template>
   <div class="sys-head">
-    <div><h1>기간 통계</h1><p>고른 기간의 방송(끝난 방송 포함)에서 채팅 판정과 강퇴 승인 처리가 어땠는지 봅니다. 날짜는 한국 시간입니다.</p></div>
+    <div><h1>기간 통계</h1><p>끝난 방송을 포함한 기간 통계 · 한국 시간 기준</p></div>
     <span class="sys-mock">{{api ? '기간 집계 API가 없습니다 (Backend 요청 중)' : '목업 예시 데이터'}}</span>
   </div>
   <div class="sys-filter" role="group" aria-label="기간"><button v-for="p in presets" :key="p[0]" type="button" :class="{on: preset===p[0]}" :aria-pressed="preset===p[0]" @click="preset=p[0]">{{p[1]}}</button></div>
@@ -85,12 +85,12 @@ const when = (iso: string) => new Date(iso).toLocaleString('ko-KR', { timeZone: 
   <section class="sys-charts" aria-label="기간 주요 지표">
     <article class="card sys-chart-card">
       <header><h2>기간 채팅 판정 현황</h2><span v-if="judgmentTotal" class="sys-base">{{nf.format(judgmentTotal)}}건 기준</span></header>
-      <p class="sys-chart-note">기간 안 방송에서 AI가 검사한 채팅의 판정입니다. 판정 대기는 아직 AI 조사 중이거나 운영자 문맥 검토를 기다리는 채팅입니다.</p>
+      <details class="metric-definition"><summary>판정 기준</summary><p>기간 안 방송에서 검사한 채팅입니다. 판정 대기는 AI 조사 또는 운영자 문맥 검토 중인 채팅입니다.</p></details>
       <StackedBar :segments="judgment" label="기간 채팅 판정 현황" :empty="empty('검사한 채팅 없음')"/>
     </article>
     <article class="card sys-chart-card">
       <header><h2>기간 강퇴 승인 요청 처리 현황</h2><span v-if="kickTotal" class="sys-base">{{nf.format(kickTotal)}}건 기준</span></header>
-      <p class="sys-chart-note">기간 안에 생긴 강퇴 승인 요청을 스트리머가 처리한 결과입니다. <span v-if="kickTotal">승인율 <b>{{approval}}</b></span></p>
+      <p class="sys-chart-note">기간 안 강퇴 요청의 처리 결과입니다. <span v-if="kickTotal">승인율 <b>{{approval}}</b></span></p>
       <StackedBar :segments="kick" label="기간 강퇴 승인 요청 처리 현황" :empty="empty('강퇴 승인 요청 없음')"/>
     </article>
   </section>
@@ -112,10 +112,10 @@ const when = (iso: string) => new Date(iso).toLocaleString('ko-KR', { timeZone: 
     <p v-if="!lives.length" class="stacked-empty period-empty">{{empty('방송이 없습니다.')}}</p>
     <!-- 30일이면 방송이 100개 가까이 되어 목록은 접어 둔다 -->
     <details v-else class="period-table period-lives"><summary>방송 목록 보기 ({{lives.length}}개)</summary>
-    <div class="table-scroll"><table class="data-table sys-table">
+    <div class="table-scroll"><table class="data-table sys-table period-lives-table">
       <thead><tr><th>방송</th><th>시작</th><th>상태</th><th class="num">검사한 채팅</th><th class="num">비정상</th><th class="num">판정 대기</th><th class="num">강퇴 승인</th><th class="num">기각</th><th class="num">대기</th></tr></thead>
       <tbody>
-        <tr v-for="l in lives" :key="l.liveId"><td class="nowrap"><b>{{l.channelName}}</b></td><td class="nowrap">{{when(l.startedAt)}}</td><td class="nowrap"><span v-if="l.endedAt === null" class="onair"><i class="live-dot"/>방송 중</span><span v-else class="offair">종료 {{when(l.endedAt)}}</span></td><td class="num">{{nf.format(l.scanned)}}</td><td class="num">{{nf.format(l.hidden)}}</td><td class="num">{{nf.format(l.held)}}</td><td class="num">{{l.kickReviews.approved}}</td><td class="num">{{l.kickReviews.rejected}}</td><td class="num" :class="{pending: l.kickReviews.pending}">{{l.kickReviews.pending}}</td></tr>
+        <tr v-for="l in lives" :key="l.liveId"><td class="nowrap"><b>{{l.channelName}}</b><details class="mobile-row-detail"><summary>방송 상세</summary><p>검사 {{nf.format(l.scanned)}}건 · 비정상 {{nf.format(l.hidden)}}건 · 판정 대기 {{nf.format(l.held)}}건</p><p>강퇴 승인 {{l.kickReviews.approved}}건 · 기각 {{l.kickReviews.rejected}}건 · 대기 {{l.kickReviews.pending}}건</p></details></td><td class="nowrap">{{when(l.startedAt)}}</td><td class="nowrap"><span v-if="l.endedAt === null" class="onair"><i class="live-dot"/>방송 중</span><span v-else class="offair">종료 {{when(l.endedAt)}}</span></td><td class="num">{{nf.format(l.scanned)}}</td><td class="num">{{nf.format(l.hidden)}}</td><td class="num">{{nf.format(l.held)}}</td><td class="num">{{l.kickReviews.approved}}</td><td class="num">{{l.kickReviews.rejected}}</td><td class="num" :class="{pending: l.kickReviews.pending}">{{l.kickReviews.pending}}</td></tr>
       </tbody>
     </table></div>
     </details>

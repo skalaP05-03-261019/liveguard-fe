@@ -65,6 +65,7 @@ function onKey(e: KeyboardEvent) {
   <div ref="wrap" class="trend-wrap">
     <p v-if="!values.length" class="stacked-empty trend-empty">{{empty}}</p>
     <template v-else>
+      <p class="chart-scale-note">세로축 자동 눈금: 0–{{max}}% · 기간에 따라 달라집니다</p>
       <svg :width="width" :height="H" role="img" :aria-label="summary" tabindex="0" @keydown="onKey" @blur="active = null" @mouseleave="active = null">
         <g class="trend-grid">
           <template v-for="t in ticks" :key="t"><line :x1="M.l" :x2="width - M.r" :y1="y(t)" :y2="y(t)"/><text :x="M.l - 8" :y="y(t) + 4" text-anchor="end">{{tickText(t)}}</text></template>

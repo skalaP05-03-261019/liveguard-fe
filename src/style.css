@@ -1087,3 +1087,59 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .no-ai-box b{display:block;font-size:14px}
 .no-ai-box p{margin:4px 0;font-size:13px;line-height:1.55}
 .no-ai-box small{display:block;color:var(--text-2);font-size:12px;line-height:1.5}
+
+/* 관제 우선순위와 모바일 상세 */
+.attention-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.attention-card{display:grid;gap:7px;padding:16px;text-align:left;min-width:0}
+.attention-card span{font-size:13px;color:var(--text-2)}
+.attention-card strong{font-size:24px;font-weight:650;color:var(--amber)}
+.attention-card.danger strong{color:var(--pink)}
+.attention-card small{color:var(--text-2)}
+.attention-card:disabled{opacity:1;cursor:default}
+.attention-card:disabled strong{color:var(--text-2)}
+.request-section{scroll-margin-top:72px}
+.request-filter-note{margin-bottom:12px;font-size:13px;color:var(--text-2)}
+.request-filter-note button{color:var(--blue);text-decoration:underline}
+.judgment-attention{order:-1;padding-left:8px;border-left:2px solid var(--line)}
+.judgment-attention b{font-size:24px}
+.judgment-normal b{font-size:16px;color:var(--text-2)}
+.rate-axis{display:flex;justify-content:space-between;margin-left:152px;margin-right:342px;color:var(--text-2);font-size:11px;font-variant-numeric:tabular-nums}
+.sys-channel-bar{grid-template-columns:140px minmax(0,1fr) 330px}
+.chart-scale-note{color:var(--text-2);font-size:12px;margin-bottom:8px}
+.metric-definition{font-size:12px;color:var(--text-2);line-height:1.5}
+.metric-definition summary{cursor:pointer;min-height:24px}
+.metric-definition p{margin-top:4px}
+.mobile-row-detail{display:none}
+@media(max-width:900px){
+ .sys-channel-bar{grid-template-columns:130px minmax(0,1fr)}
+ .sys-channel-meta{grid-column:2;text-align:left;white-space:normal}
+ .rate-axis{margin-left:142px;margin-right:0}
+}
+@media(max-width:590px){
+ .attention-grid{gap:6px}
+ .attention-card{padding:10px 8px;gap:6px}
+ .attention-card strong{font-size:19px;overflow-wrap:anywhere}
+ .attention-card span,.attention-card small{font-size:11px}
+ .sys-head{gap:8px;margin-bottom:10px}
+ .sys-head p{font-size:13px;line-height:1.5}
+ .sys-mock{font-size:11px}
+ .sys-chart-card{padding:12px;gap:8px}
+ .sys-chart-card h2{font-size:14px}
+ .sys-base{font-size:11px}
+ .stacked-legend b{font-size:20px}
+ .sys-section{padding:14px 12px}
+ .sys-channel-bar{grid-template-columns:1fr;gap:4px}
+ .sys-channel-meta{grid-column:auto}
+ .rate-axis{margin:0}
+ .mobile-row-detail{display:block;white-space:normal;min-width:80px;margin-top:6px;font-size:12px;line-height:1.6}
+ .mobile-row-detail summary{color:var(--blue);cursor:pointer;padding:5px 0}
+ .mobile-row-detail p{max-width:210px}
+ .request-table th:nth-child(n+2):nth-child(-n+5),.request-table td:nth-child(n+2):nth-child(-n+5),.request-table th:nth-child(7),.request-table td:nth-child(7){display:none}
+ .period-lives-table th:nth-child(n+4),.period-lives-table td:nth-child(n+4){display:none}
+}
+
+@media(max-width:590px){
+ .channel-stats-table th:not(:nth-child(1)):not(:nth-child(7)):not(:nth-child(11)),.channel-stats-table td:not(:nth-child(1)):not(:nth-child(7)):not(:nth-child(11)){display:none}
+ .monitor-log-table th:not(:nth-child(1)):not(:nth-child(3)):not(:nth-child(6)),.monitor-log-table td:not(:nth-child(1)):not(:nth-child(3)):not(:nth-child(6)){display:none}
+ .mobile-row-detail p{overflow-wrap:anywhere}
+}

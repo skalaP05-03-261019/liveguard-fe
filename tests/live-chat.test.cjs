@@ -29,7 +29,8 @@ async function openMock(options={}){
  const context=await browser.newContext({viewport:{width:1280,height:1000},timezoneId:'Asia/Seoul',...options});contexts.push(context);
  const page=await context.newPage();page.on('pageerror',e=>runtimeErrors.push(e.message));
  const time=new Date('2026-10-22T05:14:50Z');
- await page.clock.install({time});await page.clock.pauseAt(time);
+ // Install before the target so scheduler delays cannot make pauseAt target the past.
+ await page.clock.install({time:new Date(time.getTime()-60000)});await page.clock.pauseAt(time);
  await page.goto(mockBase);
  await page.getByRole('button',{name:'시청자로 시작하기',exact:true}).click();
  await page.getByRole('button',{name:'로그인',exact:true}).click();
@@ -39,7 +40,9 @@ async function openMock(options={}){
 async function openMockModerator(){
  const context=await browser.newContext({viewport:{width:1280,height:1000},timezoneId:'Asia/Seoul'});contexts.push(context);
  const page=await context.newPage();page.on('pageerror',e=>runtimeErrors.push(e.message));
- const time=new Date('2026-10-22T05:14:50Z');await page.clock.install({time});await page.clock.pauseAt(time);
+ const time=new Date('2026-10-22T05:14:50Z');
+ // Install before the target so scheduler delays cannot make pauseAt target the past.
+ await page.clock.install({time:new Date(time.getTime()-60000)});await page.clock.pauseAt(time);
  await page.goto(mockBase);await page.getByRole('button',{name:'스트리머로 시작하기',exact:true}).click();
  await page.getByRole('button',{name:'로그인',exact:true}).click();await page.locator('.app-shell').waitFor();
  return page;
@@ -614,7 +617,9 @@ const pathOf=async detail=>Object.entries(await flowTones(detail)).filter(([,t])
 async function openTracking(){
  const context=await browser.newContext({viewport:{width:1280,height:1000},timezoneId:'Asia/Seoul'});contexts.push(context);
  const page=await context.newPage();page.on('pageerror',e=>runtimeErrors.push(e.message));
- const time=new Date('2026-10-22T05:14:50Z');await page.clock.install({time});await page.clock.pauseAt(time);
+ const time=new Date('2026-10-22T05:14:50Z');
+ // Install before the target so scheduler delays cannot make pauseAt target the past.
+ await page.clock.install({time:new Date(time.getTime()-60000)});await page.clock.pauseAt(time);
  await page.goto(mockBase);await page.getByRole('button',{name:'시스템 운영자 전용',exact:true}).click();
  await page.getByRole('button',{name:'로그인',exact:true}).click();
  await page.getByRole('tab',{name:'채팅관제 Tracking',exact:true}).click();
@@ -1140,4 +1145,78 @@ test('API admin period stats stay empty until the backend period API exists',asy
  assert.equal(await page.locator('.period-empty').innerText(),'연동 API 없음');
  assert.match(await page.locator('.sys-mock').first().innerText(),/기간 집계 API가 없습니다/);
  await capture(page,'admin-period-api-empty');
+});
+
+test('chat bursts share refresh batches and tool events do not reload API lists',async()=>{
+ const page=await open('operator');await waitFor(()=>clients.size>=2);
+ await page.waitForTimeout(250);
+ const reads=[];page.on('request',r=>{const u=new URL(r.url());if(u.pathname.startsWith('/api/'))reads.push(u.pathname);});
+ state.delayHistory=180;
+ state.messages=[message('burst-first','author')];
+ for(let i=0;i<20;i++)emit('CHAT',{messageId:'burst-first'});
+ await waitFor(()=>reads.some(p=>p.endsWith('/messages')));
+ state.messages.push(message('burst-latest','author'));
+ for(let i=0;i<20;i++)emit('CHAT',{messageId:'burst-latest'});
+ await page.getByText('burst-latest 원문',{exact:true}).waitFor();
+ await page.waitForTimeout(150);
+ assert(reads.filter(p=>p.endsWith('/messages')).length<=2,JSON.stringify(reads));
+ assert.equal(reads.filter(p=>p==='/api/reviews'||p==='/api/cases').length,0);
+ const before=reads.length;
+ for(let i=0;i<20;i++){emit('TOOL_START',{caseId:'tool-only'});emit('TOOL_END',{caseId:'tool-only'});}
+ await page.waitForTimeout(200);assert.equal(reads.length,before);
+});
+
+test('admin attention filters, responsive row details and chart scales remain usable',async()=>{
+ const context=await browser.newContext({viewport:{width:1280,height:1000},timezoneId:'Asia/Seoul'});contexts.push(context);
+ const page=await context.newPage();page.on('pageerror',e=>runtimeErrors.push(e.message));
+ const snapshot=async(name)=>{
+  if(evidence)await page.locator('.toast').waitFor({state:'hidden'});
+  await page.evaluate(()=>{document.activeElement?.blur?.();window.scrollTo(0,0);});
+  await page.mouse.move(0,0);
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  await capture(page,name);
+ };
+ await page.goto(mockBase);await page.getByRole('button',{name:'시스템 운영자 전용',exact:true}).click();
+ await page.getByRole('button',{name:'로그인',exact:true}).click();await page.locator('.attention-grid').waitFor();
+ await page.getByRole('button',{name:/강퇴 실행 실패.*확인된 실패만 보기/}).click();
+ assert.equal(await page.locator('.request-table tbody tr').count(),1);
+ assert.match(await page.locator('.request-table tbody').innerText(),/실행 실패/);
+ assert.equal(await page.locator('.request-section').evaluate(e=>document.activeElement===e),true);
+ await snapshot('review-admin-failed-desktop');
+ await page.getByRole('button',{name:'필터 해제',exact:true}).click();
+ await page.getByRole('button',{name:/강퇴 결정 대기.*대기 요청 보기/}).click();
+ assert(await page.locator('.request-table tbody tr').count()>0);
+ for(const text of await page.locator('.request-table td:nth-child(6)').allInnerTexts())assert.match(text,/대기 중/);
+ await snapshot('review-admin-attention-desktop');
+ for(const width of [360,390]){
+  await page.setViewportSize({width,height:844});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  const detail=page.locator('.request-table .mobile-row-detail').first();await detail.locator('summary').click();
+  assert.equal(await detail.evaluate(e=>e.open),true);
+  if(width===390)await snapshot('review-admin-request-detail-390');
+  await detail.locator('summary').click();
+  for(const selector of ['.channel-stats-table','.monitor-log-table']){
+   const rowDetail=page.locator(`${selector} .mobile-row-detail`).first();
+   await rowDetail.locator('summary').click();assert.equal(await rowDetail.evaluate(e=>e.open),true);
+   if(width===390)await snapshot(`review-admin-${selector.slice(1)}-detail-390`);
+   await rowDetail.locator('summary').click();
+  }
+  await snapshot(`review-admin-live-${width}`);
+ }
+ await page.getByRole('tab',{name:'기간 통계',exact:true}).click();
+ assert.match(await page.locator('.chart-scale-note').innerText(),/세로축 자동 눈금/);
+ assert.equal(await page.locator('.rate-axis span').count(),3);
+ for(const text of await page.locator('.sys-channel-meta').allInnerTexts())assert.match(text,/검사 [0-9,]+건/);
+ const svg=page.locator('.trend-wrap svg');await svg.focus();await page.keyboard.press('ArrowRight');
+ assert.equal(await page.locator('.trend-tip').isVisible(),true);
+ for(const width of [360,390]){
+  await page.setViewportSize({width,height:844});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await snapshot(`review-admin-period-${width}`);
+ }
+ await page.setViewportSize({width:1440,height:1000});await snapshot('review-admin-period-desktop');
+ const apiPage=await open('admin');
+ assert.equal(await apiPage.locator('.attention-grid button:disabled').count(),3);
+ assert.equal(await apiPage.locator('.attention-grid strong').allInnerTexts().then(t=>t.every(v=>v==='—')),true);
+ await capture(apiPage,'review-admin-api-empty-desktop');
 });
