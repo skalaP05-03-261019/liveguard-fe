@@ -79,6 +79,8 @@ async function decideCard(card,label){await openCard(card);await card.getByRole(
 async function gotoQueue(page){await page.getByRole('navigation',{name:'운영자 메뉴'}).getByRole('button',{name:'실시간 모니터링',exact:true}).click();await page.locator('.queue-page').waitFor();}
 async function gotoMonitor(page){await page.getByRole('navigation',{name:'운영자 메뉴'}).getByRole('button',{name:'실시간 모니터링',exact:true}).click();}
 async function showQueue(page,name){if(!(await page.locator('.queue-page').count()))await gotoQueue(page);await page.getByRole('heading',{name:name+' 대기',exact:true}).click();}
+async function openToolSettings(page){await page.getByRole('button',{name:/^알림 · 결정 대기/}).click();await page.getByRole('button',{name:'알림 설정',exact:true}).click();}
+async function openToolActivity(page){await page.getByRole('button',{name:/^알림 · 결정 대기/}).click();await page.getByRole('button',{name:'처리 알림 보기',exact:true}).click();}
 async function openDemo(page){const fold=page.locator('.demo-fold');if(!(await fold.evaluate(el=>el.open)))await fold.locator('summary').click();}
 async function capture(page,name){if(evidence){await fs.mkdir(evidence,{recursive:true});await page.screenshot({path:path.join(evidence,`${name}.png`),fullPage:true,animations:'disabled'});}}
 async function captureReview(page,name){
@@ -1304,7 +1306,7 @@ test('operator navigation shortcuts avoid typing and IME, validate keys and isol
  assert.equal(await page.locator('.queue-page').count(),0);
  await page.evaluate(()=>document.activeElement?.blur?.());
  await page.dispatchEvent('body','keydown',{key:'j',isComposing:true});assert.equal(await page.locator('.queue-page').count(),0);
- await page.getByRole('button',{name:'알림·단축키 설정',exact:true}).click();
+ await openToolSettings(page);
  await page.getByLabel('다음 요청 단축키',{exact:true}).fill('k');assert.equal(await page.getByRole('button',{name:'설정 저장',exact:true}).isDisabled(),true);
  await page.getByLabel('다음 요청 단축키',{exact:true}).fill('n');await page.getByRole('button',{name:'설정 저장',exact:true}).click();
  await page.getByText('이 계정의 설정을 이 브라우저에 저장했습니다.',{exact:true}).waitFor();
@@ -1312,7 +1314,7 @@ test('operator navigation shortcuts avoid typing and IME, validate keys and isol
  await page.getByRole('button',{name:'설정 닫기',exact:true}).click();await page.evaluate(()=>document.activeElement?.blur?.());
  await page.keyboard.press('n');await page.locator('.queue-page').waitFor();
  await page.evaluate(async()=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');const s=useLiveGuard();s.me={...s.me,userId:'different-operator'};});
- await page.getByRole('button',{name:'알림·단축키 설정',exact:true}).click();assert.equal(await page.getByLabel('다음 요청 단축키',{exact:true}).inputValue(),'j');
+ await openToolSettings(page);assert.equal(await page.getByLabel('다음 요청 단축키',{exact:true}).inputValue(),'j');
  await page.evaluate(()=>{Storage.prototype.setItem=function(){throw new DOMException('unavailable','QuotaExceededError');};});
  await page.getByRole('button',{name:'설정 저장',exact:true}).click();await page.getByText('설정을 저장하지 못해 이번 화면에서만 적용합니다.',{exact:true}).waitFor();
  await page.setViewportSize({width:390,height:844});await page.clock.runFor(100);
@@ -1322,7 +1324,7 @@ test('operator navigation shortcuts avoid typing and IME, validate keys and isol
 
 test('web operator alerts show no original text, open the current pending review and deduplicate updates',async()=>{
  const page=await openMockModerator();await openDemo(page);await page.getByRole('button',{name:'공격 표현',exact:true}).click();
- await page.getByRole('button',{name:/^관제 알림 [0-9]+$/}).click();
+ await openToolActivity(page);
  const list=page.getByRole('region',{name:'관제 알림 목록',exact:true});
  const incoming=list.getByRole('button',{name:'새 문맥 검토 요청 →',exact:true});await incoming.waitFor();
  const text=await list.innerText();assert(!text.includes('접어라'));assert(!text.includes('어둠의유저'));assert(!text.includes('010-'));
@@ -1331,7 +1333,7 @@ test('web operator alerts show no original text, open the current pending review
  await incoming.click();await page.locator('.queue-page').waitFor();assert.equal(await page.locator('.studio-review.context.open').count(),1);
  assert.equal(await page.locator('.studio-review.open .review-head:focus').evaluate(e=>document.activeElement===e),true);
  assert.equal(await page.locator('.studio-review.context.open').getByRole('button',{name:'제출',exact:true}).isDisabled(),true);
- await page.getByRole('button',{name:/^관제 알림 [0-9]+$/}).click();
+ await openToolActivity(page);
  await list.getByRole('button',{name:'새 문맥 검토 요청 알림 지우기',exact:true}).click();
  await page.evaluate(async()=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');useLiveGuard().mock.state.reviews.find(r=>r.kind==='CONTEXT'&&r.status==='PENDING').version++;});
  assert.equal(await incoming.count(),0);
@@ -1340,13 +1342,13 @@ test('web operator alerts show no original text, open the current pending review
 test('web failure alerts exclude unknown results and open the matching case without taking a decision',async()=>{
  const page=await openMockModerator();
  const change=async(state)=>page.evaluate(async(state)=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');const m=useLiveGuard().mock.state;const r=m.reviews.find(r=>r.kind==='KICK');r.status='DECIDED';m.kickProgress[r.reviewId]=state;return r.caseId;},state);
- await change('실행 결과 확인 중 · 실패로 단정하지 않음');await page.getByRole('button',{name:/^관제 알림 [0-9]+$/}).click();
+ await change('실행 결과 확인 중 · 실패로 단정하지 않음');await openToolActivity(page);
  assert.equal(await page.getByRole('button',{name:'강퇴 실행 실패 확인 →',exact:true}).count(),0);
  const caseId=await change('강퇴 실행 실패 · 기존 제재 유지');await captureReview(page,'operator-tools-failure');await page.getByRole('button',{name:'강퇴 실행 실패 확인 →',exact:true}).click();
  await page.locator('.case-row.open').waitFor();assert.equal(await page.locator('.case-row.open').getAttribute('data-case-id'),caseId);
  await captureReview(page,'operator-tools-case-flow');
  await page.evaluate(async()=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');useLiveGuard().mock.state.reviews.find(r=>r.kind==='KICK').status='INVALIDATED';});
- await page.getByRole('button',{name:/^관제 알림 [0-9]+$/}).click();assert.equal(await page.getByRole('button',{name:'강퇴 실행 실패 확인 →',exact:true}).count(),0);
+ await openToolActivity(page);assert.equal(await page.getByRole('button',{name:'강퇴 실행 실패 확인 →',exact:true}).count(),0);
 });
 
 
@@ -1399,6 +1401,8 @@ test('decision notification bell shows pending details, opens the selected revie
  const page=await openMockModerator();
  const bell=page.getByRole('button',{name:/^알림 · 결정 대기/});
  assert.equal(await page.locator('.queue-link').count(),0);
+ assert.equal(await page.locator('.operator-tools-bar,.operator-announcement').count(),0);
+ assert.equal(await page.getByRole('button',{name:'알림·단축키 설정',exact:true}).count(),0);
  assert.equal(await page.locator('.topbar-right > .decision-notifications').count(),1);
  const bellBounds=await bell.boundingBox(),profileBounds=await page.locator('.topbar-right > .yt-me').boundingBox();
  assert(bellBounds.x+bellBounds.width<=profileBounds.x,'bell is left of the streamer profile');
