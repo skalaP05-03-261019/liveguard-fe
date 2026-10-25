@@ -1237,7 +1237,6 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .side-nav button[aria-label="실시간 모니터링"]{gap:8px;padding:0 10px;font-size:14px}
 .side-nav button[aria-label="실시간 모니터링"] span{white-space:nowrap}
 
-/* Static TV test pattern for the OFF AIR state. */
-.mode-badge.waiting{border-radius:4px;padding:0 6px;gap:0;background:linear-gradient(90deg,#eeef1a 0 16.66%,#20dce6 16.66% 33.33%,#62ed19 33.33% 50%,#d909d8 50% 66.66%,#e51b36 66.66% 83.33%,#1329b6 83.33% 100%);color:#fff}
-.mode-badge.waiting i{display:none}
-.mode-badge.waiting .mode-badge-label{background:#080808b8;padding:2px 5px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;font-weight:600;line-height:16px;letter-spacing:.04em;white-space:nowrap}
+/* OFF AIR shares ON AIR geometry and typography, with a gray fill. */
+.mode-badge.waiting{color:#fff;background:#707070;letter-spacing:.06em}
+.mode-badge.waiting i{background:#fff}

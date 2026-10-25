@@ -6,7 +6,7 @@
 
 5173번 Vite 개발 서버는 소스 변경을 바로 반영하지만, 3000번은 Docker 안의 정적 빌드를 제공합니다. 이전 3000번 자산에는 종·통합 화면·OFF AIR 코드가 없었습니다. 프론트엔드만 `docker compose build frontend`와 `docker compose up -d --no-deps frontend`로 갱신했습니다. 빌드 소스는 `liveguard-fe`, `VITE_USE_API=true`입니다. BE·Agent·DB는 재시작하지 않았습니다.
 
-현재 3000번 자산은 `/assets/index-Dh3PYTJD.js`이며 종·통합 화면·OFF AIR 코드가 포함돼 있습니다. 향후 프론트 소스를 수정해도 Docker는 자동 갱신되지 않으므로 3000번 반영을 다시 확인해야 합니다.
+현재 3000번 자산은 `/assets/index-Dgw_XqBT.js`이며 종·통합 화면·OFF AIR 코드가 포함돼 있습니다. 향후 프론트 소스를 수정해도 Docker는 자동 갱신되지 않으므로 3000번 반영을 다시 확인해야 합니다.
 
 ## 실제 API 화면 체크
 
@@ -17,7 +17,7 @@
 | 종 알림 | 대기 0건에서도 종 표시, 클릭 시 빈 상세 목록 표시 |
 | 알림 설정 | 톱니바퀴로 기존 알림·단축키 설정 열림 |
 | 정책 문구 | ‘채팅 관제 운영 정책’, v3.2 SP-3.1·A-28 및 CP-3.3 안내 표시 |
-| OFF AIR | 현재 실시간 연결 시 ON AIR. 검사 브라우저만 SSE를 차단해 컬러바 OFF AIR 표시 확인 |
+| OFF AIR | 현재 실시간 연결 시 ON AIR. 검사 브라우저만 SSE를 차단해 회색 OFF AIR 표시 확인 |
 | 휴대폰 | 390·360px 문서 가로 넘침 없음 |
 | 런타임 오류 | 검사 브라우저 pageerror 0건 |
 

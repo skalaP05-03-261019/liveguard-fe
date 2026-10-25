@@ -1086,7 +1086,7 @@ test('API admin shows the same system screen as the mock with empty data and no 
  });
  assert.deepEqual(await shape(api),await shape(mock));
  assert.equal(await api.locator('.mode-badge').innerText(),'OFF AIR');assert.equal(await mock.locator('.mode-badge').innerText(),'MOCK 데이터');
- await captureReview(api,'off-air-colorbars');
+ await captureReview(api,'off-air-gray');
  if(evidence)await api.locator('.mode-badge').screenshot({path:path.join(evidence,'off-air-badge.png')});
  // 차트도 가짜 0 없이 비워 둔다
  assert.equal(await api.locator('.sys-chart-card .stacked-empty').filter({hasText:'연동 API 없음'}).count(),2);
