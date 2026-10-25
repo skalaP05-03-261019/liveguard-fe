@@ -109,6 +109,7 @@ before(async()=>{
    state.active=true;state.liveId='started-live-'+state.liveStarts;
    return json(201,{liveId:state.liveId,channelId:'channel-1',startedAt:timestamp(),endedAt:null});
   }
+  if(req.method==='POST'&&/^\/api\/lives\/[^/]+\/end$/.test(url.pathname)){state.liveEnds=(state.liveEnds??0)+1;state.active=false;return json(200,{liveId:state.liveId,channelId:'channel-1',startedAt:timestamp(),endedAt:timestamp()});}
   if(url.pathname.endsWith('/lives/current')){
    state.currentReads++;const current=state.active?{liveId:state.liveId,channelId:'channel-1',startedAt:timestamp(),endedAt:null}:null;
    if(state.delayCurrent)await new Promise(r=>setTimeout(r,state.delayCurrent));
@@ -490,7 +491,7 @@ test('API operator on a stale review gets STALE_VERSION, sees the notice and rel
  await gotoQueue(first);await gotoQueue(second);await card(first).waitFor();await card(second).waitFor();
  // 두 번째 화면은 첫 번째 운영자의 보류를 아직 모르는 상태로 둔다.
  const stale={};await second.route(/\/api\/reviews\?/,async route=>{const u=route.request().url();if(!stale[u]){const r=await route.fetch();stale[u]=await r.text();}await route.fulfill({status:200,contentType:'application/json',body:stale[u]});});
- await second.getByRole('button',{name:'새로고침',exact:true}).click();await waitFor(()=>Object.keys(stale).length===2);
+ await second.evaluate(()=>window.dispatchEvent(new Event('focus')));await waitFor(()=>Object.keys(stale).length===2);
  await decideCard(card(first),'보류');
  await waitFor(()=>state.decisions.length===1);await first.locator('.studio-review[data-review-id="review-ctx"][data-version="2"]').waitFor();
  await decideCard(card(second),'정상 확정');
@@ -498,7 +499,7 @@ test('API operator on a stale review gets STALE_VERSION, sees the notice and rel
  // 5초 주기 재확인이 지나도 안내가 남아 있어야 한다.
  await new Promise(r=>setTimeout(r,6000));assert.equal(await staleNotice.count(),1);assert.equal(await second.getByRole('alert').count(),0);
  assert.equal(state.decisions.length,1);assert.equal(state.reviews[0].status,'PENDING');
- await second.unrouteAll({behavior:'ignoreErrors'});await second.getByRole('button',{name:'새로고침',exact:true}).click();
+ await second.unrouteAll({behavior:'ignoreErrors'});await second.evaluate(()=>window.dispatchEvent(new Event('focus')));
  await second.locator('.studio-review[data-review-id="review-ctx"][data-version="2"]').waitFor();
 });
 
@@ -1418,7 +1419,7 @@ test('decision notification bell shows pending details, opens the selected revie
  assert.equal(await page.locator('.operator-tools-bar,.operator-announcement').count(),0);
  assert.equal(await page.getByRole('button',{name:'알림·단축키 설정',exact:true}).count(),0);
  assert.equal(await page.locator('.topbar-right > .decision-notifications').count(),1);
- assert.equal(await page.locator('.topbar-right').getByRole('button',{name:'새로고침',exact:true}).count(),1);
+ assert.equal(await page.locator('.topbar-right').getByRole('button',{name:'새로고침',exact:true}).count(),0);
  assert.equal(await page.locator('.status-controls').getByRole('button',{name:'새로고침',exact:true}).count(),0);
  const bellBounds=await bell.boundingBox(),profileBounds=await page.getByRole('button',{name:'계정 메뉴',exact:true}).boundingBox();
  assert(bellBounds.x+bellBounds.width<=profileBounds.x,'bell is left of the streamer profile');
@@ -1520,19 +1521,20 @@ test('empty unified monitoring shows both queues and ended broadcasts clear arri
 });
 
 
-test('streamer create menu starts through the API only when off air and prevents duplicate starts',async()=>{
+test('create menu switches between API start and end and status follows broadcast state',async()=>{
  state.active=false;const page=await open('operator');await page.locator('.studio-empty').waitFor();
- const trigger=page.getByRole('button',{name:'만들기',exact:true});await trigger.click();
- const item=page.getByRole('menuitem',{name:'라이브 스트리밍 시작',exact:true});await item.waitFor();assert.equal(await item.getAttribute('aria-disabled'),'false');
- await captureReview(page,'create-menu-ready');await item.click();
- await page.locator('.live-monitoring-grid').waitFor();assert.equal(state.liveStarts,1);
- await trigger.click();assert.equal(await item.getAttribute('aria-disabled'),'true');await item.dispatchEvent('click');assert.equal(state.liveStarts,1);
- await page.getByText('현재 방송이 진행 중입니다.',{exact:true}).waitFor();await captureReview(page,'create-menu-live');
+ const trigger=page.getByRole('button',{name:'만들기',exact:true});const status=page.locator('.broadcast-status');assert.equal(await status.getAttribute('data-live'),'false');
+ assert.equal(await page.getByRole('button',{name:'새로고침',exact:true}).count(),0);
+ await trigger.click();await captureReview(page,'create-menu-ready');await page.getByRole('menuitem',{name:'라이브 스트리밍 시작',exact:true}).click();
+ await page.locator('.live-monitoring-grid').waitFor();assert.equal(state.liveStarts,1);assert.equal(await status.getAttribute('data-live'),'true');
+ await status.click();const end=page.getByRole('menuitem',{name:'방송 종료',exact:true});await end.waitFor();await captureReview(page,'create-menu-live');await end.click();
+ await page.locator('.studio-live-line .ended').waitFor();assert.equal(state.liveEnds,1);assert.equal(await status.getAttribute('data-live'),'false');
+ await trigger.click();await page.getByRole('menuitem',{name:'라이브 스트리밍 시작',exact:true}).waitFor();assert.equal(state.liveStarts,1);
 });
 
 test('create menu keeps mock starts disabled, supports keyboard and mobile, and shows API errors',async()=>{
  const page=await openMockModerator();const trigger=page.getByRole('button',{name:'만들기',exact:true});await trigger.click();
- const item=page.getByRole('menuitem',{name:'라이브 스트리밍 시작',exact:true});assert.equal(await item.getAttribute('aria-disabled'),'true');
+ const item=page.getByRole('menuitem',{name:'방송 종료',exact:true});assert.equal(await item.getAttribute('aria-disabled'),'true');
  await page.keyboard.press('Escape');assert.equal(await trigger.evaluate(e=>document.activeElement===e),true);
  for(const width of [390,360]){await page.setViewportSize({width,height:844});await trigger.click();await page.screenshot({animations:'disabled'});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await captureReview(page,`create-menu-${width}`);await page.keyboard.press('Escape');}
  state.active=false;state.startError=true;const api=await open('operator');await api.locator('.studio-empty').waitFor();await api.getByRole('button',{name:'만들기',exact:true}).click();await api.getByRole('menuitem',{name:'라이브 스트리밍 시작',exact:true}).click();

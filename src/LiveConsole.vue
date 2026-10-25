@@ -188,7 +188,7 @@ function connect(){
     }else notice.value=`${actionName} 결과를 확인할 수 없습니다. 서버 상태를 다시 확인해 주세요.`;
    }
    if(!['TOOL_START','TOOL_END'].includes(e.type))scheduleRefresh(e.type==='CHAT'?'messages':'all');
-  }catch{error.value='실시간 이벤트를 확인하지 못했습니다. 새로고침해 주세요.';}
+  }catch{error.value='실시간 이벤트를 확인하지 못했습니다. 연결 상태를 확인해 주세요.';}
  };
  for(const name of ['CHAT','MESSAGE_VISIBILITY_CHANGED','MESSAGE_RESTORED','LIVE_ACCESS_BLOCKED','LIVE_ENDED'])source.addEventListener(name,handle);
  if(!operator.value)for(const name of ['ACTION_APPLIED','ACTION_FAILED'])source.addEventListener(name,handle);
@@ -210,7 +210,7 @@ async function load(){
  finally{loadingLive=false;loading.value=false;}
 }
 async function start(){if(busy.value||loading.value||(live.value&&!ended.value))return;busy.value=true;try{await api.startLive(store.channelId);await load();}catch(e){fail(e);}finally{busy.value=false;}}
-async function end(){if(!live.value)return;busy.value=true;try{await api.endLive(live.value.liveId);markEnded();}catch(e){fail(e);}finally{busy.value=false;}}
+async function end(){if(!live.value||ended.value||busy.value||loading.value)return;busy.value=true;try{await api.endLive(live.value.liveId);markEnded();}catch(e){fail(e);}finally{busy.value=false;}}
 let outgoing:{text:string;id:string}|null=null;
 async function send(){
  if(chatDisabled.value)return;
@@ -258,7 +258,7 @@ onBeforeUnmount(()=>{generation++;disconnect();window.removeEventListener('focus
 <template>
  <ViewerScreen v-if="!operator&&!admin" v-model:draft="text" :messages="visibleMessages" :nickname="store.me?.nickname??'시청자'" :scope-key="`${store.me?.userId}:${live?.liveId??''}`" :clock="clock" :ready="accessReady" :loading="loading" :has-live="!!live" :blocked="blocked" :ended="ended" :busy="busy" :timed-out="timedOut" :timeout-until="timeoutUntil" :timeout-reason="timeoutReason" :started-at="live?.startedAt" :online="online" :error="error" :notice="notice" @send="send" @logout="store.logout()"/>
  <StudioScreen v-else-if="operator" :nickname="store.me?.nickname??'스트리머'" :live="live" :ended="ended" :loading="loading" :online="online" :messages="visibleMessages" :reviews="reviews" :cases="caseHistory" :case-names="caseNames" :logs="logs" :kick-progress="kickProgress" :archive="archive" :archive-more="archiveMore" :archive-loading="archiveLoading" :busy="busy" :error="error" :notice="notice"
-  @decide="decide" @revoke="revoke" @refresh="load" @start="start" @end="end" @logout="store.logout()" @page="onPage" @load-older="loadArchive(false)"/>
+  @decide="decide" @revoke="revoke" @start="start" @end="end" @logout="store.logout()" @page="onPage" @load-older="loadArchive(false)"/>
  <!-- 시스템 운영자: 목업과 같은 화면. 백엔드에 시스템 운영자 권한과 여러 방송 조회 API가 없어 데이터 칸은 비어 있다 -->
  <SystemPage v-else api/>
 </template>

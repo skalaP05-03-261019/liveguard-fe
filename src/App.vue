@@ -30,7 +30,7 @@ onBeforeUnmount(() => store.dispose());
   <ViewerPage v-else-if="role==='VIEWER'"/>
   <SystemPage v-else-if="role==='PLATFORM_ADMIN'"/>
   <StudioScreen v-else mock :nickname="store.me?.nickname ?? '스트리머'" channel-name="행복한게임방" :live="mock.live" :online="true" :messages="mock.messages" :reviews="mock.reviews" :cases="mock.cases" :case-names="caseNames" :logs="mock.logs" :kick-progress="mock.kickProgress" :busy="store.busy" :error="store.error" :notice="store.notice" :feed-on="store.feedOn"
-    @decide="onDecide" @revoke="(caseId, findingId, reason) => store.revoke(caseId, findingId, reason)" @logout="store.logout()" @refresh="store.inform('목업 화면을 최신 상태로 확인했습니다.')" @toggle-feed="store.toggleFeed()">
+    @decide="onDecide" @revoke="(caseId, findingId, reason) => store.revoke(caseId, findingId, reason)" @logout="store.logout()" @toggle-feed="store.toggleFeed()">
     <template #demo><div class="scenario-toolbar"><span>빠른 시연</span><button v-for="s in demoScenarios" :key="s.key" @click="store.mockScenario(s.key)">{{s.label}}</button></div></template>
     <template #kick-actions="{ reviewId, state }"><span v-if="state===KICK_WAITING" class="mock-kick-actions">
       <button @click="store.finishKick(reviewId,'SUCCEEDED')">모의 적용 성공</button>
