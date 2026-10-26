@@ -18,7 +18,7 @@ export type KickOutcome = 'SUCCEEDED' | 'FAILED' | 'UNKNOWN';
 export interface TraceStep { at: string; title: string; detail: string; code?: string }
 export interface AgentToolCall { name: string; input: string; output: string }
 export interface MockTrace { messageId: string; route: HandlingRoute; backend: TraceStep[]; agent: { tools: AgentToolCall[]; reasoning: string[]; answer: Finding } | null }
-export type SendResult = { ok: true; message: MockMessage; caseItem: MockCase | null } | { ok: false; code: 'KICKED' | 'TIMED_OUT'; until?: string };
+export type SendResult = { ok: true; message: MockMessage; caseItem: MockCase | null } | { ok: false; code: 'KICKED' | 'TIMED_OUT' | 'LIVE_ENDED'; until?: string };
 
 // BE가 검토 카드에 넣는 고정 요약 문구(LiveModerationService.reviewCard)
 export const KICK_SUMMARY = '서로 다른 확정 사건 3건 — 방송 종료까지 차단 승인 요청';
@@ -207,6 +207,23 @@ export function createMockLive(users: MockUser[]) {
     kickProgress: {} as Record<string, string>, logs: [] as StudioLog[], traces: {} as Record<string, MockTrace>,
     floodMarks: [] as { userId: string; text: string; caseId: string; lastSentAt: number }[]
   });
+  const agentTimers = new Set<ReturnType<typeof setTimeout>>();
+  let liveGeneration = 0;
+  function clearAgentTimers() { for (const timer of agentTimers) clearTimeout(timer); agentTimers.clear(); liveGeneration++; }
+  function end(at = Date.now()) {
+    if (state.live.endedAt) return false;
+    state.live.endedAt = iso(at); clearAgentTimers();
+    log('LIVE_ENDED', '목업 방송이 종료되었습니다.', at);
+    return true;
+  }
+  function start(at = Date.now()) {
+    if (!state.live.endedAt) return false;
+    clearAgentTimers();
+    Object.assign(state, { messages: [], cases: [], reviews: [], decisions: {}, timeouts: {}, kicks: {}, kickProgress: {}, logs: [], traces: {}, floodMarks: [] });
+    state.live = { liveId: uid(), channelId: CHANNEL_ID, startedAt: iso(at), endedAt: null };
+    log('LIVE_STARTED', '새 목업 방송이 시작되었습니다.', at);
+    return true;
+  }
   const aliasOf = (userId: string) => users.find(u => u.id === userId)?.alias ?? '시청자';
   const ownerOfCase = (caseId: string) => state.cases.find(c => c.caseId === caseId)?.userId;
   function log(event: string, detail: string, at = Date.now(), ids: { caseId?: string; reviewId?: string } = {}) {
@@ -275,13 +292,14 @@ export function createMockLive(users: MockUser[]) {
       .sort((a, b) => confirmedAt(a) - confirmedAt(b) || a.caseId.localeCompare(b.caseId));
     if (eligible.length < KICK_THRESHOLD) return;
     const reviewId = uid();
-    state.reviews.push({ reviewId, kind: 'KICK', liveId: LIVE_ID, caseId: trigger.caseId, status: 'PENDING', version: 1, createdAt: iso(at), aiVerdict: 'VIOLATION', messages: trigger.messages, targetMessageIds: trigger.targetMessageIds, findings: trigger.findings ?? [], basisCaseIds: eligible.slice(0, KICK_THRESHOLD).map(c => c.caseId), summary: KICK_SUMMARY });
+    state.reviews.push({ reviewId, kind: 'KICK', liveId: state.live.liveId, caseId: trigger.caseId, status: 'PENDING', version: 1, createdAt: iso(at), aiVerdict: 'VIOLATION', messages: trigger.messages, targetMessageIds: trigger.targetMessageIds, findings: trigger.findings ?? [], basisCaseIds: eligible.slice(0, KICK_THRESHOLD).map(c => c.caseId), summary: KICK_SUMMARY });
     trigger.status = 'KICK_REVIEW_PENDING';
     addStep(trigger.targetMessageIds, at, '강퇴 심사 요청', `최근 24시간 확정 사건 ${KICK_THRESHOLD}건 → 운영자 승인 대기`, 'MP-4.1');
     log('KICK_REVIEW_REQUIRED', `${aliasOf(userId)} · 확정 사건 ${KICK_THRESHOLD}건`, at, { caseId: trigger.caseId, reviewId });
   }
   // agentTimeout: Agent 판정이 마감(기본 3분) 안에 오지 않은 경우를 재현한다(A-25). 목업은 마감을 기다리지 않고 바로 연다.
-  function send(user: MockUser, text: string, at = Date.now(), opts: { agentTimeout?: boolean } = {}): SendResult {
+  function send(user: MockUser, text: string, at = Date.now(), opts: { agentTimeout?: boolean; delayAgent?: boolean } = {}): SendResult {
+    if (state.live.endedAt) return { ok: false, code: 'LIVE_ENDED' };
     if (state.kicks[user.id]) return { ok: false, code: 'KICKED' };
     const until = state.timeouts[user.id];
     if (until && Date.parse(until) > at) return { ok: false, code: 'TIMED_OUT', until };
@@ -293,7 +311,7 @@ export function createMockLive(users: MockUser[]) {
       { at: iso(at), title: '정규화', detail: `"${text}" → "${normalized}"`, code: 'norm-v1' },
       { at: iso(at), title: '사전 검사', detail: dictHits(text, same).join(' · ') || '사전에 걸린 단어 없음', code: 'dict-v2' }
     ] });
-    const base: MockMessage = { messageId, channelId: CHANNEL_ID, liveId: LIVE_ID, authorAlias: user.alias, text, visibility: 'PUBLIC', version: 1, sentAt: iso(at), isMine: false, ownerId: user.id, moderationReasonCode: null, moderationNotice: null, reviewStatus: null, timeoutUntil: null };
+    const base: MockMessage = { messageId, channelId: CHANNEL_ID, liveId: state.live.liveId, authorAlias: user.alias, text, visibility: 'PUBLIC', version: 1, sentAt: iso(at), isMine: false, ownerId: user.id, moderationReasonCode: null, moderationNotice: null, reviewStatus: null, timeoutUntil: null };
     // 같은 도배가 10초 안에 이어지면 기존 도배 사건에 붙여 숨긴다(Backend flood_marks).
     const mark = route === 'RULE_CONFIRMED' ? undefined : state.floodMarks.find(f => f.userId === user.id && f.text === normalized && f.lastSentAt > at - FLOOD_WINDOW_MS);
     const owner = mark && state.cases.find(c => c.caseId === mark.caseId && isConfirmed(c));
@@ -315,7 +333,7 @@ export function createMockLive(users: MockUser[]) {
     if (state.messages.length > 300) for (const old of state.messages.splice(0, state.messages.length - 300)) delete state.traces[old.messageId];
     log('CHAT', `${user.alias} · ${message.visibility}`, at);
     if (route === 'PASS') return { ok: true, message, caseItem: null };
-    const c = reactive({ caseId: uid(), liveId: LIVE_ID, version: 1, confirmationStatus: 'PENDING', handlingRoute: route, messages: snapshot(user.id), targetMessageIds: [message.messageId], confirmedFindings: [], findings: [], createdAt: iso(at), violationCount: 0, status: 'ANALYZING', userId: user.id, timeoutUntil: null }) as MockCase;
+    const c = reactive({ caseId: uid(), liveId: state.live.liveId, version: 1, confirmationStatus: 'PENDING', handlingRoute: route, messages: snapshot(user.id), targetMessageIds: [message.messageId], confirmedFindings: [], findings: [], createdAt: iso(at), violationCount: 0, status: 'ANALYZING', userId: user.id, timeoutUntil: null }) as MockCase;
     state.cases.push(c); recount(user.id);
     log('CASE_CREATED', `${user.alias} · ${route}`, at, { caseId: c.caseId });
     if (route !== 'RULE_CONFIRMED' && route !== 'FLOOD_REVIEW') {
@@ -327,41 +345,50 @@ export function createMockLive(users: MockUser[]) {
     else if (route === 'RULE_CONFIRMED') confirm(c, ruleCategories, at, false);
     else {
       log('TOOL_START', `${user.alias} · ${route === 'PII_INVESTIGATION' ? '개인정보 조사' : '문맥 조사'} (목업 Agent)`, at, { caseId: c.caseId });
+      const generation = liveGeneration;
+      function finishInvestigation(doneAt: number) {
+        if (generation !== liveGeneration || state.live.endedAt) return;
       if (opts.agentTimeout) {
         // AI 판정 없이 문맥 검토를 연다(A-25): aiVerdict=NEEDS_REVIEW, findings=[], 메시지는 HELD 유지.
-        addStep([messageId], at, '판정 마감 초과', 'AI 판정이 마감(기본 3분) 안에 오지 않음 → AI 결과 없이 검토 열기', 'A-25');
-        addStep([messageId], at, '문맥 검토 생성', 'AI 결과 없음 · 운영자가 직접 결정하고 백엔드가 바로 적용', 'CONTEXT_REVIEW_REQUIRED');
+        addStep([messageId], doneAt, '판정 마감 초과', 'AI 판정이 마감(기본 3분) 안에 오지 않음 → AI 결과 없이 검토 열기', 'A-25');
+        addStep([messageId], doneAt, '문맥 검토 생성', 'AI 결과 없음 · 운영자가 직접 결정하고 백엔드가 바로 적용', 'CONTEXT_REVIEW_REQUIRED');
         const reviewId = uid();
-        state.reviews.push({ reviewId, kind: 'CONTEXT', liveId: LIVE_ID, caseId: c.caseId, status: 'PENDING', version: 1, createdAt: iso(at), aiVerdict: 'NEEDS_REVIEW', messages: c.messages, targetMessageIds: c.targetMessageIds, findings: [], basisCaseIds: [], summary: NO_AI_SUMMARY });
-        log('CONTEXT_REVIEW_REQUIRED', `${user.alias} · AI 결과 없음`, at, { caseId: c.caseId, reviewId });
-        return { ok: true, message, caseItem: c };
+        state.reviews.push({ reviewId, kind: 'CONTEXT', liveId: state.live.liveId, caseId: c.caseId, status: 'PENDING', version: 1, createdAt: iso(doneAt), aiVerdict: 'NEEDS_REVIEW', messages: c.messages, targetMessageIds: c.targetMessageIds, findings: [], basisCaseIds: [], summary: NO_AI_SUMMARY });
+        log('CONTEXT_REVIEW_REQUIRED', `${user.alias} · AI 결과 없음`, doneAt, { caseId: c.caseId, reviewId });
+        return;
       }
       const finding = mockAgent(message.messageId, route, tags, text);
       c.findings = [finding]; c.status = 'NEEDS_REVIEW';
       trace.agent = mockAgentTrace(route, text, finding, c.messages.length, c.violationCount ?? 0);
-      addStep([messageId], at, '판단·근거 검증', verifyText(finding), finding.verdict);
+      addStep([messageId], doneAt, '판단·근거 검증', verifyText(finding), finding.verdict);
       if (route === 'PII_INVESTIGATION' && finding.verdict === 'NO_VIOLATION') {
         c.confirmationStatus = 'CONFIRMED_NORMAL'; c.status = 'NO_ACTION'; c.version++;
         setVisibility(message, 'PUBLIC', route);
-        log('MESSAGE_RESTORED', `${user.alias} · 개인정보 정상 판정으로 공개 (운영자 검토 없음)`, at, { caseId: c.caseId });
-        addStep([messageId], at, '가림 해제', '개인정보 정상 판정 → 운영자 검토 없이 공개 (정책 v3.2 §5)', 'CONFIRMED_NORMAL');
-        return { ok: true, message, caseItem: c };
+        log('MESSAGE_RESTORED', `${user.alias} · 개인정보 정상 판정으로 공개 (운영자 검토 없음)`, doneAt, { caseId: c.caseId });
+        addStep([messageId], doneAt, '가림 해제', '개인정보 정상 판정 → 운영자 검토 없이 공개 (정책 v3.2 §5)', 'CONFIRMED_NORMAL');
+        return;
       }
       if (route === 'PII_INVESTIGATION' && finding.verdict === 'VIOLATION' && finding.categories.length === 1 && finding.categories[0] === 'PII_EXPOSURE') {
-        confirm(c, ['PII_EXPOSURE'], at, false);
-        log('TOOL_END', `${user.alias} · 개인정보 단독 위반 검증·확정 (목업)`, at, { caseId: c.caseId });
-        return { ok: true, message, caseItem: c };
+        confirm(c, ['PII_EXPOSURE'], doneAt, false);
+        log('TOOL_END', `${user.alias} · 개인정보 단독 위반 검증·확정 (목업)`, doneAt, { caseId: c.caseId });
+        return;
       }
-      addStep([messageId], at, '문맥 검토 생성', 'AI 제안만으로 확정하지 않고 운영자 결정 대기 (정책 v3.2)', 'CONTEXT_REVIEW_REQUIRED');
-      log('TOOL_END', `${user.alias} · AI 제안 ${finding.verdict}`, at, { caseId: c.caseId });
+      addStep([messageId], doneAt, '문맥 검토 생성', 'AI 제안만으로 확정하지 않고 운영자 결정 대기 (정책 v3.2)', 'CONTEXT_REVIEW_REQUIRED');
+      log('TOOL_END', `${user.alias} · AI 제안 ${finding.verdict}`, doneAt, { caseId: c.caseId });
       const reviewId = uid();
-      state.reviews.push({ reviewId, kind: 'CONTEXT', liveId: LIVE_ID, caseId: c.caseId, status: 'PENDING', version: 1, createdAt: iso(at), aiVerdict: finding.verdict, messages: c.messages, targetMessageIds: c.targetMessageIds, findings: c.findings, basisCaseIds: [], summary: CONTEXT_SUMMARY });
-      log('CONTEXT_REVIEW_REQUIRED', `${user.alias} · AI 제안 ${finding.verdict}`, at, { caseId: c.caseId, reviewId });
+      state.reviews.push({ reviewId, kind: 'CONTEXT', liveId: state.live.liveId, caseId: c.caseId, status: 'PENDING', version: 1, createdAt: iso(doneAt), aiVerdict: finding.verdict, messages: c.messages, targetMessageIds: c.targetMessageIds, findings: c.findings, basisCaseIds: [], summary: CONTEXT_SUMMARY });
+      log('CONTEXT_REVIEW_REQUIRED', `${user.alias} · AI 제안 ${finding.verdict}`, doneAt, { caseId: c.caseId, reviewId });
+      }
+      if (opts.delayAgent) {
+        const timer = setTimeout(() => { agentTimers.delete(timer); finishInvestigation(Date.now()); }, 3000);
+        agentTimers.add(timer);
+      } else finishInvestigation(at);
     }
     return { ok: true, message, caseItem: c };
   }
   // 문맥 검토(정상·위반·보류)와 강퇴(승인·기각). 202 접수와 같다: 강퇴는 결과 시뮬레이션 전까지 실행되지 않는다.
   function decide(reviewId: string, value: ContextDecision | KickDecision, reason: string, categories: Category[] = [], at = Date.now()): { ok: boolean; message: string } {
+    if (state.live.endedAt) return { ok: false, message: '방송이 종료되어 결정할 수 없습니다.' };
     const r = state.reviews.find(x => x.reviewId === reviewId);
     if (!r || r.status !== 'PENDING') return { ok: false, message: '다른 결정이 먼저 반영되어 최신 상태를 불러왔습니다.' };
     const c = state.cases.find(x => x.caseId === r.caseId)!;
@@ -430,6 +457,7 @@ export function createMockLive(users: MockUser[]) {
   }
   // 초기 화면: fixture 채팅과 운영자 결정을 시간 순서대로 다시 넣는다.
   function reset(lines: FixtureLine[], now = Date.now()) {
+    clearAgentTimers();
     Object.assign(state, { messages: [], cases: [], reviews: [], decisions: {}, timeouts: {}, kicks: {}, kickProgress: {}, logs: [], traces: {}, floodMarks: [] });
     state.live = { liveId: LIVE_ID, channelId: CHANNEL_ID, startedAt: iso(now - 3_600_000), endedAt: null };
     type Step = { at: number; run: () => void };
@@ -448,5 +476,5 @@ export function createMockLive(users: MockUser[]) {
     steps.sort((a, b) => a.at - b.at).forEach(s => s.run());
     log('MOCK', '목업 방송 데이터를 불러왔습니다. 판정은 정책 v3.2 기준입니다.', now);
   }
-  return { state, aliasOf, send, decide, finishKick, revoke, reset, log };
+  return { state, aliasOf, send, decide, finishKick, revoke, reset, start, end, dispose: clearAgentTimers, log };
 }

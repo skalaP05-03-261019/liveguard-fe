@@ -53,7 +53,7 @@ const LIVE_BASE = { scanned: 1480, hidden: 27 };
 const mock = store.mock.state;
 const caseNames = computed(() => Object.fromEntries(mock.cases.map(c => [c.caseId, store.mock.aliasOf(c.userId)])));
 const ownerOf = (caseId: string) => mock.cases.find(c => c.caseId === caseId)?.userId ?? '';
-const liveChannel = computed<SysChannel>(() => ({ id: LIVE_CHANNEL_ID, name: BROADCAST_CHANNEL_NAME, streamer: BROADCAST_CHANNEL_NAME, live: true, viewers: 2341, scanned: LIVE_BASE.scanned + mock.messages.length, hidden: LIVE_BASE.hidden + mock.messages.filter(m => m.visibility === 'HIDDEN').length, held: mock.messages.filter(m => m.visibility === 'HELD').length }));
+const liveChannel = computed<SysChannel>(() => ({ id: LIVE_CHANNEL_ID, name: BROADCAST_CHANNEL_NAME, streamer: BROADCAST_CHANNEL_NAME, live: !mock.live.endedAt, viewers: 2341, scanned: LIVE_BASE.scanned + mock.messages.length, hidden: LIVE_BASE.hidden + mock.messages.filter(m => m.visibility === 'HIDDEN').length, held: mock.messages.filter(m => m.visibility === 'HELD').length }));
 const liveReports = computed<SysReport[]>(() => mock.reviews.filter(r => r.kind === 'KICK').map(r => {
   const d = mock.decisions[r.reviewId], progress = mock.kickProgress[r.reviewId] ?? '';
   return {

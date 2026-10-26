@@ -104,7 +104,7 @@ export const useLiveGuard = defineStore('liveGuard', () => {
   }
 
   function announce(r: SendResult, alias: string) {
-    if (!r.ok) return inform(r.code === 'KICKED' ? '현재 방송 입장이 제한되었습니다.' : '채팅이 일시 제한되어 메시지를 보낼 수 없습니다.');
+    if (!r.ok) return inform(r.code === 'LIVE_ENDED' ? '방송이 종료되어 채팅을 보낼 수 없습니다.' : r.code === 'KICKED' ? '현재 방송 입장이 제한되었습니다.' : '채팅이 일시 제한되어 메시지를 보낼 수 없습니다.');
     const m = r.message, c = r.caseItem;
     if (m.visibility === 'PUBLIC') return;
     if (m.visibility === 'HELD') return inform(`${alias} · AI 검토 후 운영자 결정 대기`);
@@ -116,7 +116,7 @@ export const useLiveGuard = defineStore('liveGuard', () => {
     const trimmed = text.trim(); if (!trimmed) return false;
     if (trimmed.length > MAX_CHAT_LENGTH) { inform(`메시지는 최대 ${MAX_CHAT_LENGTH}자입니다.`); return false; }
     clock.value = Date.now();
-    const r = mock.send(viewer.value, trimmed);
+    const r = mock.send(viewer.value, trimmed, Date.now(), { delayAgent: true });
     if (!r.ok) { announce(r, viewer.value.alias); return false; }
     if (r.message.visibility !== 'PUBLIC') announce(r, viewer.value.alias);
     return true;
@@ -131,7 +131,7 @@ export const useLiveGuard = defineStore('liveGuard', () => {
     const sc = demoScenarios.find(x => x.key === key); if (!sc) return;
     const user = userByAlias(sc.alias), at = Date.now();
     let last: SendResult | null = null;
-    for (let n = 0; n < (sc.repeat ?? 1); n++) last = mock.send(user, sc.text, at + n, { agentTimeout: sc.agentTimeout });
+    for (let n = 0; n < (sc.repeat ?? 1); n++) last = mock.send(user, sc.text, at + n, { agentTimeout: sc.agentTimeout, delayAgent: true });
     if (last) { if (last.ok && last.message.visibility === 'PUBLIC') inform(`${sc.alias} · 공개`); else announce(last, sc.alias); }
   }
   function decide(reviewId: string, value: ContextDecision | KickDecision, reason: string, categories: Category[] = []) {
@@ -145,6 +145,8 @@ export const useLiveGuard = defineStore('liveGuard', () => {
     return true;
   }
   function finishKick(reviewId: string, outcome: KickOutcome) { const text = mock.finishKick(reviewId, outcome); if (text) inform(text); return !!text; }
+  function startMockLive() { if (!mock.start()) return; error.value = ''; stopFeed(); startFeed(); inform('새 목업 방송을 시작했습니다.'); }
+  function endMockLive() { if (!mock.end()) return; stopFeed(); inform('목업 방송이 종료되었습니다.'); }
 
   // Mock 실시간 흐름: 4.5초마다 채팅 한 줄. 가끔 아직 사건이 없는 사용자의 위반이 섞인다.
   const feedOn = ref(false);
@@ -154,15 +156,15 @@ export const useLiveGuard = defineStore('liveGuard', () => {
   function feedTick() {
     if (Math.random() < 0.15) {
       const v = feedViolations.filter(x => !hasCase(x));
-      if (v.length) { const x = pick(v), at = Date.now(); for (let n = 0; n < (x.repeat ?? 1); n++) mock.send(x, x.text, at + n); return; }
+      if (v.length) { const x = pick(v), at = Date.now(); for (let n = 0; n < (x.repeat ?? 1); n++) mock.send(x, x.text, at + n, { delayAgent: true }); return; }
     }
-    mock.send(pick(feedUsers), pick(feedChats));
+    mock.send(pick(feedUsers), pick(feedChats), Date.now(), { delayAgent: true });
   }
-  function startFeed() { if (!demo || feedTimer) return; feedTimer = setInterval(feedTick, 4500); feedOn.value = true; }
+  function startFeed() { if (!demo || feedTimer || mock.state.live.endedAt) return; feedTimer = setInterval(feedTick, 4500); feedOn.value = true; }
   function stopFeed() { if (feedTimer) clearInterval(feedTimer); feedTimer = undefined; feedOn.value = false; }
   function toggleFeed() { if (feedOn.value) stopFeed(); else startFeed(); }
-  function dispose() { stopFeed(); if (clockTimer) clearInterval(clockTimer); if (notificationTimeout) clearTimeout(notificationTimeout); if (toastTimeout) clearTimeout(toastTimeout); }
+  function dispose() { stopFeed(); mock.dispose(); if (clockTimer) clearInterval(clockTimer); if (notificationTimeout) clearTimeout(notificationTimeout); if (toastTimeout) clearTimeout(toastTimeout); }
   return { mode, me, channelId, viewerId, busy, error, notice, toastText, loginRequired, clock, mock,
     viewerAlias, viewerMessages, kicked, viewerTimeoutUntil, timedOut, viewerLastReason,
-    init, login, logout, syncIdentity, clearIdentity, inform, toast, report, resetMock, sendMessage, setMockTimeout, mockScenario, decide, revoke, finishKick, feedOn, toggleFeed, dispose };
+    init, login, logout, syncIdentity, clearIdentity, inform, toast, report, resetMock, sendMessage, setMockTimeout, mockScenario, decide, revoke, finishKick, startMockLive, endMockLive, feedOn, toggleFeed, dispose };
 });
