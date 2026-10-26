@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { BROADCAST_CHANNEL_NAME, BROADCAST_TITLE } from './broadcastPresentation';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
-import { Activity, AlertTriangle, ChartNoAxesCombined, CheckCircle2, Clock3, Menu, Radio, ShieldCheck, XCircle } from 'lucide-vue-next';
+import { Activity, AlertTriangle, CheckCircle2, Clock3, Menu, Radio, ShieldCheck, XCircle } from 'lucide-vue-next';
 import type { Component } from 'vue';
 import { useLiveGuard } from './stores/liveGuard';
 import { categoryLabels, type Category, type Verdict } from './contracts';
@@ -22,7 +22,7 @@ import { LIVE_CHANNEL_ID, sysChannels, sysLogs, sysReports, type SysChannel, typ
 const props = withDefaults(defineProps<{ api?: boolean }>(), { api: false });
 const NO_API = '여러 방송 조회 API가 없어 표시할 데이터가 없습니다.';
 const store = useLiveGuard();
-// 탭: 실시간 관제(방송 중인 채널의 지금 상태) · 채팅관제 Tracking(채팅별 판정 흐름) · 기간별 누적 통계(고른 기간, 끝난 방송 포함, #41)
+// 기간 통계 구현은 유지하고, 집계 API 준비 전까지 메뉴에서 숨긴다.
 type SysTab = 'overview' | 'period' | 'tracking';
 const tab = ref<SysTab>('overview');
 const navOpen=ref(false),navCollapsed=ref(false),navTrigger=ref<HTMLButtonElement|null>(null),navElement=ref<HTMLElement|null>(null),mainElement=ref<HTMLElement|null>(null);
@@ -35,7 +35,7 @@ function navKey(e:KeyboardEvent){if(e.key==='Escape'&&!e.defaultPrevented&&navOp
 async function selectTab(value:SysTab){tab.value=value;if(!navWide.value){closeNav();await nextTick();mainElement.value?.focus();}}
 onMounted(()=>{navMedia.addEventListener('change',resizeNav);window.addEventListener('keydown',navKey);});
 onBeforeUnmount(()=>{navMedia.removeEventListener('change',resizeNav);window.removeEventListener('keydown',navKey);});
-const tabs: { key: SysTab; label: string; icon: Component }[] = [{ key: 'overview', label: '실시간 관제', icon: Radio }, { key: 'tracking', label: '채팅관제 Tracking', icon: Activity }, { key: 'period', label: '기간별 누적 통계', icon: ChartNoAxesCombined }];
+const tabs: { key: SysTab; label: string; icon: Component }[] = [{ key: 'overview', label: '실시간 관제', icon: Radio }, { key: 'tracking', label: '채팅관제 Tracking', icon: Activity }];
 const now = ref(Date.now());
 let timer: number | undefined;
 onMounted(() => { timer = window.setInterval(() => { now.value = Date.now(); }, 30000); });
@@ -146,7 +146,7 @@ const channelStats = computed(() => shownChannels.value.map(c => {
     <div class="sys-layout" :class="{'nav-collapsed':!navVisible}"><button v-if="!navWide && navOpen" type="button" class="sys-drawer-backdrop" aria-label="메뉴 닫기 배경" @click="closeNav(true)"/>
     <!-- 왼쪽 메뉴: 아이콘과 이름, 고른 항목은 회색 배경 -->
     <nav id="system-navigation" ref="navElement" class="sys-side" :class="{open:navWide || navOpen, compact:navWide && navCollapsed}" :inert="!navWide && !navOpen" :aria-hidden="!navWide && !navOpen" role="tablist" aria-orientation="vertical" aria-label="시스템 운영자 화면">
-      <button v-for="t in tabs" :key="t.key" type="button" role="tab" :aria-label="t.label" :aria-description="t.key !== 'period' && hasLiveBroadcast ? '방송 중인 채널이 있습니다' : undefined" :title="`${t.label}${t.key !== 'period' && hasLiveBroadcast ? ' · 방송 중' : ''}`" :aria-selected="tab===t.key" :class="{on: tab===t.key}" @click="selectTab(t.key)"><component :is="t.icon" :size="22" :stroke-width="1.8"/><span>{{t.label}}</span><i v-if="t.key !== 'period' && hasLiveBroadcast" class="sys-live-indicator" aria-hidden="true"/></button>
+      <button v-for="t in tabs" :key="t.key" type="button" role="tab" :aria-label="t.label" :aria-description="hasLiveBroadcast ? '방송 중인 채널이 있습니다' : undefined" :title="`${t.label}${hasLiveBroadcast ? ' · 방송 중' : ''}`" :aria-selected="tab===t.key" :class="{on: tab===t.key}" @click="selectTab(t.key)"><component :is="t.icon" :size="22" :stroke-width="1.8"/><span>{{t.label}}</span><i v-if="hasLiveBroadcast" class="sys-live-indicator" aria-hidden="true"/></button>
     </nav>
     <main ref="mainElement" class="main-content sys-main" tabindex="-1" :inert="!navWide && navOpen">
       <template v-if="tab==='tracking'">
