@@ -797,9 +797,6 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .review-actions button{height:34px;padding:0 14px;border-radius:17px;background:var(--chip);font-size:13px;font-weight:500}
 .review-actions button.primary{background:var(--text);color:#fff}
 .review-foot{color:var(--text-2);line-height:1.5}
-.basis-log caption{text-align:left;font-size:12px;color:var(--text-2);padding-bottom:4px}
-.basis-log .log-text{white-space:normal;overflow-wrap:anywhere}
-.basis-log th:nth-child(1){width:124px}.basis-log th:nth-child(2){width:72px}.basis-log th:nth-child(3){width:auto}.basis-log th:nth-child(4){width:72px}
 .log-action.timeout{color:var(--amber);font-weight:500}
 .log-detail{font-size:12px;color:var(--text-2);overflow-wrap:anywhere}
 .studio-subhead{font-size:16px;font-weight:600;margin:24px 0 10px}
@@ -826,7 +823,6 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .auto-log th:nth-child(1){width:124px}
 .sanction-log .log-time{white-space:nowrap}
 .chat-time{min-width:36px;white-space:nowrap}
-@media(max-width:590px){.basis-log th:nth-child(1){width:76px}.basis-log th:nth-child(2){width:52px}.basis-log th:nth-child(4){width:60px}.basis-log .log-time{white-space:normal}}
 
 /* #15 사건 처리 흐름, 강퇴 기준 사건 근거, 결정 필요 표시 */
 .case-row{cursor:pointer}
@@ -1223,9 +1219,6 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .live-monitoring-grid .review-excerpt{flex-basis:100%;margin-left:22px;min-width:0}
 .live-monitoring-grid .review-body{padding:0 8px 12px;min-width:0;overflow-wrap:anywhere}
 .live-monitoring-grid .review-choice{flex-wrap:wrap}
-.live-monitoring-grid .basis-log{table-layout:fixed;width:100%}
-.live-monitoring-grid .basis-log td{white-space:normal;overflow-wrap:anywhere}
-.live-monitoring-grid .basis-log .log-time{width:auto;white-space:normal}
 .review-new-badge,.queue-new-indicator{background:#065fd4;color:#fff;font-size:10px;font-weight:700;border-radius:4px;padding:3px 6px;white-space:nowrap}
 .monitor-arrival-announcement{padding:10px 14px;border-left:4px solid #065fd4;background:#eaf2ff;color:#064ca7;font-size:14px;font-weight:600;margin:0 0 12px}
 .review-arrival{outline:2px solid #065fd4;outline-offset:-2px;animation:review-arrival-emphasis 2.6s ease-out 3}
@@ -1235,10 +1228,6 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 @media(max-width:760px){.live-monitoring-grid{grid-template-columns:minmax(0,1fr)}.live-monitoring-grid .decision-queue{max-height:none;overflow:visible}.live-monitoring-grid .section-head{position:static}.live-monitoring-grid .scan-wrap{height:380px}}
 @media(prefers-reduced-motion:reduce){.review-arrival{animation:none;transform:none;background:#eef5ff}}
 
-.live-monitoring-grid .basis-log th:nth-child(1){width:24%}
-.live-monitoring-grid .basis-log th:nth-child(2){width:18%}
-.live-monitoring-grid .basis-log th:nth-child(3){width:38%}
-.live-monitoring-grid .basis-log th:nth-child(4){width:20%}
 
 .side-unread-dot{display:block;flex:none;width:8px;height:8px;margin-left:auto;border-radius:50%;background:#065fd4}
 
@@ -1318,6 +1307,12 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .context-review-step-head h3{margin:1px 0 2px;font-size:13px;line-height:1.4;font-weight:700}
 .context-review-step-head small{display:block;color:#606060;font-size:11px;line-height:1.5}
 .context-review-step-content{display:grid;gap:8px;margin-top:10px;min-width:0}
+.context-review-record{margin:0;padding:9px 11px;border:1px solid #e8e8e8;border-radius:7px;background:#f8f8f8;color:#343434;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+.context-review-fallback{border-color:#efd9a6;background:#fff9eb}
+.context-review-record code{font-size:11px}
+.context-review-unavailable{color:#767676;font-size:11px;line-height:1.4}
+.context-review-evidence summary{cursor:pointer;color:#4a4a4a;font-size:12px;font-weight:600}
+.context-review-evidence .ai-evidence{margin-top:8px}
 .context-review-step-content .ai-evidence,.context-review-step-content .no-ai-box{margin:0}
 .context-review-step-content .review-context{padding:10px;border:1px solid #ececec;border-radius:6px;background:#fff;font-size:12px}
 .context-review-step-content .review-context>b{display:block;margin-bottom:6px;font-weight:600}
@@ -1338,6 +1333,16 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .review-chat-row .verdict-badge,.review-chat-row .review-new-badge{display:inline-block;margin:4px 0 0 7px;vertical-align:middle}
 .review-chat-row .chat-time{padding-top:3px;min-width:34px}
 .review-chat-chevron{align-self:center;flex:none;color:#606060}
+.kick-basis-chats{list-style:none;margin:0;padding:0;display:grid}
+.kick-basis-chat{display:grid;grid-template-columns:24px minmax(0,1fr) auto;align-items:start;gap:8px;padding:10px 0;border-bottom:1px solid var(--line);font-size:13px}
+.kick-basis-chat>.chat-avatar{margin-top:1px}
+.kick-basis-content{min-width:0;overflow-wrap:anywhere}
+.kick-basis-meta{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.kick-basis-meta b{font-weight:600}
+.kick-basis-meta time{color:var(--text-2);font-size:11px;font-variant-numeric:tabular-nums}
+.kick-basis-content p{margin:2px 0 0;white-space:pre-wrap;line-height:1.5}
+.kick-basis-verdict{max-width:100px;padding:3px 6px;border-radius:5px;background:#eceff3;color:#3d4652;font-size:11px;font-weight:600;line-height:1.35;text-align:center;overflow-wrap:anywhere}
+.kick-basis-verdict.violation{background:#fce8e6;color:#b3261e}
 
 .studio-shell .studio-broadcast-summary{margin-bottom:20px}
 .studio-shell .studio-broadcast-summary .stream-caption{padding:16px 20px}
@@ -1398,6 +1403,10 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .sys-shell .sys-side:not(.open){display:none}
 .sys-shell .sys-side button{width:100%;padding:12px;gap:14px;text-align:left;white-space:normal;font-size:14px}
 .sys-shell .sys-side button svg{width:22px;height:22px}
+.sys-shell .sys-side .sys-live-indicator{width:8px;height:8px;min-width:8px;margin-left:auto;border-radius:50%;background:#cc0000}
+.sys-off-air-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:260px;padding:40px 20px;text-align:center;color:#737373}
+.sys-off-air-empty h2{margin:0;color:#202020;font-size:22px;font-weight:600}
+.sys-off-air-empty p{margin:0;color:#606060;font-size:14px;line-height:1.6}
 .sys-shell .sys-main:focus{outline:none}
 .sys-drawer-backdrop{position:fixed;inset:64px 0 0;background:#0005;z-index:44;border:0;padding:0}
 @media(max-width:1099px){.sys-shell .sys-layout{display:block}.sys-shell .sys-side{position:fixed;left:0;top:64px;z-index:45;width:260px;background:#fff;box-shadow:4px 0 20px #0002}.sys-shell .sys-side.open{animation:system-drawer-in .18s ease-out}}
@@ -1410,6 +1419,7 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .viewer-assistant>header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 14px 24px;flex:none}.viewer-assistant>header b{font-size:23px;font-weight:600;letter-spacing:-.6px}
 .viewer-assistant-content{padding:0 24px 24px;overflow-y:auto;min-height:0;flex:1;display:flex;flex-direction:column}.viewer-assistant-welcome{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:22px;min-height:180px;flex:1;padding:32px 0 40px}.viewer-assistant h2{font-size:27px;line-height:1.5;font-weight:400;letter-spacing:-1px;margin:0;word-break:keep-all}.viewer-assistant p{font-size:12px;color:#60656c;line-height:1.7}
 .viewer-assistant-actions{padding:18px;background:#ffffffbd;border:1px solid #fff;border-radius:24px;box-shadow:0 3px 18px #497cb008}.viewer-assistant-eyebrow{display:block;font-size:12px;color:#626976;margin-bottom:12px}.viewer-assistant-prompt{width:100%;padding:14px 18px;border:1px solid #e4e7ec;border-radius:22px;background:#fff;color:#30343b;text-align:left;font-size:14px;line-height:1.8;cursor:pointer;box-shadow:0 2px 6px #00000003}.viewer-assistant-prompt:hover{background:#eef4ff;border-color:#c8d8ee}.viewer-assistant-prompt:disabled{opacity:.55;cursor:default}.viewer-assistant-disclosure{margin:12px 2px 0}.viewer-assistant-progress{margin:18px 4px 0;font-size:12px;color:#60656c}.viewer-assistant-stop{margin:12px 0 0;align-self:flex-start;border:1px solid #d5deeb;border-radius:24px;padding:9px 18px;background:#fff;color:#30343b}.viewer-assistant-chats{padding:0;list-style:none;flex:none;max-height:34dvh;overflow-y:auto;margin:12px 0 0}.viewer-assistant-chats:empty{display:none}.viewer-assistant-chats li{display:flex;justify-content:space-between;gap:12px;padding:12px 4px;border-bottom:1px solid #dce3ee;font-size:13px;line-height:1.6}.viewer-assistant-chats small{color:#737c89;flex:none}.viewer-assistant button:focus-visible{outline:2px solid #065fd4;outline-offset:2px}.viewer-assistant-content.has-chats .viewer-assistant-welcome{flex:0;min-height:120px;padding:16px 0 24px;gap:12px}.viewer-assistant-content.has-chats h2{font-size:23px}
+.viewer-assistant-crowd-prompt{margin-top:18px}
 @keyframes assistant-enter{from{transform:translateX(100%)}to{transform:translateX(0)}}
 @media(max-width:480px){.viewer-assistant-content{padding:0 18px 20px}.viewer-assistant h2{font-size:24px}.viewer-assistant-actions{padding:14px}.viewer-assistant>header b{font-size:22px}}
 @media(prefers-reduced-motion:reduce){.viewer-assistant{animation:none}}
@@ -1427,6 +1437,8 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .sys-shell .sys-side.compact{padding:24px 8px;gap:8px}
 .sys-shell .sys-side.compact button{justify-content:center;padding:12px 0;min-height:48px}
 .sys-shell .sys-side.compact button span{display:none}
+.sys-shell .sys-side.compact button{position:relative}
+.sys-shell .sys-side.compact .sys-live-indicator{position:absolute;top:8px;right:7px;margin:0;width:7px;height:7px;min-width:7px}
 }
 
 .configured-broadcast{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:16px 20px;margin-bottom:24px;border:1px solid #e5e5e5;border-radius:12px;background:#fff;overflow-wrap:anywhere}.configured-broadcast>span{font-size:11px;color:#737373}.configured-broadcast>b{font-size:17px;line-height:1.5;font-weight:600}.configured-broadcast>small{font-size:13px;color:#606060}

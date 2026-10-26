@@ -71,7 +71,7 @@ const when = (iso: string) => new Date(iso).toLocaleString('ko-KR', { timeZone: 
 
 <template>
   <div class="sys-head">
-    <div><h1>대시보드</h1><p>끝난 방송 포함 · 기간 내 여러 방송의 채팅·요청 합산 · 한국 시간 기준</p></div>
+    <div><h1>기간별 누적 통계</h1><p>끝난 방송 포함 · 기간 내 여러 방송의 채팅·요청 합산 · 한국 시간 기준</p></div>
     <span class="sys-mock">{{api ? '기간 집계 API가 없습니다 (Backend 요청 중)' : '목업 예시 데이터'}}</span>
   </div>
   <div class="sys-filter" role="group" aria-label="기간"><button v-for="p in presets" :key="p[0]" type="button" :class="{on: preset===p[0]}" :aria-pressed="preset===p[0]" @click="preset=p[0]">{{p[1]}}</button></div>

@@ -18,8 +18,10 @@ import { avatarColor } from './avatar';
 const props = withDefaults(defineProps<{
   messages: Message[];
   sendDemoChat?: (text:string)=>Promise<boolean>;
+  sendCrowdDemoChat?: (index:number)=>Promise<{alias:string;text:string}|null>;
   nickname: string;
   scopeKey: string;
+  crowdScopeKey?: string;
   clock: number;
   mock?: boolean;
   ready?: boolean;
@@ -122,7 +124,7 @@ function dislike() { disliked.value = !disliked.value; if (disliked.value) liked
   <div class="viewer-shell" :class="{'api-viewer': !mock}">
     <header class="yt-masthead">
       <div class="yt-masthead-start"><span class="yt-icon-button" aria-hidden="true"><Menu :size="22"/></span><a class="yt-logo" href="#"><span class="yt-logo-mark"><ShieldCheck :size="15"/></span><b>LIVE<span>:</span>GUARD</b><sup>KR</sup></a></div>
-      <div class="yt-search"><div class="yt-search-box"><input ref="searchRef" v-model="query" placeholder="채팅 검색" aria-label="채팅 검색"/><button title="채팅 검색" @click="searchRef?.focus()"><Search :size="20"/></button></div><ViewerAssistant :scope-key="scopeKey" :disabled="!ready||loading||!hasLive||blocked||ended||timedOut" :send-chat="sendDemoChat"/></div>
+      <div class="yt-search"><div class="yt-search-box"><input ref="searchRef" v-model="query" placeholder="채팅 검색" aria-label="채팅 검색"/><button title="채팅 검색" @click="searchRef?.focus()"><Search :size="20"/></button></div><ViewerAssistant :scope-key="scopeKey" :crowd-scope-key="crowdScopeKey" :disabled="!ready||loading||!hasLive||blocked||ended||timedOut" :crowd-disabled="!ready||loading||!hasLive||blocked||ended" :send-chat="sendDemoChat" :send-crowd-chat="sendCrowdDemoChat"/></div>
       <div class="yt-masthead-end">
         <AccountMenu :nickname="nickname" account-label="시청자 계정" @logout="emit('logout')"/>
       </div>
