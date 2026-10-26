@@ -6,6 +6,8 @@ import YtPlayer from './YtPlayer.vue';
 import AccountMenu from './AccountMenu.vue';
 import ViewerAssistant from './ViewerAssistant.vue';
 import ChatTimeoutNotice from './ChatTimeoutNotice.vue';
+import ConnectionFailureNotice from './ConnectionFailureNotice.vue';
+import { DEMO_WIFI_NAME } from './demoNetwork';
 import { timeoutEndText } from './chatTime';
 import { authorNotice, visibilityLabels, type Message } from './contracts';
 import { avatarColor } from './avatar';
@@ -32,6 +34,8 @@ const props = withDefaults(defineProps<{
   startedAt?: string | null;
   online?: boolean;
   error?: string;
+  connectionFailure?: boolean;
+  wifiName?: string;
   notice?: string;
   title?: string;
   channelName?: string | null;
@@ -40,9 +44,10 @@ const props = withDefaults(defineProps<{
   viewers?: string | null;
   likes?: number | null;
 }>(), { mock: false, ready: true, loading: false, hasLive: true, blocked: false, ended: false, busy: false, timedOut: false, online: false,
+  connectionFailure: false, wifiName: DEMO_WIFI_NAME,
   title: BROADCAST_TITLE, channelName: BROADCAST_CHANNEL_NAME, channelAvatar: null, subscribers: null, viewers: null, likes: null });
 const draft = defineModel<string>('draft', { required: true });
-const emit = defineEmits<{ send: []; logout: [] }>();
+const emit = defineEmits<{ send: []; logout: []; retryConnection: [] }>();
 const following = ref(false), liked = ref(false), disliked = ref(false);
 const theater = ref(false), chatOpen = ref(true), query = ref('');
 const searchRef = ref<HTMLInputElement | null>(null), chatRef = ref<HTMLElement | null>(null);
@@ -146,6 +151,7 @@ function dislike() { disliked.value = !disliked.value; if (disliked.value) liked
           <p>오늘도 편하게 이야기 나누는 공간이에요. 서로 존중하며 채팅에 참여해 주세요! ✨</p><small><ShieldCheck :size="13"/> LIVE:GUARD AI Agent가 채팅을 모니터링합니다.</small>
         </section>
         <p v-if="error" class="viewer-error" role="alert">{{error}}</p><p v-if="notice" class="viewer-notice" role="status">{{notice}}</p>
+        <ConnectionFailureNotice v-if="connectionFailure" :wifi-name="wifiName" @retry="emit('retryConnection')"/>
         <slot name="demo"/>
       </main>
 

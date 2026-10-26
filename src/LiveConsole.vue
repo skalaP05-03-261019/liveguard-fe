@@ -7,12 +7,14 @@ import {ApiError,authorNotice,type Category,type Live,type LiveCase,type LiveRev
 import {useLiveGuard} from './stores/liveGuard';
 import {uuid} from './uuid';
 import ViewerScreen from './ViewerScreen.vue';
+import { DEMO_WIFI_NAME } from './demoNetwork';
 import SystemPage from './SystemPage.vue';
 import StudioScreen,{type StudioLog} from './StudioScreen.vue';
 const store=useLiveGuard();
 const live=ref<Live|null>(null), messages=ref<Message[]>([]), reviews=ref<LiveReview[]>([]);
 const caseHistory=ref<LiveCase[]>([]);
 const error=ref(''),notice=ref(''),text=ref(''),busy=ref(false),online=ref(false),ended=ref(false),blocked=ref(false),loading=ref(true);
+const connectionFailure=ref(false);
 const logs=ref<StudioLog[]>([]);
 // 강퇴 검토별 처리 상태: 결정 접수 → 적용 완료·실패·확인 중
 const kickProgress=ref<Record<string,string>>({});
@@ -73,13 +75,19 @@ let generation=0;let refreshSequence=0;
 const versions=new EventVersions();
 const seen=new Set<string>();let streams:EventSource[]=[];let timer:ReturnType<typeof setInterval>|undefined;let clockTimer:ReturnType<typeof setInterval>|undefined;let loadingLive=false;
 function fail(e:unknown){
+ connectionFailure.value=e instanceof ApiError&&e.code==='TEMPORARY_UNAVAILABLE';
  if(e instanceof ApiError){
-  if(e.code==='KICKED'){blockAccess();error.value='';return;}
-  if(e.code==='TIMED_OUT'){timeoutUntil.value=e.until??null;timeoutUnknown.value=!e.until;restrictionReason.value=e.message;error.value='';return;}
-  if(e.code==='LIVE_ENDED'){markEnded();error.value='';return;}
+  if(e.code==='KICKED'){connectionFailure.value=false;blockAccess();error.value='';return;}
+  if(e.code==='TIMED_OUT'){connectionFailure.value=false;timeoutUntil.value=e.until??null;timeoutUnknown.value=!e.until;restrictionReason.value=e.message;error.value='';return;}
+  if(e.code==='LIVE_ENDED'){connectionFailure.value=false;markEnded();error.value='';return;}
   if(e.code==='UNAUTHENTICATED'){generation++;disconnect();resetAccess();messages.value=[];reviews.value=[];caseHistory.value=[];store.clearIdentity();}
  }
  error.value=e instanceof ApiError?`${e.code}: ${e.message}`:'요청을 처리하지 못했습니다.';
+}
+function clearConnectionFailure(){
+ if(!connectionFailure.value)return;
+ connectionFailure.value=false;
+ if(error.value.startsWith('TEMPORARY_UNAVAILABLE:'))error.value='';
 }
 async function sessionValid(){
  const previous=store.me?.userId;
@@ -142,6 +150,7 @@ async function refreshOnce(readMessages: boolean, readGuard: boolean){
   if(cards){reviews.value=cards;for(const r of cards)versions.observe('review',r.reviewId,r.version);}
   if(history){caseHistory.value=history;for(const c of history)versions.observe('case',c.caseId,c.version);}
   if(readGuard&&operator.value)resolveNames().catch(()=>{});
+  clearConnectionFailure();
   return true;
  }catch(e){if(expected===generation&&sequence===refreshSequence)fail(e);return false;}
 }
@@ -157,7 +166,7 @@ function connect(){
  const id=live.value.liveId,expected=generation;
  const current=()=>expected===generation&&live.value?.liveId===id;
  const source=api.liveEvents(id);streams.push(source);
- source.onopen=()=>{if(current()){online.value=true;refresh();}};source.onerror=()=>{if(current())online.value=false;};
+ source.onopen=()=>{if(current()){online.value=true;clearConnectionFailure();refresh();}};source.onerror=()=>{if(current())online.value=false;};
  const handle=(e:Event)=>{
   if(!current())return;
   try{
@@ -208,6 +217,11 @@ async function load(){
   if(await refresh()){error.value='';if(!streams.length)connect();}
  }catch(e){if(expected===generation){if(e instanceof ApiError&&e.code==='NOT_FOUND'){generation++;live.value=null;messages.value=[];resetAccess();disconnect();}else fail(e);}}
  finally{loadingLive=false;loading.value=false;}
+}
+async function retryConnection(){
+ clearConnectionFailure();
+ if(!live.value){await load();return;}
+ if(await refresh())connect();
 }
 async function start(){if(busy.value||loading.value||(live.value&&!ended.value))return;busy.value=true;try{await api.startLive(store.channelId);await load();}catch(e){fail(e);}finally{busy.value=false;}}
 async function end(){if(!live.value||ended.value||busy.value||loading.value)return;busy.value=true;try{await api.endLive(live.value.liveId);markEnded();}catch(e){fail(e);}finally{busy.value=false;}}
@@ -265,9 +279,9 @@ onMounted(()=>{load();window.addEventListener('focus',checkSession);if(authChann
 onBeforeUnmount(()=>{generation++;disconnect();window.removeEventListener('focus',checkSession);authChannel?.close();if(timer)clearInterval(timer);if(clockTimer)clearInterval(clockTimer);});
 </script>
 <template>
- <ViewerScreen :send-demo-chat="sendDemoChat" v-if="!operator&&!admin" v-model:draft="text" :messages="visibleMessages" :nickname="store.me?.nickname??'시청자'" :scope-key="`${store.me?.userId}:${live?.liveId??''}`" :clock="clock" :ready="accessReady" :loading="loading" :has-live="!!live" :blocked="blocked" :ended="ended" :busy="busy" :timed-out="timedOut" :timeout-until="timeoutUntil" :timeout-reason="timeoutReason" :started-at="live?.startedAt" :online="online" :error="error" :notice="notice" @send="send" @logout="store.logout()"/>
- <StudioScreen v-else-if="operator" :nickname="store.me?.nickname??'스트리머'" :live="live" :ended="ended" :loading="loading" :online="online" :messages="visibleMessages" :reviews="reviews" :cases="caseHistory" :case-names="caseNames" :logs="logs" :kick-progress="kickProgress" :archive="archive" :archive-more="archiveMore" :archive-loading="archiveLoading" :busy="busy" :error="error" :notice="notice"
-  @decide="decide" @revoke="revoke" @start="start" @end="end" @logout="store.logout()" @page="onPage" @load-older="loadArchive(false)"/>
+ <ViewerScreen :send-demo-chat="sendDemoChat" v-if="!operator&&!admin" v-model:draft="text" :messages="visibleMessages" :nickname="store.me?.nickname??'시청자'" :scope-key="`${store.me?.userId}:${live?.liveId??''}`" :clock="clock" :ready="accessReady" :loading="loading" :has-live="!!live" :blocked="blocked" :ended="ended" :busy="busy" :timed-out="timedOut" :timeout-until="timeoutUntil" :timeout-reason="timeoutReason" :started-at="live?.startedAt" :online="online" :error="error" :connection-failure="connectionFailure" :wifi-name="DEMO_WIFI_NAME" :notice="notice" @send="send" @logout="store.logout()" @retry-connection="retryConnection"/>
+ <StudioScreen v-else-if="operator" :nickname="store.me?.nickname??'스트리머'" :live="live" :ended="ended" :loading="loading" :online="online" :messages="visibleMessages" :reviews="reviews" :cases="caseHistory" :case-names="caseNames" :logs="logs" :kick-progress="kickProgress" :archive="archive" :archive-more="archiveMore" :archive-loading="archiveLoading" :busy="busy" :error="error" :connection-failure="connectionFailure" :wifi-name="DEMO_WIFI_NAME" :notice="notice"
+  @decide="decide" @revoke="revoke" @start="start" @end="end" @logout="store.logout()" @page="onPage" @load-older="loadArchive(false)" @retry-connection="retryConnection"/>
  <!-- 시스템 운영자: 목업과 같은 화면. 백엔드에 시스템 운영자 권한과 여러 방송 조회 API가 없어 데이터 칸은 비어 있다 -->
  <SystemPage v-else api/>
 </template>

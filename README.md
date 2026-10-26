@@ -123,6 +123,9 @@ API 모드는 백엔드 v1.0(liveId) API를 씁니다. 백엔드·AI Agent까지
 | `VITE_API_BASE_URL`   | 빈 값                     | 별도 API 기본 주소가 필요한 경우 설정        |
 | `VITE_STREAM_SRC`     | 기본 데모 영상                | 방송 영상 URL                      |
 | `VITE_STREAM_POSTER`  | 기본 포스터                  | 영상 썸네일 URL                     |
+| `VITE_DEMO_WIFI_NAME` | `SKALA 4층 Wi-Fi`        | 연결 실패 안내 및 시연 접속 자료에 표시할 Wi-Fi 이름. 장소 변경 시 Vite 빌드 전에 설정 |
+
+`VITE_DEMO_WIFI_NAME`은 프론트엔드 빌드 시점에 반영됩니다. 행사 Wi-Fi가 다르면 `.env.local` 또는 빌드 환경에서 실제 이름으로 지정한 뒤 다시 빌드하세요.
 
 * **API 모드 계정:** `viewer`, `moderator`, `admin` / 공통 비밀번호 `liveguard-local` (`local` 프로파일 시드 계정)
 

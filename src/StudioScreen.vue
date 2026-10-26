@@ -10,6 +10,8 @@ import DecisionNotifications from './DecisionNotifications.vue';
 import StatusSummaryWidget from './StatusSummaryWidget.vue';
 import StreamCreateMenu from './StreamCreateMenu.vue';
 import AccountMenu from './AccountMenu.vue';
+import ConnectionFailureNotice from './ConnectionFailureNotice.vue';
+import { DEMO_WIFI_NAME } from './demoNetwork';
 import type { ShortcutAction, OperatorAlert } from './operatorTools';
 import ModeBadge from './ModeBadge.vue';
 import AiEvidence from './AiEvidence.vue';
@@ -37,12 +39,12 @@ const props = withDefaults(defineProps<{
   logs: StudioLog[]; kickProgress: Record<string, string>;
   // 채팅 기록 페이지: 이전 페이지까지 불러온 채팅. 없으면 messages를 쓴다(목업).
   archive?: Message[] | null; archiveMore?: boolean; archiveLoading?: boolean;
-  busy?: boolean; error?: string; notice?: string; feedOn?: boolean | null;
-}>(), { mock: false, channelName: BROADCAST_CHANNEL_NAME, ended: false, loading: false, online: false, busy: false, error: '', notice: '', feedOn: null, archive: null, archiveMore: false, archiveLoading: false });
+  busy?: boolean; error?: string; connectionFailure?: boolean; wifiName?: string; notice?: string; feedOn?: boolean | null;
+}>(), { mock: false, channelName: BROADCAST_CHANNEL_NAME, ended: false, loading: false, online: false, busy: false, error: '', connectionFailure: false, wifiName: DEMO_WIFI_NAME, notice: '', feedOn: null, archive: null, archiveMore: false, archiveLoading: false });
 const emit = defineEmits<{
   decide: [review: LiveReview, value: ContextDecision | KickDecision, reason: string, categories: Category[]];
   revoke: [caseId: string, findingId: string, reason: string];
-  page: [page: Page]; start: []; end: []; logout: []; toggleFeed: []; loadOlder: [];
+  page: [page: Page]; start: []; end: []; logout: []; toggleFeed: []; loadOlder: []; retryConnection: [];
 }>();
 
 const operatorToolsRef=ref<InstanceType<typeof OperatorTools>|null>(null);
@@ -354,6 +356,7 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
           <div v-if="(page!=='monitor' || !live) && page!=='cases' && page!=='chats' && page!=='viewers'" class="status-strip"><div><Radio :size="18"/><b>{{pageTitles[page]}}</b></div></div>
           <OperatorTools ref="operatorToolsRef" :live-id="live?.liveId??''" :ended="ended" :reviews="reviews" :progress="kickProgress" @navigate="navigateTool" @open="openToolAlert"/>
           <p v-if="error" class="error-inline" role="alert"><AlertCircle :size="17"/> {{error}}</p>
+          <ConnectionFailureNotice v-if="connectionFailure" :wifi-name="wifiName" @retry="emit('retryConnection')"/>
           <p v-if="notice" class="studio-notice" role="status">{{notice}}</p>
           <p v-for="k in kickStates" :key="k.review.reviewId" class="kick-progress" role="status"><span>강퇴 처리 · {{nameOf(k.review.caseId)}}: <b>{{k.state}}</b></span><slot name="kick-actions" :review-id="k.review.reviewId" :state="k.state"/></p>
 

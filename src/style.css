@@ -270,6 +270,13 @@ code{font-family:'Roboto Mono',ui-monospace,Consolas,monospace}
 .viewer-error,.viewer-notice{margin-top:12px;padding:12px 16px;border-radius:8px;font-size:13px;overflow-wrap:anywhere}
 .viewer-error{background:#ffebeb;color:#b00020}
 .viewer-notice{background:#effaf2;color:#216b39}
+.connection-notice{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:12px;padding:14px 16px;border:1px solid #edb35c;border-radius:8px;background:#fff8e8;color:#513b17}
+.connection-notice-copy{min-width:0;overflow-wrap:anywhere}
+.connection-notice-copy p{margin:4px 0 0;line-height:1.55}
+.connection-notice button{flex:0 0 auto;min-height:40px;padding:0 14px;border-radius:6px;background:#513b17;color:#fff;font-weight:600}
+.connection-notice button:hover{background:#35260f}
+.connection-notice button:focus-visible{outline:3px solid #9a6500;outline-offset:2px}
+@media(max-width:590px){.connection-notice{align-items:stretch;flex-direction:column;gap:12px}.connection-notice button{align-self:flex-start}}
 .viewer-empty-chat{padding:20px 16px;color:var(--text-2);font-size:13px}
 .yt-search{flex:0 1 732px;display:flex;align-items:center;gap:12px;margin-left:40px}
 .yt-search-box{flex:1;display:flex;height:40px;border:1px solid #ccc;border-radius:20px;overflow:hidden}

@@ -129,6 +129,7 @@ before(async()=>{
     const sent=message('sent-'+state.posts,role,'PUBLIC',{text:JSON.parse(body).text});state.messages.push(sent);return json(201,{...sent,isMine:true});
    }
    if(state.kicked.has(role))return json(403,{code:'KICKED',message:'Access blocked',retryable:false});
+   if(state.permissionError)return json(403,{code:'FORBIDDEN',message:'Permission denied',retryable:false});
    if(state.historyError)return json(503,{code:'TEMPORARY_UNAVAILABLE',message:'Retry later',retryable:true});
    const items=state.messages.filter(m=>state.leak||role==='operator'||m.visibility==='PUBLIC'||m.owner===role).map(({owner,...m})=>({...m,isMine:owner===role,...(owner===role?{}:{moderationNotice:null,moderationReasonCode:null,reviewStatus:null,timeoutUntil:null})})).reverse();
    // pageSize가 있으면 limit을 준 요청(채팅 기록)을 쪽 단위로 나눠 준다.
@@ -162,7 +163,7 @@ before(async()=>{
  mockBase=`http://127.0.0.1:${mockVite.httpServer.address().port}`;
  browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH}:{})});
 });
-beforeEach(()=>{state={active:true,liveId:'live-1',messages:[],until:{},kicked:new Set(),posts:0,historyReads:[],currentReads:0,postError:null,historyError:false,leak:false,delayHistory:0,delayCurrent:0,reviews:[],cases:[],decisions:[],pageSize:0};runtimeErrors.length=0;});
+beforeEach(()=>{state={active:true,liveId:'live-1',messages:[],until:{},kicked:new Set(),posts:0,historyReads:[],currentReads:0,postError:null,historyError:false,permissionError:false,leak:false,delayHistory:0,delayCurrent:0,reviews:[],cases:[],decisions:[],pageSize:0};runtimeErrors.length=0;});
 afterEach(async()=>{await Promise.all(contexts.splice(0).map(c=>c.close()));assert.deepEqual(runtimeErrors,[]);});
 after(async()=>{await browser?.close();await mockVite?.close();await vite?.close();for(const c of clients)c.res.end();server?.closeAllConnections();await new Promise(r=>server?server.close(r):r());});
 
@@ -173,6 +174,30 @@ test('author sees reasons and review state; observer receives no private text; o
  assert(state.historyReads.filter(r=>r.role==='observer').every(r=>r.page.items.every(m=>m.visibility==='PUBLIC'||m.isMine)));
  const operator=await open('operator');await operator.locator('[data-message-id="held"]').waitFor();await operator.locator('[data-message-id="hidden"]').waitFor();
  await capture(author,'author-held-hidden');await capture(observer,'observer-isolated');await capture(operator,'operator-private-messages');
+});
+
+test('temporary server connection failures show Wi-Fi guidance and retry recovers on mobile',async()=>{
+ const page=await open();await waitFor(()=>state.historyReads.length>0);
+ state.historyError=true;await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
+ const notice=page.locator('.connection-notice');await notice.waitFor();
+ assert.match(await notice.innerText(),/SKALA 4층 Wi-Fi/);
+ assert.match(await notice.innerText(),/다시 접속해 주세요/);
+ await page.setViewportSize({width:390,height:844});
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ const copy=await page.locator('.connection-notice-copy').boundingBox();
+ assert(copy.x>=0&&copy.x+copy.width<=390,'connection guidance stays within the mobile viewport');
+ await page.getByLabel('채팅 메시지',{exact:true}).fill('재연결 후 보낼 초안');
+ state.historyError=false;await notice.getByRole('button',{name:'다시 시도'}).click();
+ await notice.waitFor({state:'detached'});
+ assert.equal(await page.getByLabel('채팅 메시지',{exact:true}).inputValue(),'재연결 후 보낼 초안');
+ assert.equal(await page.getByLabel('채팅 메시지',{exact:true}).isEnabled(),true);
+});
+
+test('permission errors do not show Wi-Fi guidance',async()=>{
+ const page=await open();state.permissionError=true;
+ await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
+ await page.getByText('FORBIDDEN: Permission denied',{exact:true}).waitFor();
+ assert.equal(await page.locator('.connection-notice').count(),0);
 });
 
 test('author notices use policy wording per reason code and no per-message restriction note',async()=>{
@@ -218,6 +243,7 @@ test('TIMED_OUT response disables repeated sends and input recovers at expiry',a
  const until=new Date(Date.now()+3000).toISOString();state.postError={code:'TIMED_OUT',message:'서버에서 확인한 채팅 제한',until,retryable:false};state.until.author=until;
  await page.getByLabel('채팅 메시지',{exact:true}).fill('제한 중 요청');await page.getByRole('button',{name:'채팅 전송',exact:true}).click();
  await page.getByText('채팅이 일시 제한되었습니다',{exact:true}).waitFor();await assertTimeoutComposer(page);assert.equal(state.posts,1);
+ assert.equal(await page.locator('.connection-notice').count(),0);
  state.postError=null;await waitFor(async()=>await page.getByLabel('채팅 메시지',{exact:true}).isEnabled());
 });
 
@@ -470,6 +496,7 @@ test('session loss unmounts the shared API viewer and closes streams with cached
  await page.getByLabel('채팅 메시지',{exact:true}).fill('보내기 전 초안');
  state.authError=true;await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
  await page.getByRole('button',{name:'시청자로 시작하기',exact:true}).waitFor();
+ assert.equal(await page.locator('.connection-notice').count(),0);
  await waitFor(()=>clients.size===0);
  assert.equal(await page.locator('.viewer-shell').count(),0);
  assert.equal(await page.locator('[data-message-id="cached"]').count(),0);assert.equal(state.posts,0);
