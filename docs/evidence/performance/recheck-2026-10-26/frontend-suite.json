@@ -1,0 +1,1298 @@
+{
+  "status": "completed",
+  "startedAt": "2026-10-26T02:28:34.032Z",
+  "quick": false,
+  "scope": "production frontend with deterministic HTTP/SSE fixtures; no backend capacity or AI evaluation",
+  "environment": {
+    "hostname": "johaesuui-noteubug.local",
+    "platform": "darwin",
+    "release": "23.0.0",
+    "cpu": "Apple M2",
+    "logicalCpus": 8,
+    "memoryGiB": 8,
+    "node": "v24.20.0",
+    "commit": "c75e0bfba4594866948109a90a5b959c4f433acd",
+    "workingTree": "M src/AiEvidence.vue\n M src/PeriodStats.vue\n M src/StudioScreen.vue\n M src/SystemPage.vue\n M src/ViewerAssistant.vue\n M src/ViewerPage.vue\n M src/ViewerScreen.vue\n M src/mock.ts\n M src/stores/liveGuard.ts\n M src/style.css\n M tests/live-chat.test.cjs\n?? docs/evidence/context-decision/\n?? docs/evidence/performance/\n?? docs/frontend-performance-test-plan.md\n?? docs/frontend-performance-test-results.md\n?? scripts/frontend-performance-suite.cjs\n?? scripts/performance-smoke.cjs",
+    "browser": "156.0.8078.4"
+  },
+  "tc": {
+    "TC-03": {
+      "messages": 1000,
+      "changed": 200,
+      "heldRows": 200,
+      "privateRowsVisibleToOtherViewer": 0,
+      "screens": [
+        {
+          "observed": 200,
+          "pending": 0,
+          "domP95Ms": 476.6,
+          "nextFrameP95Ms": 477.8,
+          "frameGapP95Ms": 433.4,
+          "longTasksOver50ms": 1,
+          "rows": 200,
+          "duplicates": 0
+        },
+        {
+          "observed": 200,
+          "pending": 0,
+          "domP95Ms": 500.5,
+          "nextFrameP95Ms": 675.3,
+          "frameGapP95Ms": 16.7,
+          "longTasksOver50ms": 0,
+          "rows": 0,
+          "duplicates": 0
+        }
+      ],
+      "pass": false
+    },
+    "TC-04": {
+      "requests": 50,
+      "interactions": 50,
+      "clickToDisabledNextFrameP95Ms": 32.2,
+      "duplicateRequests": 0,
+      "pass": true
+    },
+    "TC-06": {
+      "rounds": [
+        {
+          "offlineMs": 10009,
+          "recoveryMs": 4216,
+          "matches": [
+            true,
+            true
+          ],
+          "duplicates": [
+            0,
+            0
+          ]
+        },
+        {
+          "offlineMs": 10031,
+          "recoveryMs": 4566,
+          "matches": [
+            true,
+            true
+          ],
+          "duplicates": [
+            0,
+            0
+          ]
+        },
+        {
+          "offlineMs": 10045,
+          "recoveryMs": 5199,
+          "matches": [
+            true,
+            true
+          ],
+          "duplicates": [
+            0,
+            0
+          ]
+        }
+      ],
+      "criterion": "recovery <=10s after service restored; exact latest window and no duplicates",
+      "pass": true
+    },
+    "TC-07": {
+      "method": "laboratory LCP/CLS and Event Timing (durationThreshold=16ms); interaction worst case over these gestures, not field INP or field p75",
+      "rows": [
+        {
+          "role": "viewer",
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "trial": 1,
+          "navigation": "cold",
+          "lcpMs": 672,
+          "cls": 0.0007138631687242798,
+          "eventTiming": [
+            {
+              "id": 1415,
+              "duration": 96,
+              "name": "pointerdown"
+            },
+            {
+              "id": 1415,
+              "duration": 96,
+              "name": "pointerup"
+            },
+            {
+              "id": 1415,
+              "duration": 96,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 96,
+          "overflow": false
+        },
+        {
+          "role": "viewer",
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "trial": 1,
+          "navigation": "revisit",
+          "lcpMs": 76,
+          "cls": 0.0007138631687242798,
+          "eventTiming": [
+            {
+              "id": 7439,
+              "duration": 16,
+              "name": "pointerdown"
+            },
+            {
+              "id": 7439,
+              "duration": 16,
+              "name": "pointerup"
+            },
+            {
+              "id": 7439,
+              "duration": 16,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 16,
+          "overflow": false
+        },
+        {
+          "role": "viewer",
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "trial": 2,
+          "navigation": "cold",
+          "lcpMs": 440,
+          "cls": 0.0007094184027777777,
+          "eventTiming": [
+            {
+              "id": 8353,
+              "duration": 48,
+              "name": "pointerdown"
+            },
+            {
+              "id": 8353,
+              "duration": 48,
+              "name": "pointerup"
+            },
+            {
+              "id": 8353,
+              "duration": 48,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 48,
+          "overflow": false
+        },
+        {
+          "role": "viewer",
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "trial": 2,
+          "navigation": "revisit",
+          "lcpMs": 68,
+          "cls": 0.0007138631687242798,
+          "eventTiming": [
+            {
+              "id": 2988,
+              "duration": 16,
+              "name": "pointerdown"
+            },
+            {
+              "id": 2988,
+              "duration": 16,
+              "name": "pointerup"
+            },
+            {
+              "id": 2988,
+              "duration": 16,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 16,
+          "overflow": false
+        },
+        {
+          "role": "viewer",
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "trial": 3,
+          "navigation": "cold",
+          "lcpMs": 500,
+          "cls": 0.0007138631687242798,
+          "eventTiming": [
+            {
+              "id": 9177,
+              "duration": 72,
+              "name": "pointerdown"
+            },
+            {
+              "id": 9177,
+              "duration": 72,
+              "name": "pointerup"
+            },
+            {
+              "id": 9177,
+              "duration": 72,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 72,
+          "overflow": false
+        },
+        {
+          "role": "viewer",
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "trial": 3,
+          "navigation": "revisit",
+          "lcpMs": 60,
+          "cls": 0.0007138631687242798,
+          "eventTiming": [
+            {
+              "id": 9337,
+              "duration": 16,
+              "name": "pointerdown"
+            },
+            {
+              "id": 9337,
+              "duration": 16,
+              "name": "pointerup"
+            },
+            {
+              "id": 9337,
+              "duration": 16,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 16,
+          "overflow": false
+        },
+        {
+          "role": "viewer",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "trial": 1,
+          "navigation": "cold",
+          "lcpMs": 488,
+          "cls": 0.009991773545068618,
+          "eventTiming": [
+            {
+              "id": 3619,
+              "duration": 64,
+              "name": "pointerdown"
+            },
+            {
+              "id": 3619,
+              "duration": 64,
+              "name": "pointerup"
+            },
+            {
+              "id": 3619,
+              "duration": 64,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 64,
+          "overflow": false
+        },
+        {
+          "role": "viewer",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "trial": 1,
+          "navigation": "revisit",
+          "lcpMs": 56,
+          "cls": 0.009973253762701438,
+          "eventTiming": [
+            {
+              "id": 9565,
+              "duration": 16,
+              "name": "pointerdown"
+            },
+            {
+              "id": 9565,
+              "duration": 16,
+              "name": "pointerup"
+            },
+            {
+              "id": 9565,
+              "duration": 16,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 16,
+          "overflow": false
+        },
+        {
+          "role": "viewer",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "trial": 2,
+          "navigation": "cold",
+          "lcpMs": 508,
+          "cls": 0.009973253762701438,
+          "eventTiming": [
+            {
+              "id": 7701,
+              "duration": 72,
+              "name": "pointerdown"
+            },
+            {
+              "id": 7701,
+              "duration": 72,
+              "name": "pointerup"
+            },
+            {
+              "id": 7701,
+              "duration": 72,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 72,
+          "overflow": false
+        },
+        {
+          "role": "viewer",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "trial": 2,
+          "navigation": "revisit",
+          "lcpMs": 72,
+          "cls": 0.009991773545068618,
+          "eventTiming": [
+            {
+              "id": 446,
+              "duration": 16,
+              "name": "pointerdown"
+            },
+            {
+              "id": 446,
+              "duration": 16,
+              "name": "pointerup"
+            },
+            {
+              "id": 446,
+              "duration": 16,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 16,
+          "overflow": false
+        },
+        {
+          "role": "viewer",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "trial": 3,
+          "navigation": "cold",
+          "lcpMs": 492,
+          "cls": 0.009991773545068618,
+          "eventTiming": [
+            {
+              "id": 6743,
+              "duration": 48,
+              "name": "pointerdown"
+            },
+            {
+              "id": 6743,
+              "duration": 48,
+              "name": "pointerup"
+            },
+            {
+              "id": 6743,
+              "duration": 48,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 48,
+          "overflow": false
+        },
+        {
+          "role": "viewer",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "trial": 3,
+          "navigation": "revisit",
+          "lcpMs": 60,
+          "cls": 0.009973253762701438,
+          "eventTiming": [
+            {
+              "id": 472,
+              "duration": 16,
+              "name": "pointerdown"
+            },
+            {
+              "id": 472,
+              "duration": 16,
+              "name": "pointerup"
+            },
+            {
+              "id": 472,
+              "duration": 16,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 16,
+          "overflow": false
+        },
+        {
+          "role": "operator",
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "trial": 1,
+          "navigation": "cold",
+          "lcpMs": 492,
+          "cls": 0,
+          "eventTiming": [
+            {
+              "id": 3380,
+              "duration": 80,
+              "name": "pointerdown"
+            },
+            {
+              "id": 3380,
+              "duration": 80,
+              "name": "pointerup"
+            },
+            {
+              "id": 3380,
+              "duration": 80,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 80,
+          "overflow": false
+        },
+        {
+          "role": "operator",
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "trial": 1,
+          "navigation": "revisit",
+          "lcpMs": 40,
+          "cls": 0,
+          "eventTiming": [
+            {
+              "id": 6010,
+              "duration": 16,
+              "name": "pointerdown"
+            },
+            {
+              "id": 6010,
+              "duration": 16,
+              "name": "pointerup"
+            },
+            {
+              "id": 6010,
+              "duration": 16,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 16,
+          "overflow": false
+        },
+        {
+          "role": "operator",
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "trial": 2,
+          "navigation": "cold",
+          "lcpMs": 508,
+          "cls": 0,
+          "eventTiming": [
+            {
+              "id": 2234,
+              "duration": 64,
+              "name": "pointerdown"
+            },
+            {
+              "id": 2234,
+              "duration": 64,
+              "name": "pointerup"
+            },
+            {
+              "id": 2234,
+              "duration": 64,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 64,
+          "overflow": false
+        },
+        {
+          "role": "operator",
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "trial": 2,
+          "navigation": "revisit",
+          "lcpMs": 80,
+          "cls": 0,
+          "eventTiming": [
+            {
+              "id": 3293,
+              "duration": 16,
+              "name": "pointerdown"
+            },
+            {
+              "id": 3293,
+              "duration": 16,
+              "name": "pointerup"
+            },
+            {
+              "id": 3293,
+              "duration": 16,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 16,
+          "overflow": false
+        },
+        {
+          "role": "operator",
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "trial": 3,
+          "navigation": "cold",
+          "lcpMs": 392,
+          "cls": 0,
+          "eventTiming": [
+            {
+              "id": 9224,
+              "duration": 64,
+              "name": "pointerdown"
+            },
+            {
+              "id": 9224,
+              "duration": 64,
+              "name": "pointerup"
+            },
+            {
+              "id": 9224,
+              "duration": 64,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 64,
+          "overflow": false
+        },
+        {
+          "role": "operator",
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "trial": 3,
+          "navigation": "revisit",
+          "lcpMs": 68,
+          "cls": 0,
+          "eventTiming": [],
+          "interactionUpperBoundMs": 16,
+          "overflow": false
+        },
+        {
+          "role": "operator",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "trial": 1,
+          "navigation": "cold",
+          "lcpMs": 472,
+          "cls": 0,
+          "eventTiming": [
+            {
+              "id": 3289,
+              "duration": 64,
+              "name": "pointerdown"
+            },
+            {
+              "id": 3289,
+              "duration": 64,
+              "name": "pointerup"
+            },
+            {
+              "id": 3289,
+              "duration": 64,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 64,
+          "overflow": false
+        },
+        {
+          "role": "operator",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "trial": 1,
+          "navigation": "revisit",
+          "lcpMs": 40,
+          "cls": 0,
+          "eventTiming": [
+            {
+              "id": 7137,
+              "duration": 16,
+              "name": "pointerdown"
+            }
+          ],
+          "interactionUpperBoundMs": 16,
+          "overflow": false
+        },
+        {
+          "role": "operator",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "trial": 2,
+          "navigation": "cold",
+          "lcpMs": 392,
+          "cls": 0,
+          "eventTiming": [
+            {
+              "id": 9519,
+              "duration": 64,
+              "name": "pointerdown"
+            },
+            {
+              "id": 9519,
+              "duration": 64,
+              "name": "pointerup"
+            },
+            {
+              "id": 9519,
+              "duration": 64,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 64,
+          "overflow": false
+        },
+        {
+          "role": "operator",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "trial": 2,
+          "navigation": "revisit",
+          "lcpMs": 32,
+          "cls": 0,
+          "eventTiming": [],
+          "interactionUpperBoundMs": 16,
+          "overflow": false
+        },
+        {
+          "role": "operator",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "trial": 3,
+          "navigation": "cold",
+          "lcpMs": 472,
+          "cls": 0,
+          "eventTiming": [
+            {
+              "id": 5256,
+              "duration": 72,
+              "name": "pointerdown"
+            },
+            {
+              "id": 5256,
+              "duration": 72,
+              "name": "pointerup"
+            },
+            {
+              "id": 5256,
+              "duration": 72,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 72,
+          "overflow": false
+        },
+        {
+          "role": "operator",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "trial": 3,
+          "navigation": "revisit",
+          "lcpMs": 68,
+          "cls": 0,
+          "eventTiming": [
+            {
+              "id": 7792,
+              "duration": 16,
+              "name": "pointerdown"
+            },
+            {
+              "id": 7792,
+              "duration": 16,
+              "name": "pointerup"
+            },
+            {
+              "id": 7792,
+              "duration": 16,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 16,
+          "overflow": false
+        },
+        {
+          "role": "admin",
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "trial": 1,
+          "navigation": "cold",
+          "lcpMs": 492,
+          "cls": 0,
+          "eventTiming": [
+            {
+              "id": 1959,
+              "duration": 40,
+              "name": "pointerdown"
+            },
+            {
+              "id": 1959,
+              "duration": 40,
+              "name": "pointerup"
+            },
+            {
+              "id": 1959,
+              "duration": 40,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 40,
+          "overflow": false
+        },
+        {
+          "role": "admin",
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "trial": 1,
+          "navigation": "revisit",
+          "lcpMs": 48,
+          "cls": 0,
+          "eventTiming": [
+            {
+              "id": 3167,
+              "duration": 16,
+              "name": "pointerdown"
+            },
+            {
+              "id": 3167,
+              "duration": 16,
+              "name": "pointerup"
+            },
+            {
+              "id": 3167,
+              "duration": 16,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 16,
+          "overflow": false
+        },
+        {
+          "role": "admin",
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "trial": 2,
+          "navigation": "cold",
+          "lcpMs": 380,
+          "cls": 0,
+          "eventTiming": [
+            {
+              "id": 3335,
+              "duration": 72,
+              "name": "pointerdown"
+            },
+            {
+              "id": 3335,
+              "duration": 72,
+              "name": "pointerup"
+            },
+            {
+              "id": 3335,
+              "duration": 72,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 72,
+          "overflow": false
+        },
+        {
+          "role": "admin",
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "trial": 2,
+          "navigation": "revisit",
+          "lcpMs": 40,
+          "cls": 0,
+          "eventTiming": [],
+          "interactionUpperBoundMs": 16,
+          "overflow": false
+        },
+        {
+          "role": "admin",
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "trial": 3,
+          "navigation": "cold",
+          "lcpMs": 428,
+          "cls": 0,
+          "eventTiming": [
+            {
+              "id": 9453,
+              "duration": 72,
+              "name": "pointerdown"
+            },
+            {
+              "id": 9453,
+              "duration": 72,
+              "name": "pointerup"
+            },
+            {
+              "id": 9453,
+              "duration": 72,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 72,
+          "overflow": false
+        },
+        {
+          "role": "admin",
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "trial": 3,
+          "navigation": "revisit",
+          "lcpMs": 48,
+          "cls": 0,
+          "eventTiming": [
+            {
+              "id": 7874,
+              "duration": 16,
+              "name": "pointerdown"
+            },
+            {
+              "id": 7874,
+              "duration": 16,
+              "name": "pointerup"
+            },
+            {
+              "id": 7874,
+              "duration": 16,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 16,
+          "overflow": false
+        },
+        {
+          "role": "admin",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "trial": 1,
+          "navigation": "cold",
+          "lcpMs": 360,
+          "cls": 0,
+          "eventTiming": [
+            {
+              "id": 9402,
+              "duration": 64,
+              "name": "pointerdown"
+            },
+            {
+              "id": 9402,
+              "duration": 64,
+              "name": "pointerup"
+            },
+            {
+              "id": 9402,
+              "duration": 64,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 64,
+          "overflow": false
+        },
+        {
+          "role": "admin",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "trial": 1,
+          "navigation": "revisit",
+          "lcpMs": 52,
+          "cls": 0,
+          "eventTiming": [
+            {
+              "id": 2641,
+              "duration": 16,
+              "name": "pointerdown"
+            },
+            {
+              "id": 2641,
+              "duration": 16,
+              "name": "pointerup"
+            },
+            {
+              "id": 2641,
+              "duration": 16,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 16,
+          "overflow": false
+        },
+        {
+          "role": "admin",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "trial": 2,
+          "navigation": "cold",
+          "lcpMs": 540,
+          "cls": 0,
+          "eventTiming": [
+            {
+              "id": 7236,
+              "duration": 80,
+              "name": "pointerdown"
+            },
+            {
+              "id": 7236,
+              "duration": 80,
+              "name": "pointerup"
+            },
+            {
+              "id": 7236,
+              "duration": 80,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 80,
+          "overflow": false
+        },
+        {
+          "role": "admin",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "trial": 2,
+          "navigation": "revisit",
+          "lcpMs": 36,
+          "cls": 0,
+          "eventTiming": [
+            {
+              "id": 9169,
+              "duration": 16,
+              "name": "pointerdown"
+            }
+          ],
+          "interactionUpperBoundMs": 16,
+          "overflow": false
+        },
+        {
+          "role": "admin",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "trial": 3,
+          "navigation": "cold",
+          "lcpMs": 392,
+          "cls": 0,
+          "eventTiming": [
+            {
+              "id": 6964,
+              "duration": 80,
+              "name": "pointerdown"
+            },
+            {
+              "id": 6964,
+              "duration": 72,
+              "name": "pointerup"
+            },
+            {
+              "id": 6964,
+              "duration": 72,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 80,
+          "overflow": false
+        },
+        {
+          "role": "admin",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "trial": 3,
+          "navigation": "revisit",
+          "lcpMs": 36,
+          "cls": 0,
+          "eventTiming": [
+            {
+              "id": 6334,
+              "duration": 16,
+              "name": "pointerdown"
+            },
+            {
+              "id": 6334,
+              "duration": 16,
+              "name": "pointerup"
+            },
+            {
+              "id": 6334,
+              "duration": 16,
+              "name": "click"
+            }
+          ],
+          "interactionUpperBoundMs": 16,
+          "overflow": false
+        }
+      ],
+      "pass": true
+    },
+    "TC-01": {
+      "rate": 10,
+      "durationMs": 300000,
+      "emitted": 3000,
+      "screens": [
+        {
+          "role": "operator",
+          "observed": 3000,
+          "pending": 0,
+          "domP95Ms": 94.8,
+          "nextFrameP95Ms": 100.5,
+          "frameGapP95Ms": 16.7,
+          "longTasksOver50ms": 0,
+          "rows": 200,
+          "duplicates": 0,
+          "mainThreadBusyPercent": 12.38,
+          "latestWindowMatches": true
+        },
+        {
+          "role": "viewer",
+          "observed": 3000,
+          "pending": 0,
+          "domP95Ms": 97.1,
+          "nextFrameP95Ms": 104.2,
+          "frameGapP95Ms": 16.8,
+          "longTasksOver50ms": 0,
+          "rows": 80,
+          "duplicates": 0,
+          "mainThreadBusyPercent": 11.3,
+          "latestWindowMatches": true
+        }
+      ],
+      "pass": false
+    },
+    "TC-02": {
+      "rate": 100,
+      "durationMs": 300000,
+      "emitted": 30000,
+      "screens": [
+        {
+          "role": "operator",
+          "observed": 30000,
+          "pending": 0,
+          "domP95Ms": 90.1,
+          "nextFrameP95Ms": 97.3,
+          "frameGapP95Ms": 16.8,
+          "longTasksOver50ms": 35,
+          "rows": 200,
+          "duplicates": 0,
+          "mainThreadBusyPercent": 50.55,
+          "latestWindowMatches": true
+        },
+        {
+          "role": "viewer",
+          "observed": 30000,
+          "pending": 0,
+          "domP95Ms": 91.3,
+          "nextFrameP95Ms": 97.4,
+          "frameGapP95Ms": 16.8,
+          "longTasksOver50ms": 14,
+          "rows": 80,
+          "duplicates": 0,
+          "mainThreadBusyPercent": 37.07,
+          "latestWindowMatches": true
+        }
+      ],
+      "pass": true
+    },
+    "TC-05": {
+      "elapsedMs": 3601878,
+      "samples": 6,
+      "growthAfterWarmupMiB": {
+        "operator": 3.88,
+        "viewer": 3.5
+      },
+      "finalRows": [
+        200,
+        80
+      ],
+      "criterion": "after 15min warmup: heap increase <=5 MiB per screen, bounded 200/80 chat rows, no browser errors; trend also reported",
+      "pass": true
+    }
+  },
+  "heapSamples": [
+    {
+      "label": "start",
+      "elapsedMs": 0,
+      "operator": {
+        "heapMiB": 2.61,
+        "documents": 1,
+        "nodes": 221,
+        "jsEventListeners": 59
+      },
+      "viewer": {
+        "heapMiB": 2.54,
+        "documents": 2,
+        "nodes": 392,
+        "jsEventListeners": 56
+      }
+    },
+    {
+      "label": "interval",
+      "elapsedMs": 906310,
+      "operator": {
+        "heapMiB": 7.21,
+        "documents": 1,
+        "nodes": 2420,
+        "jsEventListeners": 59
+      },
+      "viewer": {
+        "heapMiB": 7.34,
+        "documents": 2,
+        "nodes": 1351,
+        "jsEventListeners": 56
+      }
+    },
+    {
+      "label": "interval",
+      "elapsedMs": 1815404,
+      "operator": {
+        "heapMiB": 8.53,
+        "documents": 1,
+        "nodes": 2420,
+        "jsEventListeners": 59
+      },
+      "viewer": {
+        "heapMiB": 8.32,
+        "documents": 2,
+        "nodes": 1351,
+        "jsEventListeners": 56
+      }
+    },
+    {
+      "label": "interval",
+      "elapsedMs": 2726064,
+      "operator": {
+        "heapMiB": 10.86,
+        "documents": 1,
+        "nodes": 2420,
+        "jsEventListeners": 59
+      },
+      "viewer": {
+        "heapMiB": 10.45,
+        "documents": 2,
+        "nodes": 1351,
+        "jsEventListeners": 56
+      }
+    },
+    {
+      "label": "interval",
+      "elapsedMs": 3600443,
+      "operator": {
+        "heapMiB": 11.09,
+        "documents": 1,
+        "nodes": 2420,
+        "jsEventListeners": 59
+      },
+      "viewer": {
+        "heapMiB": 10.84,
+        "documents": 2,
+        "nodes": 1352,
+        "jsEventListeners": 56
+      }
+    },
+    {
+      "label": "end",
+      "elapsedMs": 3601269,
+      "operator": {
+        "heapMiB": 11.09,
+        "documents": 1,
+        "nodes": 2420,
+        "jsEventListeners": 59
+      },
+      "viewer": {
+        "heapMiB": 10.84,
+        "documents": 2,
+        "nodes": 1352,
+        "jsEventListeners": 56
+      }
+    }
+  ],
+  "errors": [],
+  "completedAt": "2026-10-26T03:30:34.252Z"
+}

@@ -10,6 +10,7 @@
     "dev": "vite --host 0.0.0.0",
     "build": "vue-tsc --noEmit && vite build",
     "test:chat": "node --test tests/live-chat.test.cjs",
+    "test:performance": "node scripts/frontend-performance-suite.cjs",
     "preview": "vite preview --host 0.0.0.0",
     "test:contracts": "node --test tests/contract-alignment.test.cjs",
     "test:tools": "node --test tests/operator-tools.test.cjs"

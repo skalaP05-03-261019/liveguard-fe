@@ -25,6 +25,7 @@ export interface Message {
 // timeoutUntil: 요청자 본인의 활성 채팅 제한 종료 시각
 export interface MessagePage { items: Message[]; nextCursor: string | null; timeoutUntil?: string | null }
 export interface Live { liveId: UUID; channelId: UUID; startedAt: string; endedAt: string | null }
+export interface ChannelWithLive { channelId: UUID; name: string; live: Live | null }
 // 사건·검토의 문맥 메시지. 작성자는 U1, 주변 사람은 U2…로 가리고 개인정보는 [PHONE]·[EMAIL] 등으로 바꾼다.
 export interface MaskedContextMessage { messageId: UUID; authorAlias: string; text: string; visibility: string; sentAt: string; version?: number }
 // Agent가 작성한 메시지별 판단. 실제 AI 근거는 여기에만 있다.
