@@ -30,9 +30,9 @@ onBeforeUnmount(() => store.dispose());
   <LiveConsole v-else-if="store.mode==='api'"/>
   <ViewerPage v-else-if="role==='VIEWER'"/>
   <SystemPage v-else-if="role==='PLATFORM_ADMIN'"/>
-  <StudioScreen v-else mock :nickname="store.me?.nickname ?? '스트리머'" :channel-name="BROADCAST_CHANNEL_NAME" :live="mock.live" :online="true" :messages="mock.messages" :reviews="mock.reviews" :cases="mock.cases" :case-names="caseNames" :logs="mock.logs" :kick-progress="mock.kickProgress" :busy="store.busy" :error="store.error" :notice="store.notice" :feed-on="store.feedOn"
-    @decide="onDecide" @revoke="(caseId, findingId, reason) => store.revoke(caseId, findingId, reason)" @logout="store.logout()" @toggle-feed="store.toggleFeed()">
-    <template #demo><div class="scenario-toolbar"><span>빠른 시연</span><button v-for="s in demoScenarios" :key="s.key" @click="store.mockScenario(s.key)">{{s.label}}</button></div></template>
+  <StudioScreen v-else mock :nickname="store.me?.nickname ?? '스트리머'" :channel-name="BROADCAST_CHANNEL_NAME" :live="mock.live" :ended="!!mock.live.endedAt" :online="!mock.live.endedAt" :messages="mock.messages" :reviews="mock.reviews" :cases="mock.cases" :case-names="caseNames" :logs="mock.logs" :kick-progress="mock.kickProgress" :busy="store.busy" :error="store.error" :notice="store.notice" :feed-on="store.feedOn"
+    @decide="onDecide" @revoke="(caseId, findingId, reason) => store.revoke(caseId, findingId, reason)" @start="store.startMockLive()" @end="store.endMockLive()" @logout="store.logout()" @toggle-feed="store.toggleFeed()">
+    <template #demo><div class="scenario-toolbar"><span>빠른 시연</span><button v-for="s in demoScenarios" :key="s.key" :disabled="!!mock.live.endedAt" @click="store.mockScenario(s.key)">{{s.label}}</button></div></template>
     <template #kick-actions="{ reviewId, state }"><span v-if="state===KICK_WAITING" class="mock-kick-actions">
       <button @click="store.finishKick(reviewId,'SUCCEEDED')">모의 적용 성공</button>
       <button @click="store.finishKick(reviewId,'FAILED')">모의 적용 실패</button>

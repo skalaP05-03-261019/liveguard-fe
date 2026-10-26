@@ -806,6 +806,8 @@ test('mock follows the Backend v3.2 personal-data candidate rules (rules-v2)',as
  // 계좌 형태 + 후원 노출 문맥은 AI 조사 후 개인정보 단독 위반으로 확정한다.
  await openDemo(page);await page.getByRole('button',{name:'계좌번호',exact:true}).click();
  const row=page.locator('.chat-row').filter({hasText:'후원은 123-456-789012'});await row.waitFor();
+ assert.match(await row.getAttribute('class'),/held/);
+ await page.clock.runFor(3100);
  assert.match(await row.getAttribute('class'),/hidden/);
  await gotoRecords(page,'전체 채팅');
  await page.getByLabel('채팅 기록 검색',{exact:true}).fill('후원은 123-456-789012');
@@ -818,6 +820,7 @@ test('mock CP-3.3 example: group exclusion goes to context review with an AI sug
  await page.getByRole('button',{name:'집단 배제 (v3.2)',exact:true}).click();
  const row=page.locator('.chat-row').filter({hasText:'○○ 출신은 다 꺼져라'});await row.waitFor();
  assert.match(await row.getAttribute('class'),/held/);
+ await page.clock.runFor(3100);
  await showQueue(page,'문맥 검토');
  const card=page.locator('.studio-review.context').filter({hasText:'○○ 출신은 다 꺼져라'});await openCard(card);
  const evidence=card.getByRole('region',{name:'AI 판단 근거'});
@@ -865,6 +868,7 @@ test('mock "Agent 응답 없음" (A-25): the card says AI 결과 없음 and the 
  await page.getByRole('button',{name:'Agent 응답 없음 (A-25)',exact:true}).click();
  const row=page.locator('.chat-row').filter({hasText:'진짜 미쳤냐 그만 좀 해'});await row.waitFor();
  assert.match(await row.getAttribute('class'),/held/);
+ await page.clock.runFor(3100);
  await showQueue(page,'문맥 검토');
  const card=page.locator('.studio-review.context').filter({hasText:'진짜 미쳤냐 그만 좀 해'});await openCard(card);
  await card.getByRole('note',{name:'AI 결과 없음'}).waitFor();
@@ -908,6 +912,7 @@ test('mock context review stays held on defer, then applies normal and violation
   const page=await openMockModerator();await openDemo(page);await page.getByRole('button',{name:'공격 표현',exact:true}).click();
   const row=page.locator('.chat-row').filter({hasText:'너 같은 건 방송 접어라'});await row.waitFor();
   assert.match(await row.getAttribute('class'),/held/);
+  await page.clock.runFor(3100);
   await showQueue(page,'문맥 검토');const card=page.locator('.studio-review.context').filter({hasText:'너 같은 건 방송 접어라'});await openCard(card);
   await card.getByText('AI 제안 · 위반 의심',{exact:true}).waitFor();await card.getByRole('region',{name:'AI 판단 근거'}).getByText('CP-3.2',{exact:true}).waitFor();
   await decideCard(card,label);await page.waitForTimeout(200);const remaining=await card.count();
@@ -1382,6 +1387,7 @@ test('operator navigation shortcuts avoid typing and IME, validate keys and isol
 
 test('web operator alerts show no original text, open the current pending review and deduplicate updates',async()=>{
  const page=await openMockModerator();await openDemo(page);await page.getByRole('button',{name:'공격 표현',exact:true}).click();
+ await page.clock.runFor(3100);
  await openToolActivity(page);
  const list=page.getByRole('region',{name:'관제 알림 목록',exact:true});
  const incoming=list.getByRole('button',{name:'새 문맥 검토 요청 →',exact:true});await incoming.waitFor();
@@ -1575,13 +1581,40 @@ test('create menu switches between API start and end and status follows broadcas
  await trigger.click();await page.getByRole('menuitem',{name:'라이브 스트리밍 시작',exact:true}).waitFor();assert.equal(state.liveStarts,1);
 });
 
-test('create menu keeps mock starts disabled, supports keyboard and mobile, and shows API errors',async()=>{
+test('create menu supports mock end and restart, keyboard and mobile, and shows API errors',async()=>{
  const page=await openMockModerator();const trigger=page.locator('.broadcast-status');await trigger.click();
- const item=page.getByRole('menuitem',{name:'방송 종료',exact:true});assert.equal(await item.getAttribute('aria-disabled'),'true');
+ const item=page.getByRole('menuitem',{name:'방송 종료',exact:true});assert.equal(await item.getAttribute('aria-disabled'),'false');
  await page.keyboard.press('Escape');assert.equal(await trigger.evaluate(e=>document.activeElement===e),true);
  for(const width of [390,360]){await page.setViewportSize({width,height:844});await trigger.click();await page.screenshot({animations:'disabled'});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await captureReview(page,`create-menu-${width}`);await page.keyboard.press('Escape');}
  state.active=false;state.startError=true;const api=await open('operator');await api.locator('.studio-empty').waitFor();await api.locator('.broadcast-status').click();await api.getByRole('menuitem',{name:'라이브 스트리밍 시작',exact:true}).click();
  await api.getByRole('alert').filter({hasText:'방송 시작을 처리하지 못했습니다.'}).waitFor();assert.equal(await api.locator('.live-monitoring-grid').count(),0);assert.equal(state.liveStarts,1);
+});
+
+test('mock broadcast starts a fresh liveId and delayed Agent work never leaks across broadcasts',async()=>{
+ const page=await openMockModerator();await openDemo(page);
+ const firstId=await page.evaluate(async()=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');return useLiveGuard().mock.state.live.liveId;});
+ await page.getByRole('button',{name:'공격 표현',exact:true}).click();
+ const pending=()=>page.evaluate(async()=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');const s=useLiveGuard().mock.state;const c=s.cases.find(c=>c.messages.some(m=>m.text==='너 같은 건 방송 접어라'));return {status:c?.status,findings:c?.findings.length,reviews:s.reviews.filter(r=>r.caseId===c?.caseId).length};});
+ assert.deepEqual(await pending(),{status:'ANALYZING',findings:0,reviews:0});
+ await gotoRecords(page);await page.getByText('AI 조사 중',{exact:true}).first().waitFor();await captureReview(page,'mock-agent-investigating');await gotoMonitor(page);
+ await page.clock.runFor(2900);assert.equal((await pending()).findings,0);
+ await page.clock.runFor(200);assert.equal((await pending()).findings,1);assert.equal((await pending()).reviews,1);
+ await openDemo(page);await page.getByRole('button',{name:'계좌번호',exact:true}).click();
+ assert.equal(await page.evaluate(async()=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');return useLiveGuard().mock.state.cases.some(c=>c.status==='ANALYZING');}),true);
+ await page.getByRole('button',{name:'방송 중 · 방송 관리',exact:true}).click();await page.getByRole('menuitem',{name:'방송 종료',exact:true}).click();
+ await page.getByRole('heading',{name:'방송이 종료되었습니다',exact:true}).waitFor();
+ await captureReview(page,'mock-broadcast-ended');
+ await page.getByRole('button',{name:'방송 대기 · 방송 관리',exact:true}).click();await page.getByRole('menuitem',{name:'라이브 스트리밍 시작',exact:true}).click();
+ const fresh=await page.evaluate(async()=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');const s=useLiveGuard().mock.state;return {id:s.live.liveId,ended:s.live.endedAt,messages:s.messages.length,cases:s.cases.length,reviews:s.reviews.length};});
+ assert.notEqual(fresh.id,firstId);assert.equal(fresh.ended,null);assert.deepEqual([fresh.messages,fresh.cases,fresh.reviews],[0,0,0]);
+ await page.clock.runFor(3100);assert.equal((await pending()).status,undefined);
+ assert.equal(await page.evaluate(async()=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');return useLiveGuard().mock.state.cases.length;}),0);
+ const viewer=await openMock();await viewer.evaluate(async()=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');useLiveGuard().endMockLive();});
+ await viewer.getByRole('heading',{name:'방송이 종료되었습니다',exact:true}).waitFor();
+ await captureReview(viewer,'mock-viewer-ended');
+ assert.equal(await viewer.getByRole('button',{name:'채팅 전송',exact:true}).isDisabled(),true);
+ await viewer.evaluate(async()=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');useLiveGuard().startMockLive();});
+ await viewer.locator('.yt-player-area video').waitFor();
 });
 
 

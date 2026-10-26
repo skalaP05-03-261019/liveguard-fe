@@ -23,7 +23,7 @@ function previewTimeout(seconds: 0 | 10 | 86400) {
 
 <template>
   <!-- 채널 이름·구독자·시청자·좋아요·알림 수는 목업 예시 값이다. 실제 API는 계약에 없어 비워 둔다 -->
-  <ViewerScreen :send-demo-chat="store.sendMessage" v-model:draft="input" :messages="store.viewerMessages" :nickname="store.viewerAlias" :scope-key="store.channelId + ':' + store.viewerId" :clock="store.clock" mock :busy="store.busy" :blocked="store.kicked" :timed-out="store.timedOut" :timeout-until="store.viewerTimeoutUntil" :timeout-reason="timeoutReason" :started-at="store.mock.state.live.startedAt" :error="store.error" :notice="store.notice"
+  <ViewerScreen :send-demo-chat="store.sendMessage" v-model:draft="input" :messages="store.viewerMessages" :nickname="store.viewerAlias" :scope-key="store.channelId + ':' + store.mock.state.live.liveId + ':' + store.viewerId" :clock="store.clock" mock :busy="store.busy" :blocked="store.kicked" :ended="!!store.mock.state.live.endedAt" :timed-out="store.timedOut" :timeout-until="store.viewerTimeoutUntil" :timeout-reason="timeoutReason" :started-at="store.mock.state.live.startedAt" :error="store.error" :notice="store.notice"
     :title="BROADCAST_TITLE" :channel-name="BROADCAST_CHANNEL_NAME" channel-avatar="🎮" subscribers="12.4만명" viewers="2,341" :likes="3400" @send="send" @logout="store.logout()">
     <template #demo>
       <div class="viewer-demo">
