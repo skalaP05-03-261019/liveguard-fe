@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { BROADCAST_CHANNEL_NAME, BROADCAST_TITLE } from './broadcastPresentation';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
-import { Activity, AlertTriangle, CalendarRange, CheckCircle2, Clock3, Menu, Radio, ShieldCheck, XCircle } from 'lucide-vue-next';
+import { Activity, AlertTriangle, ChartNoAxesCombined, CheckCircle2, Clock3, Menu, Radio, ShieldCheck, XCircle } from 'lucide-vue-next';
 import type { Component } from 'vue';
 import { useLiveGuard } from './stores/liveGuard';
 import { categoryLabels, type Category, type Verdict } from './contracts';
@@ -22,7 +22,7 @@ import { LIVE_CHANNEL_ID, sysChannels, sysLogs, sysReports, type SysChannel, typ
 const props = withDefaults(defineProps<{ api?: boolean }>(), { api: false });
 const NO_API = '여러 방송 조회 API가 없어 표시할 데이터가 없습니다.';
 const store = useLiveGuard();
-// 탭: 실시간 관제(방송 중인 채널의 지금 상태) · 채팅관제 Tracking(채팅별 판정 흐름) · 대시보드(고른 기간, 끝난 방송 포함, #41)
+// 탭: 실시간 관제(방송 중인 채널의 지금 상태) · 채팅관제 Tracking(채팅별 판정 흐름) · 기간별 누적 통계(고른 기간, 끝난 방송 포함, #41)
 type SysTab = 'overview' | 'period' | 'tracking';
 const tab = ref<SysTab>('overview');
 const navOpen=ref(false),navCollapsed=ref(false),navTrigger=ref<HTMLButtonElement|null>(null),navElement=ref<HTMLElement|null>(null),mainElement=ref<HTMLElement|null>(null);
@@ -35,7 +35,7 @@ function navKey(e:KeyboardEvent){if(e.key==='Escape'&&!e.defaultPrevented&&navOp
 async function selectTab(value:SysTab){tab.value=value;if(!navWide.value){closeNav();await nextTick();mainElement.value?.focus();}}
 onMounted(()=>{navMedia.addEventListener('change',resizeNav);window.addEventListener('keydown',navKey);});
 onBeforeUnmount(()=>{navMedia.removeEventListener('change',resizeNav);window.removeEventListener('keydown',navKey);});
-const tabs: { key: SysTab; label: string; icon: Component }[] = [{ key: 'overview', label: '실시간 관제', icon: Radio }, { key: 'tracking', label: '채팅관제 Tracking', icon: Activity }, { key: 'period', label: '대시보드', icon: CalendarRange }];
+const tabs: { key: SysTab; label: string; icon: Component }[] = [{ key: 'overview', label: '실시간 관제', icon: Radio }, { key: 'tracking', label: '채팅관제 Tracking', icon: Activity }, { key: 'period', label: '기간별 누적 통계', icon: ChartNoAxesCombined }];
 const now = ref(Date.now());
 let timer: number | undefined;
 onMounted(() => { timer = window.setInterval(() => { now.value = Date.now(); }, 30000); });
@@ -76,6 +76,7 @@ const liveLogs = computed<SysLog[]>(() => mock.cases.map(c => {
 // 실시간 관제는 방송 중인 채널만 본다. 끝난 방송의 사건·강퇴 요청도 함께 뺀다
 const allChannels = computed(() => props.api ? [] : [liveChannel.value, ...sysChannels]);
 const channels = computed(() => allChannels.value.filter(c => c.live));
+const hasLiveBroadcast = computed(() => channels.value.length > 0);
 const offAir = computed(() => allChannels.value.length - channels.value.length);
 const onAir = (channelId: string) => channels.value.some(c => c.id === channelId);
 const channelName = (id: string) => channels.value.find(c => c.id === id)?.name ?? id;
@@ -145,7 +146,7 @@ const channelStats = computed(() => shownChannels.value.map(c => {
     <div class="sys-layout" :class="{'nav-collapsed':!navVisible}"><button v-if="!navWide && navOpen" type="button" class="sys-drawer-backdrop" aria-label="메뉴 닫기 배경" @click="closeNav(true)"/>
     <!-- 왼쪽 메뉴: 아이콘과 이름, 고른 항목은 회색 배경 -->
     <nav id="system-navigation" ref="navElement" class="sys-side" :class="{open:navWide || navOpen, compact:navWide && navCollapsed}" :inert="!navWide && !navOpen" :aria-hidden="!navWide && !navOpen" role="tablist" aria-orientation="vertical" aria-label="시스템 운영자 화면">
-      <button v-for="t in tabs" :key="t.key" type="button" role="tab" :aria-label="t.label" :title="t.label" :aria-selected="tab===t.key" :class="{on: tab===t.key}" @click="selectTab(t.key)"><component :is="t.icon" :size="22" :stroke-width="1.8"/><span>{{t.label}}</span></button>
+      <button v-for="t in tabs" :key="t.key" type="button" role="tab" :aria-label="t.label" :aria-description="t.key !== 'period' && hasLiveBroadcast ? '방송 중인 채널이 있습니다' : undefined" :title="`${t.label}${t.key !== 'period' && hasLiveBroadcast ? ' · 방송 중' : ''}`" :aria-selected="tab===t.key" :class="{on: tab===t.key}" @click="selectTab(t.key)"><component :is="t.icon" :size="22" :stroke-width="1.8"/><span>{{t.label}}</span><i v-if="t.key !== 'period' && hasLiveBroadcast" class="sys-live-indicator" aria-hidden="true"/></button>
     </nav>
     <main ref="mainElement" class="main-content sys-main" tabindex="-1" :inert="!navWide && navOpen">
       <template v-if="tab==='tracking'">
@@ -164,6 +165,12 @@ const channelStats = computed(() => shownChannels.value.map(c => {
         <div><h1>실시간 관제</h1><p>방송 중인 채널에서 LIVE:GUARD Agent가 내린 판단과 강퇴 승인 요청 처리 상황을 봅니다.<template v-if="offAir"> 방송 중이 아닌 채널 {{offAir}}개는 제외했습니다.</template></p></div>
         <span class="sys-mock">{{api ? '여러 방송 통합 조회 API가 없습니다' : `${BROADCAST_CHANNEL_NAME}는 데모 상태와 연동`}}</span>
       </div>
+      <section v-if="!api && !hasLiveBroadcast" class="card sys-off-air-empty" role="status" aria-label="방송 종료">
+        <Radio :size="28" :stroke-width="1.7" aria-hidden="true"/>
+        <h2>현재 모든 방송이 종료되었습니다.</h2>
+        <p>새 방송이 시작되면 실시간 관제 내용을 확인할 수 있습니다.</p>
+      </section>
+      <template v-else>
       <div class="sys-filter" role="group" aria-label="방송 필터"><button :class="{on: channelFilter==='ALL'}" @click="channelFilter='ALL'">전체 방송</button><button v-for="c in channels" :key="c.id" :class="{on: channelFilter===c.id}" @click="channelFilter=c.id"><i v-if="c.live" class="live-dot" aria-label="방송 중"/>{{c.name}}</button></div>
 
       <section class="attention-grid" aria-label="우선 확인할 항목">
@@ -227,6 +234,7 @@ const channelStats = computed(() => shownChannels.value.map(c => {
             <tr v-if="!logs.length"><td colspan="7" class="empty-block">{{api ? NO_API : channels.length ? '모니터링 내역이 없습니다.' : '방송 중인 채널이 없습니다.'}}</td></tr></tbody>
         </table></div>
       </section>
+      </template>
       </template>
       <footer class="dashboard-footer"><span>LIVE:GUARD · AI Agent 모니터링</span><span>실제 연동 시 여러 채널의 사건·강퇴 검토 조회 API가 필요합니다.</span></footer>
     </main>

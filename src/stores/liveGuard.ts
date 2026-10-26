@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { api } from '../api/client';
 import { ApiError, authorNotice, type Category, type ContextDecision, type KickDecision, type Me, type Message } from '../contracts';
-import { CHANNEL_ID, DEMO_USERS, demoMe, demoScenarios, feedChats, feedUsers, feedViolations, fixtureLines, mockUsers, userByAlias, type MockUser } from '../mock';
+import { CHANNEL_ID, DEMO_USERS, demoCrowdUsers, demoMe, demoScenarios, feedChats, feedUsers, feedViolations, fixtureLines, mockUsers, userByAlias, type MockUser } from '../mock';
 import { createMockLive, type KickOutcome, type SendResult } from '../mockLive';
 import { timeoutText } from '../sanction';
 
@@ -121,6 +121,14 @@ export const useLiveGuard = defineStore('liveGuard', () => {
     if (r.message.visibility !== 'PUBLIC') announce(r, viewer.value.alias);
     return true;
   }
+  // 한 브라우저의 목업 상태에 서로 다른 30명 이름으로 채팅을 넣는다. 실제 API/부하 시험에는 사용하지 않는다.
+  async function sendCrowdDemoChat(index: number): Promise<{ alias: string; text: string } | null> {
+    if (!demo || mock.state.live.endedAt || !Number.isInteger(index) || index < 0 || index >= 60) return null;
+    const user = demoCrowdUsers[index % demoCrowdUsers.length];
+    const text = feedChats[index % feedChats.length];
+    const result = mock.send(user, text);
+    return result.ok ? { alias: user.alias, text } : null;
+  }
   // 목업 시청자 화면 시연용: 제한 효과만 보여 준다. 사건은 만들지 않는다.
   function setMockTimeout(userId: string, until: string | null) {
     clock.value = Date.now();
@@ -166,5 +174,5 @@ export const useLiveGuard = defineStore('liveGuard', () => {
   function dispose() { stopFeed(); mock.dispose(); if (clockTimer) clearInterval(clockTimer); if (notificationTimeout) clearTimeout(notificationTimeout); if (toastTimeout) clearTimeout(toastTimeout); }
   return { mode, me, channelId, viewerId, busy, error, notice, toastText, loginRequired, clock, mock,
     viewerAlias, viewerMessages, kicked, viewerTimeoutUntil, timedOut, viewerLastReason,
-    init, login, logout, syncIdentity, clearIdentity, inform, toast, report, resetMock, sendMessage, setMockTimeout, mockScenario, decide, revoke, finishKick, startMockLive, endMockLive, feedOn, toggleFeed, dispose };
+    init, login, logout, syncIdentity, clearIdentity, inform, toast, report, resetMock, sendMessage, sendCrowdDemoChat, setMockTimeout, mockScenario, decide, revoke, finishKick, startMockLive, endMockLive, feedOn, toggleFeed, dispose };
 });

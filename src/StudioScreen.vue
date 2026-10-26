@@ -129,6 +129,12 @@ const findingsOf = (r: LiveReview) => r.findings.length ? r.findings : caseById.
 // AI 판정 없이 열린 문맥 검토(Backend A-25): Agent 판정이 마감(기본 3분) 안에 오지 않았거나 분석이 실패했다.
 // aiVerdict는 NEEDS_REVIEW로 오지만 AI가 판단을 보류한 것이 아니므로 "AI 결과 없음"으로 구분한다. 늦게 판정이 오면 같은 검토에 붙는다.
 const noAiResult = (r: LiveReview) => r.kind === 'CONTEXT' && !findingsOf(r).length;
+// 진단 코드는 저장된 보류 사유에만 남는다. 없는 사건에는 오류를 추정하지 않는다.
+const fallbackCode = (r: LiveReview) => findingsOf(r).flatMap(f => f.missingFacts).join(' ').match(/\b(INVALID_MODEL_OUTPUT|INVALID_POLICY_EVIDENCE)\b/)?.[1] ?? null;
+const targetVisibility = (r: LiveReview) => {
+  const id = r.targetMessageIds[0];
+  return (props.messages.find(m => m.messageId === id) ?? r.messages.find(m => m.messageId === id))?.visibility ?? null;
+};
 const NO_AI_NOTICE = 'AI 분석 결과를 받지 못했습니다. 주변 문맥을 확인하고 직접 결정해 주세요';
 const categoriesOf = (r: LiveReview) => picked[r.reviewId] ?? [...new Set(findingsOf(r).flatMap(f => f.categories))];
 function toggleCategory(r: LiveReview, c: Category, on: boolean) { const now = categoriesOf(r); picked[r.reviewId] = on ? [...new Set([...now, c])] : now.filter(x => x !== c); }
@@ -373,26 +379,38 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
                       <time class="chat-time" :datetime="iso(sentAt(r) ?? r.createdAt)" :title="asTime(sentAt(r) ?? r.createdAt)">{{hourMinute(iso(sentAt(r) ?? r.createdAt))}}</time>
                       <ChevronDown v-if="isOpen(r)" class="review-chat-chevron" :size="16"/><ChevronRight v-else class="review-chat-chevron" :size="16"/>
                     </button>
-                    <button v-else type="button" class="review-head" :aria-expanded="isOpen(r)" @click="toggleReview(r)"><ChevronDown v-if="isOpen(r)" :size="16"/><ChevronRight v-else :size="16"/><b>{{nameOf(r.caseId)}}</b></button>
+                    <button v-else type="button" class="review-head review-chat-row" :aria-expanded="isOpen(r)" @click="toggleReview(r)">
+                      <span class="chat-avatar" :style="{background: avatarColor(nameOf(r.caseId))}" aria-hidden="true">{{nameOf(r.caseId).slice(0,1)}}</span>
+                      <span class="chat-line"><b>{{nameOf(r.caseId)}}</b><span v-if="freshReviews.has(r.reviewId)" class="review-new-badge">NEW</span></span>
+                      <time class="chat-time" :datetime="iso(r.createdAt)" :title="asTime(r.createdAt)">{{hourMinute(iso(r.createdAt))}}</time>
+                      <ChevronDown v-if="isOpen(r)" class="review-chat-chevron" :size="16"/><ChevronRight v-else class="review-chat-chevron" :size="16"/>
+                    </button>
                     <div v-if="isOpen(r)" class="review-body" :class="{'context-review-body': r.kind==='CONTEXT'}">
                       <template v-if="r.kind==='CONTEXT'">
                         <ol class="context-review-flow" aria-label="문맥 검토 판단 흐름">
                           <li class="context-review-step">
-                            <div class="context-review-step-head"><span class="context-review-step-number" aria-hidden="true">1</span><div><h3>주변 대화 확인</h3><small>위 채팅의 전후 문맥을 확인합니다.</small></div></div>
+                            <div class="context-review-step-head"><span class="context-review-step-number" aria-hidden="true">1</span><div><h3>백엔드 필터</h3><small>채팅을 분류하고 처리 경로를 정했습니다.</small></div></div>
+                            <div class="context-review-step-content"><p class="context-review-record">{{caseById.get(r.caseId)?.handlingRoute ? `${routeLabels[caseById.get(r.caseId)!.handlingRoute!]} · ${caseById.get(r.caseId)!.handlingRoute}` : '처리 경로 기록 없음'}}<span v-if="targetVisibility(r)"> · {{visibilityLabels[targetVisibility(r) as keyof typeof visibilityLabels] ?? targetVisibility(r)}}</span></p><small class="context-review-unavailable">탐지 태그는 현재 검토 API에서 제공하지 않습니다.</small></div>
+                          </li>
+                          <li class="context-review-step">
+                            <div class="context-review-step-head"><span class="context-review-step-number" aria-hidden="true">2</span><div><h3>Agent 조사 · 주변 대화</h3><small>검토 카드에 제공된 문맥을 확인합니다.</small></div></div>
                             <div class="context-review-step-content">
                               <div v-if="r.messages.some(m => !r.targetMessageIds.includes(m.messageId))" class="review-context"><b>주변 메시지 · U1은 검토 대상 작성자</b><ol><li v-for="m in r.messages.filter(m => !r.targetMessageIds.includes(m.messageId))" :key="m.messageId"><time>{{hourMinute(iso(m.sentAt))}}</time><b>{{m.authorAlias}}</b><span>{{m.text}}</span></li></ol></div>
                               <p v-else class="context-review-hint">제공된 주변 메시지가 없습니다. 위 채팅과 AI 근거를 함께 확인해 주세요.</p>
+                              <small class="context-review-unavailable">모델 호출 횟수와 Agent 작업 상태는 현재 검토 API에서 제공하지 않습니다.</small>
                             </div>
                           </li>
                           <li class="context-review-step">
-                            <div class="context-review-step-head"><span class="context-review-step-number" aria-hidden="true">2</span><div><h3>AI 판단과 근거 확인</h3><small>AI 제안은 운영자 결정을 대신하지 않습니다.</small></div></div>
+                            <div class="context-review-step-head"><span class="context-review-step-number" aria-hidden="true">3</span><div><h3>판정 제출</h3><small>{{fallbackCode(r) ? '응답 검증 실패 · 유효하지 않은 AI 결과는 사용하지 않았습니다.' : '저장된 AI 판단과 근거를 확인합니다.'}}</small></div></div>
                             <div class="context-review-step-content">
+                              <p v-if="fallbackCode(r)" class="context-review-record context-review-fallback"><code>{{fallbackCode(r)}}</code> → <b>NEEDS_REVIEW</b> 안전 보류</p>
                               <div v-if="noAiResult(r)" class="no-ai-box" role="note" aria-label="AI 결과 없음"><b>AI 결과 없음</b><p>{{r.summary || NO_AI_NOTICE}}</p><small>AI 판정이 마감(기본 3분) 안에 오지 않았거나 분석이 실패했습니다. 늦게 도착한 판정은 이 카드에 표시됩니다.</small></div>
+                              <details v-else-if="fallbackCode(r)" class="context-review-evidence"><summary>저장된 보류 사유</summary><AiEvidence :findings="findingsOf(r)" :mock="mock"/></details>
                               <AiEvidence v-else :findings="findingsOf(r)" :mock="mock"/>
                             </div>
                           </li>
                           <li class="context-review-step context-review-decision">
-                            <div class="context-review-step-head"><span class="context-review-step-number" aria-hidden="true">3</span><div><h3>운영자 최종 결정</h3><small>제출하면 결정에 따른 채팅 공개·제한 상태가 적용됩니다.</small></div></div>
+                            <div class="context-review-step-head"><span class="context-review-step-number" aria-hidden="true">4</span><div><h3>현재 상태 · 운영자 결정</h3><small>검토 {{reviewStatusLabels[r.status]}}<span v-if="targetVisibility(r)"> · 채팅 {{visibilityLabels[targetVisibility(r) as keyof typeof visibilityLabels] ?? targetVisibility(r)}}</span></small></div></div>
                             <div class="context-review-step-content">
                               <div class="review-choice" role="radiogroup" aria-label="결정"><label v-for="opt in contextChoices" :key="opt.value" :class="{on: choice[r.reviewId]===opt.value}"><input type="radio" :name="'choice-' + r.reviewId" :value="opt.value" v-model="choice[r.reviewId]" :disabled="busy || ended"/>{{opt.label}}</label></div>
                               <fieldset v-if="choice[r.reviewId]==='CONFIRM_VIOLATION'" class="review-categories"><legend>적용할 위반 유형</legend><label v-for="(name, key) in categoryLabels" :key="key"><input type="checkbox" :checked="categoriesOf(r).includes(key)" :disabled="busy || ended" @change="toggleCategory(r, key, ($event.target as HTMLInputElement).checked)"/>{{name}}</label></fieldset>
@@ -407,8 +425,17 @@ const dictRows: { name: string; words: string[]; result: string }[] = [
                         </details>
                       </template>
                       <template v-else>
-                        <table class="sanction-log basis-log" aria-label="강퇴 요청 근거 사건"><thead><tr><th>시간</th><th>유형</th><th>메시지</th><th>상태</th></tr></thead><tbody>
-                          <tr v-for="b in basisCases(r)" :key="b.id" :data-case-id="b.id"><td class="log-time">{{b.item ? asTime(b.item.createdAt) : '-'}}</td><td class="log-cat">{{b.item ? activeCategories(b.item).map(categoryName).join('·') || '-' : '-'}}</td><td class="log-text">{{b.item ? targetText(b.item) ?? '원문 없음' : `사건 ${b.id.slice(0,8)}`}}<small v-if="b.item" class="basis-reason">{{basisReason(b.item)}}</small></td><td>{{b.item ? confirmationLabels[b.item.confirmationStatus] : '확인 중'}}</td></tr></tbody></table>
+                        <ol class="kick-basis-chats" aria-label="강퇴 요청 근거 채팅">
+                          <li v-for="b in basisCases(r)" :key="b.id" class="kick-basis-chat" :data-case-id="b.id">
+                            <span class="chat-avatar" :style="{background: avatarColor(nameOf(b.id))}" aria-hidden="true">{{nameOf(b.id).slice(0,1)}}</span>
+                            <div class="kick-basis-content">
+                              <div class="kick-basis-meta"><b>{{nameOf(b.id)}}</b><time v-if="b.item" :datetime="iso(sentAt(b.item) ?? b.item.createdAt)" :title="asTime(sentAt(b.item) ?? b.item.createdAt)">{{hourMinute(iso(sentAt(b.item) ?? b.item.createdAt))}}</time></div>
+                              <p>{{b.item ? targetText(b.item) ?? '원문 없음' : `사건 ${b.id.slice(0,8)} · 채팅 조회 불가`}}</p>
+                              <small v-if="b.item" class="basis-reason">{{basisReason(b.item)}}</small>
+                            </div>
+                            <span class="kick-basis-verdict" :class="b.item?.confirmationStatus === 'CONFIRMED_VIOLATION' ? 'violation' : 'pending'">{{b.item ? `${activeCategories(b.item).map(categoryName).join('·') || '유형 미확인'} · ${confirmationLabels[b.item.confirmationStatus]}` : '확인 중'}}</span>
+                          </li>
+                        </ol>
                         <details v-for="b in basisCases(r).filter(b => b.item && !isRule(b.item))" :key="'evidence-' + b.id" class="review-more"><summary>기준 사건 AI 판단 근거 · {{b.id.slice(0,8)}}</summary><AiEvidence :findings="b.item?.findings ?? []" :mock="mock"/></details>
                         <div class="review-choice" role="radiogroup" aria-label="결정"><label v-for="opt in kickChoices" :key="opt.value" :class="{on: choice[r.reviewId]===opt.value}"><input type="radio" :name="'choice-' + r.reviewId" :value="opt.value" v-model="choice[r.reviewId]" :disabled="busy || ended"/>{{opt.label}}</label></div>
                         <div class="review-submit"><button class="primary" :disabled="!canSubmit(r)" @click="submit(r)">제출</button></div>

@@ -7,7 +7,7 @@ defineProps<{ findings: Finding[]; mock?: boolean }>();
   <section class="ai-evidence" aria-label="AI 판단 근거">
     <header><b>AI 판단 근거</b><small>{{mock ? '목업 시뮬레이션' : '서버에 저장된 AI 조사 결과'}}</small></header>
     <article v-for="f in findings" :key="f.messageId" class="review-ai" :data-finding-message-id="f.messageId">
-      <div><span class="verdict-badge" :class="{violation: f.verdict==='VIOLATION', clear: f.verdict==='NO_VIOLATION', review: f.verdict==='NEEDS_REVIEW'}">AI 제안 · {{verdictLabels[f.verdict]}}</span> <code>{{f.verdict}}</code></div>
+      <div><span class="verdict-badge" :class="{violation: f.verdict==='VIOLATION', clear: f.verdict==='NO_VIOLATION', review: f.verdict==='NEEDS_REVIEW'}">{{f.missingFacts.some(fact => /\b(INVALID_MODEL_OUTPUT|INVALID_POLICY_EVIDENCE)\b/.test(fact)) ? '안전 보류' : 'AI 제안'}} · {{verdictLabels[f.verdict]}}</span> <code>{{f.verdict}}</code></div>
       <p class="review-ai-reason">{{f.reason}}</p>
       <dl>
         <div><dt>위반 유형</dt><dd>{{f.categories.map(c => categoryLabels[c] ?? c).join(' · ') || '제안된 유형 없음'}}</dd></div>

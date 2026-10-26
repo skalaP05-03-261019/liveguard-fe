@@ -14,7 +14,9 @@ export const MODERATOR_ID = '33333333-3333-4333-8333-333333333333';
 export const demoMe: Me = { userId: MODERATOR_ID, nickname: '스트리머', role: 'MODERATOR', channelIds: [CHANNEL_ID] };
 
 const extraAliases = ['김하늘', '게임소녀', '치킨러버', '고인물', '뉴비123', '새벽감성', '도배러', '이벤트봇', '버럭이', '스팸장인', '연타왕', '화난곰', '오픈톡', '시비왕', '가짜운영자'];
-export const mockUsers: MockUser[] = [...DEMO_USERS, ...extraAliases.map((alias, n) => ({ id: `22222222-2222-4222-8222-2222222223${String(n).padStart(2, '0')}`, alias }))];
+// 시연 도우미의 30명 장면 전용 가상 작성자. 실제 로그인 계정이나 독립 브라우저 세션은 아니다.
+export const demoCrowdUsers: MockUser[] = Array.from({ length: 30 }, (_, n) => ({ id: `22222222-2222-4222-8222-2222222240${String(n + 1).padStart(2, '0')}`, alias: `demo-viewer-${String(n + 1).padStart(2, '0')}` }));
+export const mockUsers: MockUser[] = [...DEMO_USERS, ...extraAliases.map((alias, n) => ({ id: `22222222-2222-4222-8222-2222222223${String(n).padStart(2, '0')}`, alias })), ...demoCrowdUsers];
 export const userByAlias = (alias: string) => mockUsers.find(u => u.alias === alias)!;
 
 // Backend src/main/resources/filter/ 사전 사본(dict-v2). 목업 판정이 실제 Backend와 같은 경로를 타게 한다.
