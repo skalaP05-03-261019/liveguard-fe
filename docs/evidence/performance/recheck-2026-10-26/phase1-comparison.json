@@ -1,0 +1,246 @@
+{
+  "measuredAt": "2026-10-26T03:48:05.965Z",
+  "browser": "156.0.8078.4",
+  "phase1Commit": "a681476d1d9bf2ad4f60ff531b716e650a84cbdf",
+  "currentBuild": "production-build.zip: exact frontend build used for completed 60-minute run",
+  "conditions": "same laptop/browser, production API mode, 1000 input messages, 100 SSE events in one burst, 3 trials; 5-second periodic session poll disabled equally to isolate event-triggered work; empty reviews/cases; no AI calls",
+  "trials": [
+    {
+      "version": "phase1",
+      "scenario": "chat-burst",
+      "trial": 1,
+      "inputMessages": 1000,
+      "eventCount": 100,
+      "initialRows": 1000,
+      "apiRequests": 500,
+      "byPath": {
+        "/api/auth/me": 100,
+        "/api/lives/live-1/messages": 100,
+        "/api/reviews": 200,
+        "/api/cases": 100
+      },
+      "errors": []
+    },
+    {
+      "version": "phase1",
+      "scenario": "progress-burst",
+      "trial": 1,
+      "inputMessages": 1000,
+      "eventCount": 100,
+      "initialRows": 1000,
+      "apiRequests": 500,
+      "byPath": {
+        "/api/auth/me": 100,
+        "/api/lives/live-1/messages": 100,
+        "/api/reviews": 200,
+        "/api/cases": 100
+      },
+      "errors": []
+    },
+    {
+      "version": "phase1",
+      "scenario": "viewer-dom",
+      "trial": 1,
+      "inputMessages": 1000,
+      "eventCount": 0,
+      "initialRows": 1000,
+      "apiRequests": 0,
+      "byPath": {},
+      "errors": []
+    },
+    {
+      "version": "phase1",
+      "scenario": "chat-burst",
+      "trial": 2,
+      "inputMessages": 1000,
+      "eventCount": 100,
+      "initialRows": 1000,
+      "apiRequests": 500,
+      "byPath": {
+        "/api/auth/me": 100,
+        "/api/lives/live-1/messages": 100,
+        "/api/reviews": 200,
+        "/api/cases": 100
+      },
+      "errors": []
+    },
+    {
+      "version": "phase1",
+      "scenario": "progress-burst",
+      "trial": 2,
+      "inputMessages": 1000,
+      "eventCount": 100,
+      "initialRows": 1000,
+      "apiRequests": 500,
+      "byPath": {
+        "/api/auth/me": 100,
+        "/api/lives/live-1/messages": 100,
+        "/api/reviews": 200,
+        "/api/cases": 100
+      },
+      "errors": []
+    },
+    {
+      "version": "phase1",
+      "scenario": "viewer-dom",
+      "trial": 2,
+      "inputMessages": 1000,
+      "eventCount": 0,
+      "initialRows": 1000,
+      "apiRequests": 0,
+      "byPath": {},
+      "errors": []
+    },
+    {
+      "version": "phase1",
+      "scenario": "chat-burst",
+      "trial": 3,
+      "inputMessages": 1000,
+      "eventCount": 100,
+      "initialRows": 1000,
+      "apiRequests": 500,
+      "byPath": {
+        "/api/auth/me": 100,
+        "/api/lives/live-1/messages": 100,
+        "/api/reviews": 200,
+        "/api/cases": 100
+      },
+      "errors": []
+    },
+    {
+      "version": "phase1",
+      "scenario": "progress-burst",
+      "trial": 3,
+      "inputMessages": 1000,
+      "eventCount": 100,
+      "initialRows": 1000,
+      "apiRequests": 500,
+      "byPath": {
+        "/api/auth/me": 100,
+        "/api/lives/live-1/messages": 100,
+        "/api/reviews": 200,
+        "/api/cases": 100
+      },
+      "errors": []
+    },
+    {
+      "version": "phase1",
+      "scenario": "viewer-dom",
+      "trial": 3,
+      "inputMessages": 1000,
+      "eventCount": 0,
+      "initialRows": 1000,
+      "apiRequests": 0,
+      "byPath": {},
+      "errors": []
+    },
+    {
+      "version": "current",
+      "scenario": "chat-burst",
+      "trial": 1,
+      "inputMessages": 1000,
+      "eventCount": 100,
+      "initialRows": 200,
+      "apiRequests": 2,
+      "byPath": {
+        "/api/auth/me": 1,
+        "/api/lives/live-1/messages": 1
+      },
+      "errors": []
+    },
+    {
+      "version": "current",
+      "scenario": "progress-burst",
+      "trial": 1,
+      "inputMessages": 1000,
+      "eventCount": 100,
+      "initialRows": 200,
+      "apiRequests": 0,
+      "byPath": {},
+      "errors": []
+    },
+    {
+      "version": "current",
+      "scenario": "viewer-dom",
+      "trial": 1,
+      "inputMessages": 1000,
+      "eventCount": 0,
+      "initialRows": 80,
+      "apiRequests": 0,
+      "byPath": {},
+      "errors": []
+    },
+    {
+      "version": "current",
+      "scenario": "chat-burst",
+      "trial": 2,
+      "inputMessages": 1000,
+      "eventCount": 100,
+      "initialRows": 200,
+      "apiRequests": 2,
+      "byPath": {
+        "/api/auth/me": 1,
+        "/api/lives/live-1/messages": 1
+      },
+      "errors": []
+    },
+    {
+      "version": "current",
+      "scenario": "progress-burst",
+      "trial": 2,
+      "inputMessages": 1000,
+      "eventCount": 100,
+      "initialRows": 200,
+      "apiRequests": 0,
+      "byPath": {},
+      "errors": []
+    },
+    {
+      "version": "current",
+      "scenario": "viewer-dom",
+      "trial": 2,
+      "inputMessages": 1000,
+      "eventCount": 0,
+      "initialRows": 80,
+      "apiRequests": 0,
+      "byPath": {},
+      "errors": []
+    },
+    {
+      "version": "current",
+      "scenario": "chat-burst",
+      "trial": 3,
+      "inputMessages": 1000,
+      "eventCount": 100,
+      "initialRows": 200,
+      "apiRequests": 2,
+      "byPath": {
+        "/api/auth/me": 1,
+        "/api/lives/live-1/messages": 1
+      },
+      "errors": []
+    },
+    {
+      "version": "current",
+      "scenario": "progress-burst",
+      "trial": 3,
+      "inputMessages": 1000,
+      "eventCount": 100,
+      "initialRows": 200,
+      "apiRequests": 0,
+      "byPath": {},
+      "errors": []
+    },
+    {
+      "version": "current",
+      "scenario": "viewer-dom",
+      "trial": 3,
+      "inputMessages": 1000,
+      "eventCount": 0,
+      "initialRows": 80,
+      "apiRequests": 0,
+      "byPath": {},
+      "errors": []
+    }
+  ]
+}

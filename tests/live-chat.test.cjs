@@ -104,6 +104,7 @@ before(async()=>{
   if(url.pathname==='/api/auth/me'&&state.authError)return json(401,{code:'UNAUTHENTICATED',message:'Session expired',retryable:false});
   // admin(PLATFORM_ADMIN)은 실제 시드처럼 어느 채널에도 소속되지 않는다
   if(url.pathname==='/api/auth/me')return json(200,{userId:role,nickname:role,role:role==='operator'?'MODERATOR':role==='admin'?'PLATFORM_ADMIN':'VIEWER',channelIds:role==='admin'?[]:['channel-1']});
+  if(url.pathname==='/api/channels')return json(200,state.channels);
   if(req.method==='POST'&&/^\/api\/channels\/[^/]+\/lives$/.test(url.pathname)){
    state.liveStarts=(state.liveStarts??0)+1;
    if(state.startError)return json(409,{code:'LIVE_ALREADY_ACTIVE',message:'방송 시작을 처리하지 못했습니다.',retryable:false});
@@ -163,7 +164,7 @@ before(async()=>{
  mockBase=`http://127.0.0.1:${mockVite.httpServer.address().port}`;
  browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH}:{})});
 });
-beforeEach(()=>{state={active:true,liveId:'live-1',messages:[],until:{},kicked:new Set(),posts:0,historyReads:[],currentReads:0,postError:null,historyError:false,permissionError:false,leak:false,delayHistory:0,delayCurrent:0,reviews:[],cases:[],decisions:[],pageSize:0};runtimeErrors.length=0;});
+beforeEach(()=>{state={active:true,liveId:'live-1',channels:[],messages:[],until:{},kicked:new Set(),posts:0,historyReads:[],currentReads:0,postError:null,historyError:false,permissionError:false,leak:false,delayHistory:0,delayCurrent:0,reviews:[],cases:[],decisions:[],pageSize:0};runtimeErrors.length=0;});
 afterEach(async()=>{await Promise.all(contexts.splice(0).map(c=>c.close()));assert.deepEqual(runtimeErrors,[]);});
 after(async()=>{await browser?.close();await mockVite?.close();await vite?.close();for(const c of clients)c.res.end();server?.closeAllConnections();await new Promise(r=>server?server.close(r):r());});
 
@@ -1004,6 +1005,7 @@ test('mock kick approval is explicitly simulated and blocks that viewer for the 
  await page.getByRole('button',{name:'로그인',exact:true}).click();await page.locator('.viewer-shell').waitFor();
  await page.getByLabel('목업 시청자 선택').selectOption('22222222-2222-4222-8222-222222222222');
  assert.equal(await page.getByRole('heading',{name:'이 방송의 이용이 제한되었습니다'}).count(),0);
+ await captureReview(page,'viewer-sanction-before-kick');
  await logoutPage(page);
  await page.getByRole('button',{name:'스트리머로 시작하기',exact:true}).click();
  await page.getByRole('button',{name:'로그인',exact:true}).click();await page.locator('.app-shell').waitFor();
@@ -1016,6 +1018,7 @@ test('mock kick approval is explicitly simulated and blocks that viewer for the 
  await page.getByLabel('목업 시청자 선택').selectOption('22222222-2222-4222-8222-222222222222');
  await page.getByRole('heading',{name:'이 방송의 이용이 제한되었습니다'}).waitFor();
  await page.getByText('이번 방송이 끝날 때까지 채팅과 시청이 제한됩니다',{exact:false}).waitFor();
+ await captureReview(page,'viewer-kicked-after-approval');
 });
 
 test('mock kick failure and unknown outcomes never apply a viewer ban',async()=>{
@@ -1183,13 +1186,15 @@ test('API decision evidence uses persisted findings, refreshes on SSE and render
  await evidence.getByText('제출된 정책 근거 없음',{exact:true}).waitFor();
 });
 
-test('API admin shows the same system screen as the mock with empty data and no invented metrics',async()=>{
+test('API admin loads live channels and tracks their chats without invented viewer metrics',async()=>{
+ state.channels=[{channelId:'channel-1',name:'LIVE:GUARD',live:{liveId:'live-1',channelId:'channel-1',startedAt:timestamp(),endedAt:null}}];
+ state.messages=[message('admin-visible','author','PUBLIC',{text:'관리자 조회 테스트'})];
  const context=await browser.newContext({viewport:{width:1280,height:1000},timezoneId:'Asia/Seoul'});contexts.push(context);
  const mock=await context.newPage();mock.on('pageerror',e=>runtimeErrors.push(e.message));
  await mock.goto(mockBase);await mock.getByRole('button',{name:'시스템 운영자 전용',exact:true}).click();
  await mock.getByRole('button',{name:'로그인',exact:true}).click();await mock.locator('.sys-shell').waitFor();
  const api=await open('admin');await api.locator('.sys-shell').waitFor();
- // API admin: 같은 메뉴·지표·표 제목, 값만 비어 있다. 백엔드에 시스템 운영자 권한과 여러 방송 조회 API가 없다
+ // 관리자 API는 진행 중인 방송만 조회하고 시청자 수를 임의 생성하지 않는다.
  const shape=async page=>({
   tabs:await page.getByRole('tab').allInnerTexts(),
   charts:await page.locator('.sys-chart-card h2').allInnerTexts(),
@@ -1199,17 +1204,15 @@ test('API admin shows the same system screen as the mock with empty data and no 
  assert.equal(await api.locator('.mode-badge').count(),0);assert.equal(await mock.locator('.mode-badge').count(),0);
  await captureReview(api,'off-air-gray');
 
- // 차트도 가짜 0 없이 비워 둔다
- assert.equal(await api.locator('.sys-chart-card .stacked-empty').filter({hasText:'연동 API 없음'}).count(),2);
- assert.equal(await api.locator('.sys-chart-card .stacked-legend, .sys-base').count(),0);
- assert.equal(await api.locator('.sys-table .empty-block').filter({hasText:'여러 방송 조회 API가 없어 표시할 데이터가 없습니다.'}).count(),3);
+ await api.getByRole('group',{name:'방송 필터'}).getByRole('button',{name:/LIVE:GUARD/}).waitFor();
+ assert.equal(await api.locator('.sys-base').first().innerText(),'1건 기준');
  const text=await api.locator('.sys-shell').innerText();
- for(const invented of ['행복한게임방','2,341','명 시청','LIVE 1'])assert(!text.includes(invented),invented);
+ for(const invented of ['행복한게임방','2,341','명 시청'])assert(!text.includes(invented),invented);
  await capture(mock,'admin-mock');await capture(api,'admin-api');
  await api.getByRole('tab',{name:'채팅관제 Tracking',exact:true}).click();
- assert.equal(await api.locator('.configured-broadcast').count(),0);
- assert.equal(await api.getByRole('group',{name:'추적할 방송 선택'}).getByRole('button').count(),0);
- await api.locator('.tracking-grid').getByText('표시할 채팅이 없습니다.',{exact:true}).waitFor();
+ assert.equal(await api.locator('.configured-broadcast').count(),1);
+ assert.equal(await api.getByRole('group',{name:'추적할 방송 선택'}).getByRole('button').count(),1);
+ await api.locator('.tracking-grid').getByText('관리자 조회 테스트',{exact:true}).first().waitFor();
  await capture(api,'admin-api-tracking');
 });
 
@@ -1240,53 +1243,17 @@ test('admin dashboard charts split chat judgment from kick approval and rank cha
  await capture(page,'admin-dashboard-charts');
 });
 
-test('admin period stats default to the last 7 days, include ended broadcasts and validate a custom range',async()=>{
+test('period stats stays out of the mock and API admin navigation until aggregation is ready',async()=>{
  const context=await browser.newContext({viewport:{width:1280,height:1000},timezoneId:'Asia/Seoul'});contexts.push(context);
- const page=await context.newPage();page.on('pageerror',e=>runtimeErrors.push(e.message));
- await page.goto(mockBase);await page.getByRole('button',{name:'시스템 운영자 전용',exact:true}).click();
- await page.getByRole('button',{name:'로그인',exact:true}).click();await page.locator('.sys-shell').waitFor();
- assert.equal(await page.locator('.configured-broadcast').count(),0);
- assert.deepEqual(await page.getByRole('tab').allInnerTexts(),['실시간 관제','채팅관제 Tracking','기간별 누적 통계']);
- assert.equal(await page.locator('.sys-side .sys-live-indicator').count(),2);
- await page.getByRole('tab',{name:'기간별 누적 통계',exact:true}).click();
- assert.equal(await page.locator('.configured-broadcast').count(),0);
- assert.equal(await page.locator('.sys-head h1').innerText(),'기간별 누적 통계');
- const range=page.getByRole('group',{name:'기간'});
- assert.equal(await range.getByRole('button',{name:'최근 7일'}).getAttribute('aria-pressed'),'true');
- const count=t=>Number(t.replace(/[^0-9]/g,''));
- const daily=()=>page.locator('.period-daily tbody tr').count();
- assert.equal(await daily(),7);
- const week=count(await page.locator('.sys-chart-card .sys-base').first().innerText());
- await captureReview(page,'contract-period-7days');
- // 기간 통계는 끝난 방송도 포함한다(실시간 관제에서는 빠지는 코딩 라이브)
- await range.getByRole('button',{name:'최근 30일'}).click();
- assert.equal(await daily(),30);
- await captureReview(page,'contract-period-30days');
- assert(count(await page.locator('.sys-chart-card .sys-base').first().innerText())>week);
- assert(await page.locator('.sys-channel-name').filter({hasText:'코딩 라이브'}).count()===1);
- // 일별 그래프에 마우스를 올리면 날짜·비율 툴팁
- const svg=page.locator('.trend-wrap svg');const box=await svg.boundingBox();
- await page.mouse.move(box.x+box.width/2,box.y+box.height/2);
- assert.match(await page.locator('.trend-tip').innerText(),/^\d{2}\.\d{2} · /);
- // 직접 선택: 시작일이 끝일보다 늦으면 안내하고 차트를 비운다
- await range.getByRole('button',{name:'직접 선택'}).click();
- await page.getByLabel('시작일').fill('2026-10-20');await page.getByLabel('끝일').fill('2026-10-10');
- await page.getByRole('alert').filter({hasText:'시작일이 끝일보다 늦습니다.'}).waitFor();
- assert.equal(await page.locator('.sys-chart-card .stacked-empty').filter({hasText:'기간을 다시 골라 주세요'}).count(),2);
- await capture(page,'admin-period-stats');
-});
-
-test('API admin period stats stay empty until the backend period API exists',async()=>{
- const page=await open('admin');await page.locator('.sys-shell').waitFor();
- assert.equal(await page.locator('.sys-side .sys-live-indicator').count(),0);
- await page.getByRole('tab',{name:'기간별 누적 통계',exact:true}).click();
- assert.equal(await page.locator('.configured-broadcast').count(),0);
- assert.equal(await page.locator('.sys-chart-card .stacked-empty').filter({hasText:'연동 API 없음'}).count(),2);
- assert.equal(await page.locator('.trend-empty').innerText(),'연동 API 없음');
- assert.equal(await page.locator('.sys-base, .period-table').count(),0);
- assert.equal(await page.locator('.period-empty').innerText(),'연동 API 없음');
- assert.match(await page.locator('.sys-mock').first().innerText(),/기간 집계 API가 없습니다/);
- await capture(page,'admin-period-api-empty');
+ const mock=await context.newPage();mock.on('pageerror',e=>runtimeErrors.push(e.message));
+ await mock.goto(mockBase);await mock.getByRole('button',{name:'시스템 운영자 전용',exact:true}).click();
+ await mock.getByRole('button',{name:'로그인',exact:true}).click();await mock.locator('.sys-shell').waitFor();
+ const api=await open('admin');await api.locator('.sys-shell').waitFor();
+ for(const page of [mock,api]){
+  assert.deepEqual(await page.getByRole('tab').allInnerTexts(),['실시간 관제','채팅관제 Tracking']);
+  assert.equal(await page.getByRole('tab',{name:'기간별 누적 통계'}).count(),0);
+  assert.equal(await page.locator('.period-daily, .period-table').count(),0);
+ }
 });
 
 test('admin overview shows all broadcasts ended only when known channels are off air',async()=>{
@@ -1363,22 +1330,9 @@ test('admin attention filters, responsive row details and chart scales remain us
   await snapshot(`review-admin-live-${width}`);
  }
  await page.getByRole('button',{name:'메뉴 열기',exact:true}).click();
- await page.getByRole('tab',{name:'기간별 누적 통계',exact:true}).click();
- assert.match(await page.locator('.chart-scale-note').innerText(),/세로축 자동 눈금/);
- assert.equal(await page.locator('.rate-axis span').count(),3);
- for(const text of await page.locator('.sys-channel-meta').allInnerTexts())assert.match(text,/검사 [0-9,]+건/);
- const svg=page.locator('.trend-wrap svg');await svg.focus();await page.keyboard.press('ArrowRight');
- assert.equal(await page.locator('.trend-tip').isVisible(),true);
- for(const width of [360,390]){
-  await page.setViewportSize({width,height:844});
-  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
-  await snapshot(`review-admin-period-${width}`);
- }
- await page.setViewportSize({width:1440,height:1000});await snapshot('review-admin-period-desktop');
- const apiPage=await open('admin');
- assert.equal(await apiPage.locator('.attention-grid button:disabled').count(),3);
- assert.equal(await apiPage.locator('.attention-grid strong').allInnerTexts().then(t=>t.every(v=>v==='—')),true);
- await capture(apiPage,'review-admin-api-empty-desktop');
+ assert.equal(await page.getByRole('tab',{name:'기간별 누적 통계'}).count(),0);
+ await page.getByRole('tab',{name:'채팅관제 Tracking',exact:true}).click();
+ assert.equal(await page.locator('.tracking-grid').count(),1);
 });
 
 
@@ -1616,7 +1570,7 @@ test('new decision requests highlight once, keep focus and selections, expire an
  await page.emulateMedia({reducedMotion:'reduce'});
  assert.equal(await page.locator('.review-arrival').first().evaluate(e=>getComputedStyle(e).animationName),'none');
  await captureReview(page,'monitoring-reduced-motion');
- await page.clock.runFor(8100);assert.equal(await page.locator('.review-arrival').count(),0);
+ await page.clock.runFor(8100);await page.locator('.review-arrival').first().waitFor({state:'detached'});
  await page.evaluate(async()=>{const {useLiveGuard}=await import('/src/stores/liveGuard.ts');const m=useLiveGuard().mock.state;m.reviews.find(r=>r.reviewId==='arrival-context').version++;});
  assert.equal(await page.locator('.review-arrival').count(),0,'version update does not replay an arrival');
 });
@@ -1707,24 +1661,24 @@ for(const mode of ['mock','api'])test(`admin drawer and account menu work in ${m
  else{const context=await browser.newContext({viewport:{width:1280,height:1000}});contexts.push(context);page=await context.newPage();await page.goto(mockBase);await page.getByRole('button',{name:'시스템 운영자 전용',exact:true}).click();await page.getByRole('button',{name:'로그인',exact:true}).click();}
  await page.locator('.sys-shell').waitFor();
  await page.getByRole('button',{name:'메뉴 닫기',exact:true}).click();
- assert.equal(await page.getByRole('tab').count(),3);
+ assert.equal(await page.getByRole('tab').count(),2);
  assert.equal(await page.locator('.sys-side.compact').count(),1);
  await page.getByRole('button',{name:'메뉴 열기',exact:true}).click();
- await page.getByRole('tab',{name:'기간별 누적 통계',exact:true}).click();
+ await page.getByRole('tab',{name:'채팅관제 Tracking',exact:true}).click();
  await captureReview(page,`admin-${mode}-desktop`);
  for(const width of [360,390]){
  await page.setViewportSize({width,height:844});
  await page.locator('#system-navigation[aria-hidden="true"]').waitFor({state:'attached'});
  assert.equal(await page.getByRole('tab').count(),0);
  await page.getByRole('button',{name:'메뉴 열기',exact:true}).click();
- assert.equal(await page.getByRole('tab',{selected:true}).innerText(),'기간별 누적 통계');
+ assert.equal(await page.getByRole('tab',{selected:true}).innerText(),'채팅관제 Tracking');
  await captureReview(page,`admin-${mode}-drawer-${width}`);
  await page.getByRole('tab',{name:'채팅관제 Tracking',exact:true}).click();
  assert.equal(await page.getByRole('tab').count(),0);
  await page.getByRole('button',{name:'메뉴 열기',exact:true}).click();await page.keyboard.press('Escape');
  assert.equal(await page.getByRole('button',{name:'메뉴 열기',exact:true}).evaluate(e=>e===document.activeElement),true);
  await page.getByRole('button',{name:'메뉴 열기',exact:true}).click();
- await page.getByRole('tab',{name:'기간별 누적 통계',exact:true}).click();
+ await page.getByRole('tab',{name:'채팅관제 Tracking',exact:true}).click();
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  }
  assert.equal(await page.locator('.topbar .operator-info').count(),0);

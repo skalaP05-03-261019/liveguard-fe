@@ -1,0 +1,397 @@
+{
+  "status": "quick-validation-complete",
+  "startedAt": "2026-10-26T02:27:07.515Z",
+  "quick": true,
+  "scope": "production frontend with deterministic HTTP/SSE fixtures; no backend capacity or AI evaluation",
+  "environment": {
+    "hostname": "johaesuui-noteubug.local",
+    "platform": "darwin",
+    "release": "23.0.0",
+    "cpu": "Apple M2",
+    "logicalCpus": 8,
+    "memoryGiB": 8,
+    "node": "v24.20.0",
+    "commit": "c75e0bfba4594866948109a90a5b959c4f433acd",
+    "workingTree": "M src/AiEvidence.vue\n M src/PeriodStats.vue\n M src/StudioScreen.vue\n M src/SystemPage.vue\n M src/ViewerAssistant.vue\n M src/ViewerPage.vue\n M src/ViewerScreen.vue\n M src/mock.ts\n M src/stores/liveGuard.ts\n M src/style.css\n M tests/live-chat.test.cjs\n?? docs/evidence/context-decision/\n?? docs/evidence/performance/\n?? docs/frontend-performance-test-plan.md\n?? docs/frontend-performance-test-results.md\n?? scripts/frontend-performance-suite.cjs\n?? scripts/performance-smoke.cjs",
+    "browser": "156.0.8078.4"
+  },
+  "tc": {
+    "TC-03": {
+      "messages": 1000,
+      "changed": 200,
+      "heldRows": 200,
+      "privateRowsVisibleToOtherViewer": 0,
+      "screens": [
+        {
+          "observed": 200,
+          "pending": 0,
+          "domP95Ms": 322.1,
+          "nextFrameP95Ms": 322.5,
+          "frameGapP95Ms": 16.7,
+          "longTasksOver50ms": 1,
+          "rows": 200,
+          "duplicates": 0
+        },
+        {
+          "observed": 200,
+          "pending": 0,
+          "domP95Ms": 331.2,
+          "nextFrameP95Ms": 460.6,
+          "frameGapP95Ms": 483.2,
+          "longTasksOver50ms": 1,
+          "rows": 80,
+          "duplicates": 0
+        }
+      ],
+      "pass": true
+    },
+    "TC-04": {
+      "requests": 3,
+      "interactions": 3,
+      "clickToDisabledNextFrameP95Ms": 32.1,
+      "duplicateRequests": 0,
+      "pass": true
+    },
+    "TC-06": {
+      "rounds": [
+        {
+          "offlineMs": 304,
+          "recoveryMs": 2018,
+          "matches": [
+            true,
+            true
+          ],
+          "duplicates": [
+            0,
+            0
+          ]
+        },
+        {
+          "offlineMs": 302,
+          "recoveryMs": 1036,
+          "matches": [
+            true,
+            true
+          ],
+          "duplicates": [
+            0,
+            0
+          ]
+        },
+        {
+          "offlineMs": 303,
+          "recoveryMs": 3078,
+          "matches": [
+            true,
+            true
+          ],
+          "duplicates": [
+            0,
+            0
+          ]
+        }
+      ],
+      "pass": true
+    },
+    "TC-07": {
+      "method": "lab LCP, CLS and Event Timing interactions; not field INP or field p75",
+      "rows": [
+        {
+          "role": "viewer",
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "trial": 1,
+          "lcpMs": 556,
+          "cls": 0.0007066615226337448,
+          "eventTiming": [
+            {
+              "id": 1661,
+              "duration": 72,
+              "name": "pointerdown"
+            },
+            {
+              "id": 1661,
+              "duration": 72,
+              "name": "pointerup"
+            },
+            {
+              "id": 1661,
+              "duration": 72,
+              "name": "click"
+            }
+          ],
+          "overflow": false
+        },
+        {
+          "role": "viewer",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "trial": 1,
+          "lcpMs": 608,
+          "cls": 0.009973253762701438,
+          "eventTiming": [
+            {
+              "id": 744,
+              "duration": 64,
+              "name": "pointerdown"
+            },
+            {
+              "id": 744,
+              "duration": 64,
+              "name": "pointerup"
+            },
+            {
+              "id": 744,
+              "duration": 64,
+              "name": "click"
+            }
+          ],
+          "overflow": false
+        },
+        {
+          "role": "operator",
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "trial": 1,
+          "lcpMs": 512,
+          "cls": 0,
+          "eventTiming": [
+            {
+              "id": 5597,
+              "duration": 96,
+              "name": "pointerdown"
+            },
+            {
+              "id": 5597,
+              "duration": 96,
+              "name": "pointerup"
+            },
+            {
+              "id": 5597,
+              "duration": 96,
+              "name": "click"
+            }
+          ],
+          "overflow": false
+        },
+        {
+          "role": "operator",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "trial": 1,
+          "lcpMs": 408,
+          "cls": 0,
+          "eventTiming": [
+            {
+              "id": 4265,
+              "duration": 64,
+              "name": "pointerdown"
+            },
+            {
+              "id": 4265,
+              "duration": 64,
+              "name": "pointerup"
+            },
+            {
+              "id": 4265,
+              "duration": 64,
+              "name": "click"
+            }
+          ],
+          "overflow": false
+        },
+        {
+          "role": "admin",
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "trial": 1,
+          "lcpMs": 476,
+          "cls": 0,
+          "eventTiming": [
+            {
+              "id": 1274,
+              "duration": 64,
+              "name": "pointerdown"
+            },
+            {
+              "id": 1274,
+              "duration": 64,
+              "name": "pointerup"
+            },
+            {
+              "id": 1274,
+              "duration": 64,
+              "name": "click"
+            }
+          ],
+          "overflow": false
+        },
+        {
+          "role": "admin",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "trial": 1,
+          "lcpMs": 408,
+          "cls": 0,
+          "eventTiming": [
+            {
+              "id": 3886,
+              "duration": 64,
+              "name": "pointerdown"
+            },
+            {
+              "id": 3886,
+              "duration": 64,
+              "name": "pointerup"
+            },
+            {
+              "id": 3886,
+              "duration": 64,
+              "name": "click"
+            }
+          ],
+          "overflow": false
+        }
+      ],
+      "pass": true
+    },
+    "TC-01": {
+      "rate": 10,
+      "durationMs": 2000,
+      "emitted": 20,
+      "screens": [
+        {
+          "role": "operator",
+          "observed": 20,
+          "pending": 0,
+          "domP95Ms": 90.8,
+          "nextFrameP95Ms": 100,
+          "frameGapP95Ms": 16.7,
+          "longTasksOver50ms": 0,
+          "rows": 20,
+          "duplicates": 0,
+          "latestWindowMatches": true
+        },
+        {
+          "role": "viewer",
+          "observed": 20,
+          "pending": 0,
+          "domP95Ms": 92.4,
+          "nextFrameP95Ms": 94.3,
+          "frameGapP95Ms": 16.8,
+          "longTasksOver50ms": 0,
+          "rows": 20,
+          "duplicates": 0,
+          "latestWindowMatches": true
+        }
+      ],
+      "pass": true
+    },
+    "TC-02": {
+      "rate": 100,
+      "durationMs": 2000,
+      "emitted": 200,
+      "screens": [
+        {
+          "role": "operator",
+          "observed": 200,
+          "pending": 0,
+          "domP95Ms": 86.9,
+          "nextFrameP95Ms": 93.7,
+          "frameGapP95Ms": 16.7,
+          "longTasksOver50ms": 0,
+          "rows": 200,
+          "duplicates": 0,
+          "latestWindowMatches": true
+        },
+        {
+          "role": "viewer",
+          "observed": 200,
+          "pending": 0,
+          "domP95Ms": 88.2,
+          "nextFrameP95Ms": 92.2,
+          "frameGapP95Ms": 16.8,
+          "longTasksOver50ms": 0,
+          "rows": 80,
+          "duplicates": 0,
+          "latestWindowMatches": true
+        }
+      ],
+      "pass": true
+    },
+    "TC-05": {
+      "elapsedMs": 6416,
+      "samples": 3,
+      "growthAfterWarmupMiB": {
+        "operator": 1.33,
+        "viewer": 0.98
+      },
+      "criterion": "after warmup: heap increase <=5 MiB per screen, bounded 200/80 chat rows, no browser errors",
+      "pass": true
+    }
+  },
+  "heapSamples": [
+    {
+      "label": "start",
+      "elapsedMs": 2,
+      "operator": {
+        "heapMiB": 2.61,
+        "documents": 1,
+        "nodes": 221,
+        "jsEventListeners": 59
+      },
+      "viewer": {
+        "heapMiB": 2.54,
+        "documents": 2,
+        "nodes": 392,
+        "jsEventListeners": 56
+      }
+    },
+    {
+      "label": "interval",
+      "elapsedMs": 6330,
+      "operator": {
+        "heapMiB": 3.94,
+        "documents": 1,
+        "nodes": 2420,
+        "jsEventListeners": 59
+      },
+      "viewer": {
+        "heapMiB": 3.52,
+        "documents": 2,
+        "nodes": 1351,
+        "jsEventListeners": 56
+      }
+    },
+    {
+      "label": "end",
+      "elapsedMs": 6400,
+      "operator": {
+        "heapMiB": 3.94,
+        "documents": 1,
+        "nodes": 2420,
+        "jsEventListeners": 59
+      },
+      "viewer": {
+        "heapMiB": 3.52,
+        "documents": 2,
+        "nodes": 1351,
+        "jsEventListeners": 56
+      }
+    }
+  ],
+  "errors": [],
+  "completedAt": "2026-10-26T02:27:39.079Z"
+}

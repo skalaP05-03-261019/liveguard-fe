@@ -1,0 +1,62 @@
+{
+  "measuredAt": "2026-10-26T02:11:54.654Z",
+  "scope": "production preview, mock reactive feed, one Chromium run",
+  "viewport": "1440x900",
+  "browser": "156.0.8078.4",
+  "phases": [
+    {
+      "phase": "10-per-second",
+      "targetRate": 10,
+      "targetCount": 100,
+      "actualRate": 9.99,
+      "emitted": 100,
+      "observed": 100,
+      "missing": 0,
+      "domLatencyMs": {
+        "p50": 6.1,
+        "p95": 8.2,
+        "max": 19.9
+      },
+      "frameGapMs": {
+        "p95": 16.7,
+        "max": 16.8
+      },
+      "longTasksOver50ms": 0,
+      "domRows": 127,
+      "heapMbAfterGc": {
+        "before": 3.59,
+        "after": 4.33
+      }
+    },
+    {
+      "phase": "100-per-second",
+      "targetRate": 100,
+      "targetCount": 1000,
+      "actualRate": 99.98,
+      "emitted": 1000,
+      "observed": 1000,
+      "missing": 0,
+      "domLatencyMs": {
+        "p50": 2.5,
+        "p95": 2.8,
+        "max": 4
+      },
+      "frameGapMs": {
+        "p95": 16.8,
+        "max": 16.8
+      },
+      "longTasksOver50ms": 0,
+      "domRows": 200,
+      "heapMbAfterGc": {
+        "before": 4.32,
+        "after": 5.32
+      }
+    }
+  ],
+  "statusChange": {
+    "changed": 200,
+    "domHeld": 200,
+    "elapsedMs": 4
+  },
+  "pageErrors": []
+}

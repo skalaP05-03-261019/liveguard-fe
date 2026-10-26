@@ -1,327 +1,189 @@
-> 2026-10-22 운영자 콘솔 통일(#12): 목업과 실제 API가 같은 Studio 화면(`StudioScreen.vue`)을 씁니다. 목업 판정은 운영정책 v3.1과 Backend 처리 경로를 따릅니다. `VITE_USE_LIVE_V1`은 더 이상 쓰지 않으며, `VITE_USE_API=true`이면 항상 실제 liveId API 화면입니다.
+# LIVE:GUARD Frontend
 
-2026-10-22 운영자 검토·제재 승인 흐름(#13): 실제 Backend·Agent에서 보류·정상 확정·동시 결정 충돌·강퇴 기각을 확인했습니다. [검증 기록](docs/review-flow.md)을 참고하세요.
+라이브 방송 채팅을 시청하고 관제하는 Vue 3 웹 앱입니다. 로그인 역할에 따라 **시청자**, **스트리머(채널 운영자)**, **시스템 운영자** 화면을 제공합니다. 프론트엔드는 `/api/**`로 백엔드와 통신하며, 채팅과 관제 이벤트는 SSE로 받습니다.
 
-2026-10-22 P0 채팅 상태 처리: 작성자 숨김 사유·검토 중 표시, TIMEOUT 안내·입력 차단, 강퇴·방송 종료 화면을 반영했습니다. [변경 내용과 검증 기록](docs/chat-state-ui.md)을 참고하세요.
+## 화면 — 실제 API 콘솔 캡처
 
-목업과 API는 화면 컴포넌트를 함께 쓰고 데이터 연결만 다릅니다. 시청자는 `ViewerScreen.vue`, 운영자는 `StudioScreen.vue`입니다. 목업 계정·시연 버튼·가상 구독자 수와 반응 수는 목업에서만 표시합니다.
+아래 이미지는 **Mock 모드가 아닌 API 콘솔 화면**을 새로 캡처한 것입니다. 2026-10-26에 로컬 통합 스택의 `http://localhost:3000`에서 `VITE_USE_API=true`로 빌드한 프론트와 로컬 시드 계정으로 로그인했습니다. 데스크톱 뷰포트는 1440 × 900입니다. 방송·채팅 건수는 촬영 당시 로컬 DB의 값이며, 운영 환경의 성능이나 데이터량을 나타내지 않습니다. 촬영 시점에는 해당 방송에 표시할 채팅이 없어 빈 상태가 보입니다.
 
-# LIVE:GUARD — Frontend
+### 시청자
 
-**LIVE:GUARD**는 AI Agent가 라이브 방송 채팅을 관제하고, 운영자가 주요 제재를 최종 승인하는 서비스입니다. 이 저장소는 시청자·스트리머·시스템 운영자용 웹 프론트엔드를 제공합니다.
+방송 영상, 실시간 채팅, 본인 메시지와 채팅·입장 제한 상태를 봅니다. 오른쪽 상단 별 모양의 시연 도우미는 단일 계정 채팅 장면을 실행할 수 있습니다.
 
-* **시청자:** 방송 시청, 실시간 채팅, 채팅 제한·입장 제한 상태 확인
+![API 콘솔 시청자 화면](docs/screenshots/api-console/viewer.png)
 
-* **스트리머:** 실시간 채팅 관제, AI 제안 확인 후 문맥 검토 결정, 강퇴 승인·기각, 오판 취소
+### 스트리머
 
-* **시스템 운영자:** 방송 중인 채널의 실시간 관제(채팅 판정 현황·강퇴 승인 처리 현황·방송별 비교), 기간 통계(기본 최근 7일, 끝난 방송 포함, 일별 비정상 비율 추이. 실데이터는 BE 기간 집계 API 이후, 지금은 목업만), 채팅관제 Tracking API 모드도 같은 화면이지만 데이터는 비어 있음(백엔드에 시스템 운영자 권한과 여러 방송 조회 API가 없음)
+`실시간 모니터링`에서 강퇴 승인 대기 → 문맥 검토 대기 → 실시간 채팅을 한 화면에 봅니다. `시청자 관리`, `기록`, `채팅 관제 운영 정책`은 왼쪽 서랍에서 이동합니다. 결정과 오판 취소 요청은 백엔드가 검증합니다.
 
-**기술 스택:** Vue 3 · TypeScript · Pinia · Vite · REST API · SSE
+![API 콘솔 스트리머 화면](docs/screenshots/api-console/moderator.png)
 
-## 1. 주요 화면
+### 시스템 운영자
 
-로그인한 계정의 역할(`VIEWER`, `MODERATOR`, `PLATFORM_ADMIN`)에 따라 화면이 전환됩니다. YouTube Live·YouTube Studio의 UI 구성을 참고했습니다.
+`실시간 관제`는 **방송 중인 채널**의 채팅·사건·검토를 조회합니다. `채팅관제 Tracking`에서는 방송을 고른 뒤 채팅의 처리 경로를 봅니다. 관리자 화면은 조회 전용이며 스트리머의 결정 화면과 권한이 다릅니다.
 
-| 화면         | 핵심 기능                                   | 미리보기                                 |
-| ---------- | --------------------------------------- | ------------------------------------ |
-| 로그인        | 계정 인증 및 역할별 화면 진입                       | [이미지](docs/screenshots/login.png)    |
-| 시청자        | 방송 플레이어, 실시간 채팅, 본인 메시지·제재 상태 확인        | [이미지](docs/screenshots/viewer.png)   |
-| 스트리머 · 실시간 관제 | 왼쪽 채팅, 오른쪽 채팅 상세. 채팅을 누르면 처리 경로와 AI Agent 판단(AI 검토 대상일 때)을 실시간으로 보여 줌 | [이미지](docs/screenshots/operator.png) |
-| 스트리머 · 결정 대기 | 강퇴 승인 / 문맥 검토 탭(건수·대기 표시), 한 줄 목록에서 누른 건만 펼쳐 결정 | - |
-| 스트리머 · 시청자 관리 | 현재 방송에서 제재받은 시청자별 상태·확정 위반·유형, 오판 취소, 검토 결정 | [이미지](docs/screenshots/viewer-manage.png) |
-| 스트리머 · 사건 이력 | 사건 / 검토 기록 탭, 상태별 거르기(결정 대기·위반 확정·규칙 자동 숨김·정상·취소), 행을 펼치면 사건 처리 흐름 | - |
-| 스트리머 · 채팅 기록 | 이번 방송의 모든 채팅(숨김·검토 중 포함) 검색·거르기, 연결된 사건과 처리 흐름 | - |
-| 스트리머 · 정책 근거 | v3.2 처리 경로·괴롭힘 기준(CP-3.3 포함)·필터 사전·제재표·강퇴 심사 (읽기 전용) | - |
-| 시스템 운영자 | 방송별 지표, 강퇴 승인 요청·실행 결과, 채팅관제 Tracking (API 모드는 같은 화면, 데이터 없음) | [이미지](docs/screenshots/system.png)   |
+![API 콘솔 시스템 운영자 실시간 관제](docs/screenshots/api-console/admin.png)
 
-* 캡처는 Mock 모드 화면입니다. 실제 API 모드도 같은 메뉴·카드 구성이며, MOCK 표기와 빠른 시연·모의 강퇴 결과 버튼만 없습니다.
+![API 콘솔 시스템 운영자 채팅관제 Tracking](docs/screenshots/api-console/admin-tracking.png)
 
-<br />
+[API 콘솔 로그인 화면](docs/screenshots/api-console/login.png)도 함께 캡처했습니다. 로그인 배경의 말풍선은 화면 연출이며 서버 채팅이 아닙니다.
 
-### AI 관제 흐름
+### 목업 화면
 
-```text
-시청자 채팅 → Backend 규칙 ─┬→ 확정 욕설·링크·도배: 바로 숨김 + 기준표의 채팅 제한 (자동)
-                            └→ 공격 표현·사칭·개인정보: AI 제안 → 운영자 문맥 검토 (결정 전까지 임시 비노출)
-확정 위반 3건 (최근 24시간, 유형 무관) → 강퇴 승인 요청 → 운영자 승인 → 재검증 → 이번 방송 종료까지 입장·채팅 제한
-```
+아래 표는 같은 날 `VITE_USE_API=false`로 실행한 **Mock 모드**를 1440 × 900에서 새로 캡처한 것입니다. 채팅·검토·통계 수치는 시연용 고정 데이터이며 API 응답이나 실제 관제 실적이 아닙니다.
 
-채팅 제한(10분·24시간)은 모두 자동이며 24시간 제한도 강퇴가 아닙니다. 강퇴는 승인 요청이 접수된 것과 실제 적용 완료(`ACTION_APPLIED`)를 구분합니다. 기준: 운영정책 v3.2 MP-2.1·MP-4.1~4.3(제재표·강퇴 기준은 v3.1과 같음).
+| 화면 | Mock 모드 캡처 |
+| --- | --- |
+| 시청자 · 채팅 | ![Mock 모드 시청자 채팅 화면](docs/screenshots/mock-console/viewer.png) |
+| 스트리머 · 실시간 모니터링 | ![Mock 모드 스트리머 관제 화면](docs/screenshots/mock-console/moderator.png) |
+| 시스템 운영자 · 실시간 관제 | ![Mock 모드 시스템 운영자 관제 화면](docs/screenshots/mock-console/admin.png) |
+| 시스템 운영자 · 채팅관제 Tracking | ![Mock 모드 시스템 운영자 채팅 처리 경로](docs/screenshots/mock-console/admin-tracking.png) |
 
-## 2. 실행 방법
+### 현재 제공 범위
 
-**요구 환경:** Node.js 20 이상 (`.nvmrc`: 20.20.2)
+| 역할 | Mock 모드 | API 모드 |
+| --- | --- | --- |
+| 시청자 | 방송·채팅·제재 시나리오 재현 | 실제 방송·채팅 조회와 전송, SSE, 본인 제재 상태 |
+| 스트리머 | 판정·문맥 검토·강퇴 결정을 시연 | 방송 시작·종료, 채팅·사건·검토 조회, 결정·오판 취소 |
+| 시스템 운영자 | 여러 방송 예시 데이터 조회 | `MONITOR` 권한으로 진행 중 방송의 채팅·사건·검토 조회 및 Tracking |
+
+## 화면 사용법
+
+아래 캡처도 `localhost:3000` **실제 API 콘솔**에서 찍었습니다.
+
+| 기능 | 접속·사용 방법 | 화면 |
+| --- | --- | --- |
+| 시연 도우미 | 시청자 화면 상단 검색창 오른쪽의 **별 아이콘**을 누릅니다. 패널에서 `시연을 위해 목업 채팅을 만들어줘…` 버튼을 누르면 현재 로그인 계정으로 1초에 1개씩 최대 30개를 실제 전송합니다. 패널을 닫아도 계속 진행되며, 중단하려면 패널을 다시 열어 **중단하기**를 누릅니다. 욕설이 포함돼 채팅 제한이 적용될 수 있습니다. `demo-viewer 30명·60개` 장면은 Mock 모드 전용입니다. | [화면 보기](#시청자-시연-도우미-화면) |
+| 서랍 탭 | **스트리머·시스템 운영자** 화면 왼쪽 위 **☰**를 누릅니다. 넓은 화면에서는 메뉴가 아이콘만 남도록 접히고, 다시 누르면 이름이 보입니다. 좁은 화면에서는 서랍이 열리며 항목을 고르면 해당 화면으로 이동합니다. | ![실제 API 콘솔의 아이콘만 보이는 접힌 서랍](docs/screenshots/api-console/drawer-collapsed.png) |
+| 로그아웃 | 시청자·스트리머·시스템 운영자 모두 화면 **오른쪽 위 계정 아이콘**을 누릅니다. 열린 메뉴에서 계정 이름을 확인하고 **로그아웃**을 선택하면 로그인 화면으로 돌아갑니다. 별도의 로그아웃 화면은 없습니다. | ![실제 API 콘솔의 계정 메뉴와 로그아웃](docs/screenshots/api-console/account-menu.png) |
+
+### 시청자 시연 도우미 화면
+
+아래는 **실제 API 콘솔**에서 시청자로 로그인해 별 아이콘을 누른 장면입니다. 패널의 첫 번째 버튼은 현재 계정으로 채팅 30개를 전송합니다. 두 번째 `demo-viewer 30명·60개` 버튼은 Mock 모드에서만 사용할 수 있으므로 API 화면에서는 비활성화됩니다.
+
+![실제 API 콘솔에서 시청자 시연 도우미를 연 화면](docs/screenshots/api-console/viewer-assistant.png)
+
+### 사람이 결정하는 관제 장면
+
+스트리머의 **실시간 모니터링**은 왼쪽부터 강퇴 승인 대기, 문맥 검토 대기, 실시간 채팅 순서입니다. 아래 결정은 Mock 화면에서도 시연할 수 있으며, API 모드에서는 실제로 생성된 요청에만 적용됩니다.
+
+| 장면 | 확인하고 처리하는 방법 |
+| --- | --- |
+| AI 문맥 검토 | **문맥 검토 대기**에서 채팅과 주변 대화, AI 판정 근거·정책을 확인합니다. **정상 확정·위반 확정·보류** 중 하나를 고른 뒤 제출합니다. AI의 답은 제안이며 최종 문맥 판단은 스트리머가 합니다. 보류한 채팅은 승인 없이 공개되지 않습니다. |
+| 강퇴 승인 | **강퇴 승인 대기**에서 같은 시청자의 기준 사건 채팅 3건과 각각의 판정 상태를 확인하고 **강퇴 승인·강퇴 기각**을 선택해 제출합니다. 승인 응답만으로 실제 강퇴가 완료된 것은 아닙니다. 백엔드가 기준 사건을 재검증하고 실행한 결과를 별도로 확인해야 합니다. |
+
+![Mock 모드의 강퇴 승인 대기·문맥 검토 대기·실시간 채팅](docs/screenshots/mock-console/moderator.png)
+
+### 제재받은 시청자에게 보이는 화면
+
+아래 두 장면은 **Mock 모드**에서 같은 시청자 `어둠의유저`의 화면을 캡처한 것입니다. 첫 화면에는 욕설 등으로 숨겨진 **본인 채팅과 제재 사유**, 채팅 제한 종료 시각이 표시됩니다. 이 메시지는 본인과 권한 있는 운영자에게만 보입니다. 두 번째 화면은 스트리머가 강퇴를 승인한 뒤 **목업에서 실행 성공까지 시뮬레이션한 상태**입니다. 영상 대신 이용 제한 안내가 나오고 이번 방송의 시청·채팅이 막힙니다. 승인만 한 상태에서는 이 화면으로 바뀌지 않습니다.
+
+| 욕설 제재·채팅 제한 | 강퇴 실행 후 시청 제한 |
+| --- | --- |
+| ![Mock 모드에서 욕설 제재를 받은 시청자의 비공개 채팅과 제한 안내](docs/screenshots/mock-console/viewer-sanction-before-kick.png) | ![Mock 모드에서 강퇴가 적용된 시청자의 이용 제한 화면](docs/screenshots/mock-console/viewer-kicked-after-approval.png) |
+
+### 시스템 운영자 조회와 채팅 추적
+
+시스템 운영자의 **실시간 관제**에서는 진행 중인 방송을 선택해 채팅 판정, 문맥 검토, 강퇴 요청을 살펴봅니다. 강퇴 요청은 **결정 상태(대기·승인·기각 등)**와 **실제 실행 결과**를 따로 확인합니다. 승인과 실행을 같은 상태로 취급하지 않으며, 실행 결과가 조회되지 않으면 완료로 단정하지 않습니다. 관리자 화면은 조회 전용입니다.
+
+**채팅관제 Tracking**에서 방송을 고르고 채팅 한 줄을 선택하면 채팅 상세, 단계별 판단 근거, 백엔드·Agent·운영자를 거친 처리 경로와 상태 변경 기록이 나타납니다. 선택 중에는 목록이 자동으로 올라가지 않고 다른 채팅이 흐리게 표시됩니다. 새 채팅은 계속 수신되며 **채팅 재개**를 누르면 다시 최신 목록으로 돌아갑니다. 실제 API에서 조회되지 않은 Agent 근거·강퇴 실행 결과는 임의로 채워 넣지 않습니다.
+
+비공개 채팅과 주변 대화의 열람은 백엔드 권한 검사와 마스킹 범위를 따릅니다. 이 화면이 모든 데이터 누수를 막는다고 단정할 수는 없으며, 관리자 조회 권한과 시청자에게 노출되는 데이터의 분리는 API 권한 검사 및 역할별 응답으로 검증해야 합니다.
+
+![Mock 모드의 채팅 처리 경로](docs/screenshots/mock-console/admin-tracking.png)
+
+## 빠른 실행
+
+**요구 환경:** Node.js 20 이상. `.nvmrc`는 팀에서 쓰는 버전을 가리킵니다.
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
-접속: **<http://localhost:5173>**
+기본값은 **Mock 모드**이며 `http://localhost:5173`에서 열립니다. 화면과 시나리오는 백엔드 없이 확인할 수 있습니다.
 
-기본값은 **Mock 모드**이며, 백엔드 없이 화면과 제재 시나리오를 시연할 수 있습니다.
-
-<br />
-
-###### 로그인 ID / Password
-
-* Mock 모드와 백엔드 연결(API 모드) 모두 같은 계정을 씁니다. API 모드에서는 Backend를 `local` 프로파일로 실행했을 때 들어가는 시드 계정입니다.
-
-| 역할      | 아이디         | 비밀번호              | 들어가는 화면       |
-| :------ | :---------- | :---------------- | :------------ |
-| 시청자     | `viewer`    | `liveguard-local` | 시청자 채팅 화면     |
-| 스트리머    | `moderator` | `liveguard-local` | 운영 콘솔         |
-| 시스템 운영자 | `admin`     | `liveguard-local` | AI Agent 모니터링 |
-
-**시연 예시:** `moderator` 로그인 → 채팅 아래 **목업 빠른 시연**을 펼쳐 `공격 표현`·`공식 사칭`·`개인정보`를 누름 → 채팅을 눌러 오른쪽 **채팅 상세**에서 AI 판단을 확인 → **결정 대기**의 **문맥 검토** 탭에서 그 건을 펼쳐 정상·위반·보류를 고르고 이유를 적어 제출. 초기 데이터의 `어둠의유저`는 확정 위반 3건으로 강퇴 승인 요청이 올라와 있습니다. 승인하면 **모의 적용 성공·실패·결과 미확인** 버튼으로 실행 결과를 시뮬레이션합니다. 사건 하나가 어떻게 처리됐는지는 **사건 이력**에서 행을 펼쳐 확인합니다. Mock 상태는 같은 탭에서 계정을 전환해도 유지되며, 새로고침하면 초기화됩니다.
-
-**목업 판정:** Backend 필터 사전(`src/main/resources/filter/`)의 사본과 같은 처리 경로를 씁니다. AI 제안은 실제 모델 대신 고정 규칙으로 붙인 `(목업 Agent)` 결과입니다.
-
-**채팅 제한 UI 시연:** `viewer` 로그인 → 영상 아래 **목업 시연**에서 **제한·해제 효과 보기**를 누릅니다. 주황색 제한 안내와 입력 차단을 확인하고, 10초 후 초록색 해제 안내·입력창 강조·채팅 복구를 확인할 수 있습니다. **24시간 표시 보기**로 다음 날 종료 날짜를 확인하고 **제한 해제 시연**으로 바로 해제할 수도 있습니다. 이 버튼은 목업 화면 상태만 바꾸며, 시연용 10초는 실제 정책 시간이 아닙니다.
-
-**목업 직접 입력:** 시청자 채팅도 같은 목업 판정을 거칩니다. 확정 욕설(`시발`·`씨발`·`ㅅㅂ` 등, 예외 `시발점`·`시발역`)은 같은 시청자의 욕설 확정 수에 따라 1회 숨김 → 2회 숨김＋10분 채팅 제한 → 3회 이상 숨김＋24시간 채팅 제한입니다. 링크는 바로 숨김, 공격 표현·사칭·연락처는 운영자 검토 전까지 임시 비노출입니다. 띄어 쓴 우회 표현은 Backend와 마찬가지로 검사하지 않습니다. **제한 해제 시연**은 입력 제한만 풀고 이력은 남깁니다. 목업 시연의 **필터 사전 예시**는 Backend 사전 단어를 바로 숨김·검토 대기·통과로 나눠 보여 주며, 누르면 입력창에 채워집니다. 같은 사전은 운영자 **정책 근거**에도 표로 있습니다. API 모드의 판정은 Backend가 수행합니다.
-
-**기타 명령어:** `npm run build`(타입 검사·프로덕션 빌드), `npm run preview`(빌드 미리보기)
-
-<br />
-
-### 목업과 API 화면 (#28)
-
-두 모드는 같은 화면 모양을 씁니다. 다른 것은 값과 아래 목업 전용 기능뿐입니다.
-
-* **모드 표시:** 시청자·운영자·시스템 화면 상단 오른쪽의 같은 배지. 목업은 `MOCK 데이터`, API는 `실시간 연결` / `연결 대기`
-* **알림:** 안내는 화면 안 안내 줄(`role=status`), 오류는 오류 줄(`role=alert`). 토스트는 안내 줄이 없는 곳(로그인 직후, 시스템 운영자 화면)에만 씁니다
-* **시청자 화면 장식:** 상단 아이콘, 채널 아바타, 구독·좋아요·공유 버튼은 공통. 채널 이름·구독자 수·시청자 수·좋아요 수·알림 수는 목업 예시 값만 있고, API는 계약에 없어 숨깁니다
-* **영상 표시:** 두 모드 모두 `● 실시간`과 방송 시작(`live.startedAt`)부터 지난 시간. 시청자 수는 목업만. 설명 줄은 두 모드 모두 `방송 시작: (시각)`
-
-| 목업 전용 기능 | 위치 |
-| --- | --- |
-| 목업 시연 패널 (시청자 바꾸기, 제한·해제 효과, 필터 사전 예시) | 시청자 화면 영상 아래 |
-| 빠른 시연 | 운영자 실시간 관제의 채팅 아래 |
-| 채팅 흐름 일시정지·재생 | 운영자 실시간 채팅 머리 |
-| 강퇴 모의 실행 (모의 적용 성공·실패·결과 미확인) | 운영자 강퇴 처리 줄 |
-| 로그인 빠른 계정 | 로그인 화면 |
-
-API 화면에만 있는 것: 새로고침 버튼, 방송 시작·종료 버튼.
-
-## 3. 백엔드 연동
-
-[Backend 저장소](https://github.com/skalaP05-03-261019/liveguard-be)의 안내에 따라 PostgreSQL과 Spring Boot 서버를 먼저 실행합니다. 로컬 백엔드 기본 주소는 `http://localhost:8080`입니다.
+실제 백엔드가 `http://localhost:8080`에서 실행 중이면 API 모드로 시작합니다.
 
 ```bash
 VITE_USE_API=true npm run dev
 ```
 
-API 모드는 백엔드 v1.0(liveId) API를 씁니다. 백엔드·AI Agent까지 한 번에 붙이는 방법은 아래 [전체 연결](#전체-연결-backend--ai-agent-infra)을 참고합니다.
+Vite는 브라우저의 `/api` 요청을 백엔드로 프록시합니다. `.env.example`을 `.env.local`로 복사하면 모드와 대상 주소를 고정할 수 있습니다. `VITE_` 변수는 브라우저에 노출되므로 비밀번호·API 키를 넣지 마세요.
 
-지속적으로 API 모드를 사용하려면 `.env.example`을 `.env.local`로 복사하고 `VITE_USE_API=true`로 설정합니다.
+| 변수 | 기본값 | 용도 |
+| --- | --- | --- |
+| `VITE_USE_API` | `false` | `true`면 실제 API, 그 외는 Mock |
+| `VITE_BACKEND_TARGET` | `http://localhost:8080` | Vite 개발 서버의 `/api` 프록시 대상 |
+| `VITE_API_BASE_URL` | 빈 값 | 별도 API 주소가 필요할 때만 설정 |
+| `VITE_STREAM_SRC`, `VITE_STREAM_POSTER` | `public/media`의 기본 파일 | 시연 영상·포스터 |
+| `VITE_DEMO_WIFI_NAME` | `SKALA 4층 Wi-Fi` | 접속 안내에 표시할 행사 Wi-Fi 이름 |
 
-| 환경 변수                 | 기본값                     | 설명                             |
-| --------------------- | ----------------------- | ------------------------------ |
-| `VITE_USE_API`        | `false`                 | `true`: 실제 API / `false`: Mock |
-| `VITE_BACKEND_TARGET` | `http://localhost:8080` | 개발 서버의 `/api` 프록시 대상           |
-| `VITE_API_BASE_URL`   | 빈 값                     | 별도 API 기본 주소가 필요한 경우 설정        |
-| `VITE_STREAM_SRC`     | 기본 데모 영상                | 방송 영상 URL                      |
-| `VITE_STREAM_POSTER`  | 기본 포스터                  | 영상 썸네일 URL                     |
-| `VITE_DEMO_WIFI_NAME` | `SKALA 4층 Wi-Fi`        | 연결 실패 안내 및 시연 접속 자료에 표시할 Wi-Fi 이름. 장소 변경 시 Vite 빌드 전에 설정 |
+### 전체 스택과 로컬 계정
 
-`VITE_DEMO_WIFI_NAME`은 프론트엔드 빌드 시점에 반영됩니다. 행사 Wi-Fi가 다르면 `.env.local` 또는 빌드 환경에서 실제 이름으로 지정한 뒤 다시 빌드하세요.
+DB·Backend·Agent·MCP·Frontend를 함께 실행할 때는 [liveguard-infra README](https://github.com/skalaP05-03-261019/liveguard-infra)를 따르세요. 현재 infra Compose는 검증된 `BUSINESS_MCP_IMAGE` 값이 필요합니다. 해당 저장소의 `.env.example`과 README를 확인한 뒤 실행합니다. 통합 스택의 프론트 기본 주소는 `http://localhost:3000`입니다.
 
-* **API 모드 계정:** `viewer`, `moderator`, `admin` / 공통 비밀번호 `liveguard-local` (`local` 프로파일 시드 계정)
+로컬 시드 계정은 아래와 같습니다. API 모드에서 계정은 Backend `local` 프로파일에 시드되어 있어야 합니다.
 
-* **인증:** Spring Session 쿠키(`JSESSIONID`) 및 CSRF 토큰(`XSRF-TOKEN`) 사용
+| 역할 | 아이디 | 로컬 시드 비밀번호 |
+| --- | --- | --- |
+| 시청자 | `viewer` | `liveguard-local` |
+| 스트리머 | `moderator` | `liveguard-local` |
+| 시스템 운영자 | `admin` | `liveguard-local` |
 
-* **통신:** REST API로 인증·채팅·사건 조회·강퇴 결정을 처리하고, SSE로 채팅·관제 이벤트를 수신
-
-* **주의:** `VITE_` 환경 변수는 브라우저에 노출되므로 비밀번호·API 비밀키를 넣지 않습니다.
-
-### 연동 현황
-
-| 기능                | 상태                     |
-| ----------------- | ---------------------- |
-| 로그인·세션 인증         | API 연동                 |
-| 채팅 조회·전송 및 SSE 수신 | API 연동                 |
-| 방송 시작·종료, 사건·검토 조회, 문맥 검토·강퇴 결정, 오판 취소, 시청자 관리 | API 연동 (liveId) |
-| 시스템 운영자 화면     | 목업과 같은 메뉴·표를 쓰고 데이터 칸은 "연동 API 없음". `admin`은 어느 채널에도 소속되지 않고, 백엔드 권한이 채널 멤버십 기준이라 조회할 수 있는 데이터가 없음. 시스템 운영자 권한은 백엔드와 협의 중 |
-| 강퇴 실패·결과 미확인 표시 | 화면은 구현됨. Backend가 `ACTION_FAILED`를 아직 발행하지 않아 테스트 서버로만 확인 |
-
-* **2026-10-22 infra 통합 실행에서 화면으로 확인:** 로그인, 채팅 전송·실시간 수신, 관제 SSE, 사건·검토 조회, 오판 취소, AI Agent 판정 후 문맥 검토 생성. 문맥 검토 결정은 [통합 시험 기록](docs/live-v1-integration.md)을 참고합니다.
-
-* 인증·제재의 최종 권한은 백엔드에 있습니다.
-
-### 전체 연결: Backend + AI Agent (infra)
-
-[liveguard-infra](https://github.com/skalaP05-03-261019/liveguard-infra)의 Docker Compose로 DB·Backend·AI Agent·MCP 서버와 이 프론트를 한 번에 실행합니다. 자세한 절차는 infra README를 따르고, 여기에는 프론트에 필요한 부분만 적습니다.
-
-1. infra 폴더에서 `.env.example`을 `.env`로 복사하고 값을 채웁니다. 실제 API 콘솔과 시청자 관리를 쓰려면 아래 값이 필요합니다.
-
-| 값 | 이유 |
-| --- | --- |
-| `LIVEGUARD_POLICY_VERSION=v3.2` | 활성 정책 버전(Backend 기본값 v3.2, A-27). **Backend·Agent·RAG가 같은 값**이어야 합니다. 다르면 Agent 판정이 `STALE_VERSION`으로 거절되고 AI 판정 없는 검토(A-25)로 넘어갑니다. Backend는 이전 fixture 스위치(`LIVEGUARD_TBD_FIXTURE_ENABLED`)로 경로를 나누지 않습니다 |
-| (`LIVEGUARD_V1_UI`) | 더 이상 필요 없습니다. API 모드 빌드는 항상 liveId 콘솔입니다 |
-| `AGENT_DELIVERY_ENABLED=true` | 백엔드가 AI Agent에 판정을 맡깁니다 |
-| `AGENT_CHECKPOINT_DB_URL`, `RAG_DB_URL` | `postgresql://liveguard:<DB 비밀번호>@db:5432/liveguard` 형식. 안내 문구를 그대로 두면 Agent가 시작하지 못합니다 |
-
-2. 실행하고 6개 서비스(db, backend, agent, business-mcp, rag-mcp, frontend)가 `Up`인지 확인합니다.
+역할을 동시에 확인할 때는 **서로 다른 브라우저 프로필** 또는 서로 다른 호스트를 사용하세요. 같은 호스트는 포트가 달라도 로그인 쿠키를 공유합니다. 프론트를 수정한 후 3000번 컨테이너에 반영하려면 infra 폴더에서 프론트만 재빌드합니다.
 
 ```bash
-cd ../infra
-docker compose up -d
-docker compose ps
+docker compose up -d --build --no-deps frontend
 ```
 
-3. 처음 한 번 운영 정책을 색인합니다. OpenAI API를 호출하므로 비용이 조금 발생합니다.
-
-```bash
-docker compose run --rm --no-deps rag-mcp python -m app.rag_mcp.index
-```
-
-**접속**
-
-* **3000번 (infra가 빌드한 화면):** <http://localhost:3000>. 프론트 코드를 바꾼 뒤에는 `docker compose up -d --build --no-deps frontend`로 프론트만 다시 빌드합니다. `--no-deps`가 없으면 백엔드도 새로 만들어져 로그인이 풀립니다.
-
-* **5173번 (개발 서버):** 이 저장소에서 `VITE_USE_API=true npm run dev`. infra 백엔드가 `127.0.0.1:8080`을 열어 두므로 `/api`가 그대로 연결됩니다.
-
-**AI Agent를 거치는 채팅** (백엔드 규칙 필터 기준)
-
-| 시청자 채팅 | 처리 |
-| --- | --- |
-| 확정 욕설, 링크 | 백엔드 규칙으로 바로 숨김·위반 확정 (Agent를 거치지 않음) |
-| `미쳤`·`접어라`·`꺼져`·`죽어`가 들어간 말, 공식 사칭 + 로그인 요구 | AI Agent 문맥 판정 → 운영자 **문맥 검토 대기** |
-| 전화번호, 이메일 | AI Agent 개인정보 조사 → 필요하면 운영자 문맥 검토 |
-| 확정 위반이 누적돼 강퇴 기준(3건) 도달 | AI Agent 강퇴 검토 → 운영자 **강퇴 승인 대기** |
-
-**문제 해결** (2026-10-22 실제 사례)
-
-| 증상 | 원인·해결 |
-| --- | --- |
-| `localhost:3000` 연결 거부 (`ERR_CONNECTION_REFUSED`) | 다른 Postgres 컨테이너가 5433 포트를 쓰고 있으면 infra 컨테이너가 `Created`에서 멈춥니다. 그 컨테이너를 멈추고 `docker compose up -d` |
-| agent가 계속 재시작 | `AGENT_CHECKPOINT_DB_URL`·`RAG_DB_URL`이 잘못됨 (안내 문구가 그대로 있거나 비밀번호 특수문자를 URL 인코딩하지 않음). `docker compose logs agent`로 확인 |
-| 5173 화면이 Mock으로 뜸 | 다른 폴더의 개발 서버가 5173을 쓰고 있거나 환경 변수 없이 실행됨. 그 서버를 끄고 위 명령으로 다시 실행 |
-| 문맥 검토가 모두 "AI 결과 없음"으로 열림 | Backend와 Agent의 `LIVEGUARD_POLICY_VERSION`이 다름(예: Backend v3.2, Agent v3.1). 같은 값으로 맞추고 Agent에 v3.2 정책 색인이 있는지 확인 |
-
-### Docker로 실행
-
-빌드한 화면 파일을 nginx가 제공하고, `/api` 요청은 nginx가 백엔드로 전달합니다. 화면과 API가 같은 주소에서 나오므로 세션·CSRF 쿠키와 SSE가 개발 서버와 똑같이 동작합니다. 백엔드(`http://localhost:8080`)를 먼저 실행해 둡니다.
-
-```bash
-# 이미지 만들기 (기본: API 모드)
-docker build -t liveguard-fe:local .
-
-# 실행: 내 컴퓨터 3000 → 컨테이너 8080 (백엔드가 8080을 쓰므로 3000으로 연다)
-docker run --rm --name liveguard-fe -p 3000:8080 liveguard-fe:local
-```
-
-접속: **<http://localhost:3000>**
-
-<br />
-
-환경변수
-
-| 설정                  | 넣는 시점                | 기본값                                | 설명                                        |
-| ------------------- | -------------------- | ---------------------------------- | ----------------------------------------- |
-| `VITE_USE_API`      | 빌드 (`--build-arg`)   | `true`                             | `false`면 Mock 모드 이미지. 바꾸면 **다시 빌드**해야 합니다 |
-| `VITE_API_BASE_URL` | 빌드 (`--build-arg`)   | 빈 값                                | 비워 두면 같은 주소의 `/api`로 요청                   |
-| `BACKEND_URL`       | 실행 (`docker run -e`) | `http://host.docker.internal:8080` | nginx가 `/api`를 넘길 백엔드 주소 (끝에 `/` 없이)       |
-
-* **확인:** `curl -i http://localhost:3000/api/auth/me`가 `401`과 `Set-Cookie: XSRF-TOKEN=...`을 돌려주면 nginx를 거쳐 백엔드까지 연결된 것입니다.
-
-* nginx는 백엔드 주소를 10초마다 다시 찾습니다. 백엔드 컨테이너가 재시작돼 주소가 바뀌어도 프론트를 재시작할 필요가 없습니다.
-
-* 컨테이너 안의 `localhost`는 컨테이너 자신이므로, 내 컴퓨터의 백엔드는 `host.docker.internal`로 가리킵니다. 다른 백엔드에 붙일 때는 `-e BACKEND_URL=http://주소:포트`를 추가합니다.
-
-* 빌드 중에 타입 검사(`vue-tsc`)를 하므로 타입 오류가 있으면 이미지 빌드가 실패합니다.
-
-| 증상                              | 원인·해결                                           |
-| ------------------------------- | ----------------------------------------------- |
-| 로그인 창에 "데모 계정을 선택해 체험해 보세요"가 보임 | Mock 모드로 빌드됨. `VITE_USE_API=true`(기본값)로 다시 빌드   |
-| `/api` 요청이 502                  | 백엔드가 꺼져 있거나 `BACKEND_URL`이 잘못됨. 백엔드가 막 재시작됐다면 10초 안에 자동으로 다시 연결됩니다. Linux에서 `--add-host`로만 만든 이름은 nginx가 찾지 못하므로 IP 주소를 씁니다 |
-| 채팅이 실시간으로 안 올라옴                 | `nginx.conf.template`의 `proxy_buffering off` 확인 |
-
-## 4. 프로젝트 구조
+## 채팅 관제 흐름
 
 ```text
-src/
-├── App.vue                 # 역할별 화면 분기, 목업 운영자 데이터 연결
-├── LoginPage.vue           # 로그인
-├── ViewerScreen.vue        # Mock/API 공통 시청자 화면
-├── ViewerPage.vue          # 목업 시청자 데이터 연결
-├── StudioScreen.vue        # Mock/API 공통 운영자(Studio) 화면
-├── LiveConsole.vue         # 실제 API 연결: liveId REST·SSE, 시청자·운영자 화면에 데이터 전달
-├── SystemPage.vue          # 시스템 운영자 모니터링 (목업 데이터, API 모드는 같은 화면에 빈 데이터)
-├── ChatTimeoutNotice.vue   # 채팅 제한 안내 (Mock·API 공용)
-├── chatTime.ts             # 제한 종료 시각·남은 시간 표시 (한국 시간)
-├── ViewerManage.vue        # 시청자 관리 탭
-├── viewerManage.ts         # 시청자 관리 공통 모델 (사건·검토 → 시청자별 행)
-├── YtPlayer.vue            # 방송 플레이어
-├── stores/liveGuard.ts     # 로그인·세션, 목업 방송 상태
-├── api/client.ts           # REST API 클라이언트 (v1.0 liveId)
-├── contracts.ts            # API v1.0 타입·라벨
-├── sanction.ts             # 정책 v3.2 제재 기준표·강퇴 기준·처리 경로
-├── mockLive.ts             # 목업 판정 (Backend 처리 경로·v3.2 재현, API 모양의 사건·검토 생성)
-├── mock.ts / systemMock.ts # 시연 데이터·필터 사전 사본
-└── style.css               # 공통 스타일
-docs/
-├── screenshots/            # 화면 캡처
-├── evidence/chat-ui/       # 채팅 상태 UI 검증 캡처
-├── chat-state-ui.md        # 채팅 상태 처리(#7) 변경·검증 기록
-├── evidence/review-flow/   # 검토·제재 승인 흐름 검증 캡처
-├── review-flow.md          # 검토·제재 승인 흐름(#13) 검증 기록
-├── participatory-demo.md   # 참여형 데모 진행 안내(#16): 청중 접속·문장 카드·목업 대체·리허설 기록
-└── live-v1-integration.md  # 실제 API 콘솔 통합 시험 기록
-tests/live-chat.test.cjs    # 채팅 상태 브라우저 테스트 (npm run test:chat)
-public/media/               # 데모 영상·포스터
-Dockerfile                  # 빌드(Node 20) → 실행(nginx) 2단계 이미지
-nginx.conf.template         # 화면 제공·/api 프록시·SSE 설정 (BACKEND_URL 치환)
-.dockerignore               # 이미지에서 제외할 파일 (.env, node_modules 등)
+시청자 채팅
+  └─ Backend 1차 필터
+      ├─ 통과 → 공개
+      ├─ 규칙으로 확정된 위반 → 자동 숨김·제한
+      └─ 문맥 조사가 필요한 사건 → Agent 제안 → Backend 검증
+          ├─ 정책상 자동 처리 가능한 결과 → 상태 반영
+          └─ 운영자 결정이 필요한 결과 → 문맥 검토 대기
+
+최근 24시간의 서로 다른 확정 위반 사건 3건
+  → 강퇴 승인 요청 → 스트리머 승인 → Backend 재검증 → 이번 방송 종료까지 제한
 ```
 
-## 5. 명세 및 참고 자료
+**Agent가 본 모든 채팅이 운영자 승인으로 가는 것은 아닙니다.** 규칙 확정과 자동 반영 경로가 있고, 문맥 검토와 강퇴 승인에는 운영자 결정이 필요합니다. 구현 기준은 [운영정책 v3.2](https://github.com/skalaP05-03-261019/liveguard-be/blob/main/docs/policy/POLICY.md)와 [Backend OpenAPI](https://github.com/skalaP05-03-261019/liveguard-be/blob/main/contracts/openapi.yaml)입니다.
 
-* **API 기준:** [Backend `contracts/openapi.yaml`](https://github.com/skalaP05-03-261019/liveguard-be/blob/main/contracts/openapi.yaml) (v1.0, liveId 기준)
+## 주요 API 연결
 
-* **데이터 모델:** [Backend `docs/erd.md`](https://github.com/skalaP05-03-261019/liveguard-be/blob/main/docs/erd.md)
+호출은 [`src/api/client.ts`](src/api/client.ts)에 모여 있습니다.
 
-* **운영 정책:** [Backend `docs/policy/POLICY.md`](https://github.com/skalaP05-03-261019/liveguard-be/blob/main/docs/policy/POLICY.md) (v3.2, 구현 기준) / 프론트 제재 기준 `src/sanction.ts`
+| 용도 | 경로 |
+| --- | --- |
+| 세션 | `GET /api/auth/me`, `POST /api/auth/login`, `POST /api/auth/logout` |
+| 채널·방송 | `GET /api/channels`, `GET /api/channels/{channelId}/lives/current` |
+| 채팅 | `GET·POST /api/lives/{liveId}/messages`, `GET /api/lives/{liveId}/events` |
+| 관제 | `GET /api/guard/events?liveId=`, `GET /api/cases?liveId=`, `GET /api/reviews?liveId=&kind=` |
+| 스트리머 결정 | `POST /api/context-reviews/{reviewId}/decision`, `POST /api/kick-reviews/{reviewId}/decision` |
+| 오판 취소 | `POST /api/findings/{findingId}/revoke` |
 
-* **Agent 저장소:** [liveguard-agent](https://github.com/skalaP05-03-261019/liveguard-agent)
+인증은 세션 쿠키와 CSRF 토큰을 사용합니다. 비공개 채팅의 열람 범위와 마스킹은 Backend 권한 검사 결과를 따릅니다. 관리자 `MONITOR`는 여러 채널을 조회할 수 있지만 그 권한만으로 결정 버튼이 생기지는 않습니다.
 
-* **참여형 데모:** [docs/participatory-demo.md](docs/participatory-demo.md) (청중 휴대폰 접속, 시나리오·문장 카드, 실패 시 목업 대체)
+## 검증과 프로젝트 안내
 
-**연동 시 유의사항 (Backend 현재 동작):** `REVIEW_DECIDED`의 검토 종류를 명세의 `reviewKind` 대신 `kind`로 보내 프론트가 둘 다 읽습니다. 검토 상태에 명세에 없는 `INVALIDATED`(근거 취소·재검증 탈락)가 올 수 있습니다. 검토 카드의 `summary`는 고정 문구이고, AI 근거는 `findings[]`에만 있습니다.
+```bash
+npm run build          # TypeScript 검사 + 프로덕션 빌드
+npm run test:chat      # 채팅·역할 화면 회귀 테스트
+npm run test:contracts # API 계약 정렬 검사
+```
 
-**알려진 제약 (시청자 화면)**
+| 경로 | 역할 |
+| --- | --- |
+| `src/ViewerScreen.vue`, `src/StudioScreen.vue`, `src/SystemPage.vue` | 역할별 화면. Mock과 API가 같은 화면 컴포넌트를 사용 |
+| `src/LiveConsole.vue`, `src/api/client.ts` | API 화면의 REST·SSE 연결 |
+| `src/ViewerAssistant.vue` | 시연 도우미 |
+| `src/PeriodStats.vue`, `src/periodMock.ts` | 숨겨 둔 기간 통계 화면과 목업 데이터 |
+| `src/contracts.ts`, `src/sanction.ts` | API 타입·라벨, 정책 기준 |
+| `docs/screenshots/api-console/`, `docs/screenshots/mock-console/` | 이 README의 API 콘솔·목업 캡처 |
 
-| 제약 | 이유 | 화면에서 보이는 것 |
-| --- | --- | --- |
-| 채팅 제한이 걸린 사실을 최대 5초 늦게 알 수 있음 | 채팅 제한 시작을 알리는 실시간 이벤트(SSE)가 없음 | 5초마다 서버에서 다시 확인하거나, 다음 채팅을 보낼 때 `403 TIMED_OUT`을 받으면 입력부가 제한 안내로 바뀜 |
-| 실시간 `CHAT` 이벤트의 `isMine`을 쓰지 않음 | Backend가 이 값을 항상 `true`로 보냄 | 이벤트를 받으면 채팅 목록을 서버에서 다시 받아 그 응답의 `isMine`을 씀 |
-| 욕설·링크 숨김 안내는 화면이 사유 코드로 정함 | Backend가 두 경우를 "금지된 욕설 또는 링크가…" 한 문장으로 보냄 | 욕설은 "메시지에 금지된 욕설이 포함되어 숨김 처리되었습니다.", 링크는 "이 방송에서는 링크 전송이 금지되어 있습니다."(정책 문구) |
-| 채팅 제한 종료 시각은 입력부 안내에만 표시 | Backend의 메시지별 `timeoutUntil`이 그 메시지 때문이 아니라 지금 걸린 제한이라, 제한과 무관한 숨김 메시지에도 같은 시각이 붙음 | 숨긴 메시지에는 사유만 보이고, 종료 시각·남은 시간은 입력부 제한 안내에서 보임 |
-
-**데모 영상:** `public/media/live-stream.mp4`는 [Mnet M2의 A2O LITE - NEON 영상](https://www.youtube.com/watch?v=93j1fDGi_-8) 일부를 시연용으로 사용합니다. (외부 공개·배포 시 영상 사용 권한을 확인하거나 사용 허가된 영상으로 교체해야 합니다.)
-
-## 6. 화면별 API 연결
-
-호출 코드는 `src/api/client.ts`에 모여 있습니다.
-
-### API v1.0 (liveId)
-
-| 화면 | 호출 시점 | API |
-| --- | --- | --- |
-| 공통 | 앱 시작(세션 복원) · 로그인 · 로그아웃 | `GET /api/auth/me`, `POST /api/auth/login`, `POST /api/auth/logout` |
-| 시청자·운영자 | 입장 (현재 방송 찾기) | `GET /api/channels/{channelId}/lives/current` |
-| 운영자 | 방송 시작 / 종료 버튼 | `POST /api/channels/{channelId}/lives` / `POST /api/lives/{liveId}/end` |
-| 시청자·운영자 | 입장, 새로고침, SSE 이벤트 수신 시 | `GET /api/lives/{liveId}/messages` |
-| 시청자·운영자 | 채팅 전송 | `POST /api/lives/{liveId}/messages` |
-| 시청자·운영자 | 실시간 채팅 (SSE) | `GET /api/lives/{liveId}/events` |
-| 운영자 | 관제 이벤트 (SSE) | `GET /api/guard/events?liveId=` |
-| 운영자 · 실시간 관제·시청자 관리 | 입장, 새로고침, SSE 이벤트 수신 시 | `GET /api/reviews?liveId=&kind=CONTEXT`·`KICK`, `GET /api/cases?liveId=` |
-| 운영자 · 실시간 관제·시청자 관리 | 문맥 검토 결정 (정상·위반·보류) | `POST /api/context-reviews/{reviewId}/decision` |
-| 운영자 · 실시간 관제·시청자 관리 | 강퇴 승인·기각 | `POST /api/kick-reviews/{reviewId}/decision` |
-| 운영자 · 실시간 관제·시청자 관리 | 오판 취소 | `POST /api/findings/{findingId}/revoke` |
-| 운영자 | 사건·검토의 시청자 이름 표시 (사건 대상 메시지의 작성자) | `GET /api/lives/{liveId}/messages?limit=100&cursor=` (최대 5페이지) |
-
-* 채팅 SSE에서 받는 이벤트: `CHAT`, `MESSAGE_VISIBILITY_CHANGED`, `MESSAGE_RESTORED`, `LIVE_ACCESS_BLOCKED`, `LIVE_ENDED`, `ACTION_APPLIED`, `ACTION_FAILED`
-
-* 관제 SSE(운영자만)에서 받는 이벤트: `CASE_CREATED`, `CASE_UPDATED`, `CONTEXT_REVIEW_REQUIRED`, `KICK_REVIEW_REQUIRED`, `REVIEW_DECIDED`, `ACTION_APPLIED`, `ACTION_FAILED`, `TOOL_START`, `TOOL_END`, `TASK_FAILED`
+더 자세한 통합 절차와 검증 결과는 [API 통합 기록](docs/live-v1-integration.md), [검토·제재 흐름](docs/review-flow.md), [참여형 데모 안내](docs/participatory-demo.md)를 참고하세요. 데모 영상(`public/media/live-stream.mp4`)은 [Mnet M2의 A2O LITE - NEON 영상](https://www.youtube.com/watch?v=93j1fDGi_-8) 일부를 사용합니다. (To. 팀원께 외부 공개 시에는 사용 권한을 확인하거나 허가된 영상으로 교체하세요.)

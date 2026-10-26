@@ -1,4 +1,4 @@
-import type { ApiErrorBody, Decision, Envelope, Live, LiveCase, LiveReview, Me, Message, MessagePage, UUID } from '../contracts';
+import type { ApiErrorBody, ChannelWithLive, Decision, Envelope, Live, LiveCase, LiveReview, Me, Message, MessagePage, UUID } from '../contracts';
 import { ApiError } from '../contracts';
 
 const base = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
@@ -30,6 +30,7 @@ async function ensureCsrfToken(): Promise<void> {
 export const api = {
   login: async (username: string, password: string) => { await ensureCsrfToken(); return request<Me>('/api/auth/login', 'POST', { username, password }); },
   me: () => request<Me>('/api/auth/me'),
+  channels: () => request<ChannelWithLive[]>('/api/channels'),
   logout: () => request<void>('/api/auth/logout', 'POST'),
   currentLive: (channelId: UUID) => request<Live>(`/api/channels/${channelId}/lives/current`),
   startLive: (channelId: UUID) => request<Live>(`/api/channels/${channelId}/lives`, 'POST'),
